@@ -21,3 +21,5 @@ main { max-width: 960px; margin: 0 auto; padding: calc(var(--space) * 4) calc(va
 button { font: inherit; padding: var(--space) calc(var(--space) * 2); border-radius: var(--radius); border: 1px solid var(--text); background: var(--text); color: var(--surface); cursor: pointer; }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
 button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.skip { position: absolute; left: -9999px; }
+.skip:focus { left: calc(var(--space) * 2); top: calc(var(--space) * 2); background: var(--surface); padding: var(--space); border-radius: var(--radius); outline: 2px solid var(--focus); }
