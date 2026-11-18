@@ -1,0 +1,47 @@
+{
+  "name": "tax-copilot",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Tax Copilot for Expatify: extraction engine, tax rules and review portal for one tax preparer.",
+  "type": "module",
+  "main": "lib/src/functions/index.js",
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "check": "npm run check:types && npm run check:lint && npm run check:secrets",
+    "check:types": "tsc -p tsconfig.json --noEmit",
+    "check:lint": "eslint .",
+    "check:secrets": "node scripts/check-secrets.mjs",
+    "test:unit": "vitest run -c vitest.config.ts",
+    "test:integration": "firebase emulators:exec --only firestore --project demo-tax-copilot \"vitest run -c vitest.integration.config.ts\"",
+    "test:e2e": "playwright test",
+    "evals": "tsx evals/run.ts",
+    "preview": "npm run build:web && firebase hosting:channel:deploy \"${PREVIEW_CHANNEL:-local}\" --expires 7d",
+    "build": "npm run build:web && npm run build:functions",
+    "build:web": "vite build",
+    "build:functions": "tsc -p tsconfig.build.json",
+    "dev": "vite"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.0.0",
+    "firebase-functions": "^6.0.0",
+    "openai": "^5.0.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@firebase/rules-unit-testing": "^6.0.0",
+    "@playwright/test": "^1.65.1",
+    "@types/node": "^26.6.6",
+    "eslint": "^10.15.0",
+    "firebase": "^13.4.0",
+    "firebase-tools": "^15.36.0",
+    "globals": "^17.14.0",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.73.0",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.1"
+  }
+}

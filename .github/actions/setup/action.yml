@@ -1,0 +1,11 @@
+name: Setup
+description: Node from .nvmrc and a clean npm install.
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v7
+      with:
+        node-version-file: .nvmrc
+        cache: npm
+    - run: npm ci
+      shell: bash

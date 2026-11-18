@@ -1,60 +1,49 @@
 # QA.md
 
-## Purpose
-The pipeline, by stage name, not by tool. The CI calls fixed commands. Each project decides what
-runs behind them.
+Pipeline stages from golden-template/QA.md, bound to this project's tools.
 
-## Required sections
-- **Stage map**: table of stage, tool bound in this project, command.
-- **When each runs**: the trigger table below, with any project changes.
-- **Path filters**: the exact folders that count as app code and as eval inputs.
-- **Required checks**: which jobs the branch rule on main requires.
-- **Missing secret behavior**: what each job does when its secret is absent.
-
-## Stages
-| Stage | Golden says | Typical binding |
-| --- | --- | --- |
-| `check` | Required. Types, lint, secret guard | tsc, eslint |
-| `test:unit` | Required. Fast, no network | vitest, jest, pytest |
-| `test:integration` | Optional. Real services in emulators | emulator suite |
-| `test:e2e` | Optional. One smoke test minimum | playwright |
-| `evals` | Required if the product calls a model | golden set runner |
-| `review` | Required. Model from a variable | Codex, Claude |
-| `preview` | Optional. A link per pull request | hosting preview channel |
+## Stage map
+| Stage | Tool | Command | Workflow job |
+| --- | --- | --- | --- |
+| check | TypeScript, ESLint, secret guard | `npm run check` | push, pr: `check` |
+| test:unit | Vitest, network mocked | `npm run test:unit` | push, pr: `test:unit` |
+| test:integration | Firebase Emulator, Firestore rules tests | `npm run test:integration` | pr: `test:integration` |
+| test:e2e | Playwright, one smoke test | `npm run test:e2e` | pr: `test:e2e`, nightly |
+| evals | Golden set runner | `npm run evals` | pr: `evals`, nightly |
+| review | Codex via openai/codex-action, model from REVIEWER_MODEL | `scripts/review-prompt.mjs` | pr: `review` |
+| preview | Firebase Hosting preview channel | `npm run preview` | pr: `preview` |
 
 ## When each runs
-| Trigger | Stages | Budget |
+| Trigger | Workflow | Stages |
 | --- | --- | --- |
-| Push, any branch | check, test:unit | under 2 min |
-| Pull request | check, test:unit, test:integration, test:e2e*, evals*, preview, review | 10 to 15 min |
-| Nightly | full test:e2e, full evals, external change checks | while you sleep |
+| Push, any branch | push.yml | check, test:unit |
+| Pull request | pr.yml | check, test:unit, test:integration, test:e2e*, evals*, preview, review |
+| Nightly 02:00 UTC | nightly.yml | full test:e2e, full evals, government form change check (placeholder) |
+| Mention @claude | claude.yml | Claude Code builder, model from BUILDER_MODEL |
+| Manual | infra.yml | APIs, Firestore, rules, hosting, functions, health check |
 
-\* `test:e2e` only when app code changes. `evals` only when prompts, schema, rules, the model
-adapter or the eval cases change. Docs edits skip both.
+## Path filters
+\* test:e2e runs when app code changes: `web/`, `src/`, `rules/`, `tests/e2e/`, `firebase.json`,
+`firestore.rules`, `package*.json`, `vite.config.ts`, `playwright.config.ts`.
+\* evals run when eval inputs change: `prompts/`, `src/schema/`, `src/extraction/`, `src/models/`,
+`rules/`, `evals/`.
+Skipped jobs still run and report green with a notice, so the branch rule can require them.
+
+## Required checks on main
+Pull request required. Required jobs: `check`, `test:unit`, `test:integration`, `test:e2e`,
+`evals`, `preview`, `review`. Set after keys are in (final test).
+
+## Missing secret behavior
+| Job | Needs | Without it |
+| --- | --- | --- |
+| evals | OPENROUTER_API_KEY, APP_MODEL | Skips with a warning |
+| preview | FIREBASE_SERVICE_ACCOUNT, FIREBASE_PROJECT_ID | Skips with a warning |
+| review | OPENAI_API_KEY, REVIEWER_MODEL | Skips with a warning |
+| claude | ANTHROPIC_API_KEY, BUILDER_MODEL | Skips with a warning |
+| infra | FIREBASE_SERVICE_ACCOUNT, FIREBASE_PROJECT_ID, FIRESTORE_LOCATION | Fails with the missing names |
 
 ## Rules
-- Stage names are fixed. Scripts with these exact names exist in every project.
-- A job whose secret is missing skips with a clear message and exits green, until the secret
-  exists. Then it is required.
-- Path-filtered jobs still report a status, so the branch rule can require them.
-- Never a model name in code or workflows. Models come from repository variables.
-- Pin action versions. Give workflows the least permissions they need.
-- Main is protected: pull request required, every pull request job required.
-- A smoke test proves the pipeline: one green pull request and one blocked broken pull request.
-
-## Best known references
-- Practical test pyramid (Fowler): https://martinfowler.com/articles/practical-test-pyramid.html
-- Google, just say no to more end to end tests:
-  https://testing.googleblog.com/2015/04/just-say-no-to-more-end-to-end-tests.html
-- Google engineering practices, code review: https://google.github.io/eng-practices/review/
-- GitHub Actions security hardening:
-  https://docs.github.com/en/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions
-- GitHub rulesets: https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets
-- DORA metrics: https://dora.dev
-
-## What worked in past projects
-- Super Ramble: one CI job with secret guard, build, offline evals and a syntax check kept main
-  green. Separate steps made each failure visible on its own.
-- Super Ramble: an emulator integration test caught a server-only crash that unit tests missed.
-- Super Ramble lesson: one deploy shipped a model setting that broke every live call within a
-  minute. Gate model setting changes behind evals.
+- Never a model name in code or workflows. Variables only.
+- Model calls in unit tests use a mocked network.
+- Each Firestore allow rule ships with a rules test.
+- A smoke test proves the pipeline: one green pull request, one blocked broken pull request.

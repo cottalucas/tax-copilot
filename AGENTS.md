@@ -1,53 +1,64 @@
 # AGENTS.md
 
-## Purpose
-Always-on rules for any coding agent (Claude Code, Codex, Cursor, others). Every tool reads this
-file first. CLAUDE.md and other tool files hold one line that points here.
+Always-on rules for every coding agent in this repo (Claude Code, Codex, Cursor, others).
+CLAUDE.md only points here. Built from golden-template/AGENTS.md.
 
-## Required sections
-- **Session starter**: the exact files to read, then propose a plan and wait for approval.
-- **Read order**: AGENTS, PRD, TASKS, PROGRESS always. ARCHITECTURE, DESIGN, EVALS, MODELS,
-  SECURITY when the task touches them.
-- **Commands**: the stage commands from QA.md, with the real script names.
-- **Project rules**: the Never list from the PRD, data rules, locked stack.
-- **Definition of done**: acceptance criteria pass, stages green, docs and PROGRESS updated.
-- **Escalate when**: the list of moments the agent stops and asks.
-- **Conflict order**: which file wins when two disagree.
+## Session starter
+Read AGENTS.md, PRD.md, TASKS.md and PROGRESS.md. Propose the plan: which tasks, in what order,
+which acceptance criteria you will check. Wait for approval before writing code.
 
-## Rules
-- One plan per session. The plan can cover several related tasks. Stop at the first failed
-  acceptance check and report.
-- Never invent product answers. Ask, or log an assumption in PROGRESS.md when running unattended.
-- Business rules are code with tests, never prompts.
-- Every model call goes through the one adapter in MODELS.md. Models from variables, keys from
-  secrets. Never a model name or a key in code or workflows.
-- Update PROGRESS.md and mark the task in TASKS.md at the end of every task.
-- Docs change in the same pull request as the code that changes them.
-- Load STYLE.md before writing any user-facing text, doc or pull request description.
-- Small pull requests. One task per pull request when possible.
-- Conflict order: Linear wins on scope, ARCHITECTURE wins on technical shape, SECURITY wins on
-  everything about data.
-- Escalate on: scope change, new dependency on a paid service, data leaving its region, same
-  failure twice, deleting work you did not write.
+Read on demand: ARCHITECTURE.md (cross-component work, data), DESIGN.md (any UI), EVALS.md
+(prompts, schema, rules, src/models), MODELS.md (any model call), SECURITY.md (any data),
+QA.md (pipeline), STYLE.md (any text a person reads).
 
-## Best known references
-- AGENTS.md open convention: https://agents.md
-- Claude Code memory files and best practices:
-  https://docs.anthropic.com/en/docs/claude-code/memory and
-  https://www.anthropic.com/engineering/claude-code-best-practices
-- Effective context engineering for agents:
-  https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents
-- Building effective agents (keep workflows simple first):
-  https://www.anthropic.com/engineering/building-effective-agents
-- Agent skills, loaded only when needed:
-  https://docs.anthropic.com/en/docs/agents-and-tools/agent-skills/overview
-- Spec-driven development kit: https://github.com/github/spec-kit
+## Working rules
+- One plan per session. A plan may cover several related tasks.
+- Stop at the first failed acceptance check. Report what failed and why. Do not work around it.
+- Never invent product answers. Ask. When running unattended, log the guess in PROGRESS.md under
+  Assumptions and continue.
+- At the end of each task: mark it in TASKS.md, add a Log entry to PROGRESS.md, same pull request.
+- Docs change in the same pull request as the code that changes them. Docs state what the code
+  does today.
+- Small pull requests. Put the Linear id (SR-n) in the branch name and the title.
+- Load STYLE.md before writing copy, docs or pull request text.
 
-## What worked in past projects
-- ai-builder-series: AGENTS.md as the conductor, CLAUDE.md as a pointer, worked across tools.
-- ai-builder-series: an explicit escalation list stopped silent scope creep.
-- Super Ramble: "challenge conflicts before building" caught doc versus code drift early.
-- Super Ramble: a definition of done with exact commands made "done" checkable.
-- Super Ramble lesson: one doc said a value was encrypted when it was not. Rule: docs state what
-  the code does today, never what it will do.
-- Chapter 2 change: one plan per session beats one task per session with current agents.
+## Project rules
+- Business rules are code with tests, never prompts. They live in rules/, one test per rule.
+- Every model call goes through src/models. Models come from variables (APP_MODEL,
+  BUILDER_MODEL, REVIEWER_MODEL). Keys come from secrets. Never a model name in code or workflows.
+- Never store client documents outside her Google Drive.
+- Never store client government credentials.
+- Never submit without her final review.
+- Never send real client data outside the EU or to any dev tool. Golden cases are anonymized.
+- Real client data only through Vertex AI in an EU region. OpenRouter only for dev and anonymized
+  evals. src/models enforces this with `dataClass`.
+- Never use an LLM judge for numbers.
+- Stack is locked: Firebase Hosting and Auth, Cloud Functions in europe-west6, Firestore for
+  status, flags and corrections only.
+
+## Commands
+| Stage | Command |
+| --- | --- |
+| check | `npm run check` (TypeScript, ESLint, secret guard) |
+| test:unit | `npm run test:unit` (Vitest) |
+| test:integration | `npm run test:integration` (Firestore emulator, needs Java 11+) |
+| test:e2e | `npm run test:e2e` (Playwright smoke) |
+| evals | `npm run evals` (golden set runner) |
+| preview | `npm run preview` (Firebase Hosting preview channel) |
+
+## Definition of done
+- Every acceptance criterion of the task passes, checked by a test or a visible check.
+- check, test:unit and test:integration pass. test:e2e passes when app code changed. evals pass
+  when prompts, schema, rules, src/models or evals changed.
+- TASKS.md and PROGRESS.md updated. No secret or client data in the diff.
+
+## Escalate when
+- Scope changes, or Linear and a doc disagree.
+- A change needs a new paid service or a new region.
+- Any data would leave the EU or reach a dev tool.
+- The same failure happens twice.
+- You would delete work you did not write.
+
+## Conflict order
+Linear wins on scope. SECURITY.md wins on anything about data. ARCHITECTURE.md wins on technical
+shape. The latest PROGRESS.md entry wins on history.

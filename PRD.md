@@ -1,49 +1,65 @@
 # PRD.md
 
-## Purpose
-The product contract. What problem, for whom, how we measure it, and what we will never do.
-The agent reads it every session.
+Source: Notion "Tax Copilot for Expatify, Product Doc", PRD section. Scope from Linear project
+"Tax Copilot" (SR-15 to SR-22). Linear wins on scope.
 
-## Required sections
-Names match the Notion Product Doc and AI Builder Series Chapter 2, so setup is a straight copy.
-- **Validated problem**: what we observed, with evidence (numbers, cases, quotes).
-- **User**: who uses it, how many, what control they keep.
-- **Stages**: Validated, Minimum lovable, Full version. Mark the current one.
-- **Core flow**: numbered steps of the main journey, one line each.
-- **North Star Metric**: one number that rises when users get value. Baseline and target.
-- **Guardrail metrics**: two to four numbers that must not get worse while the North Star rises.
-- **Metrics**: any other measures, with how each is collected.
-- **Now (committed)**: what this milestone ships.
-- **Next (directional)**: what comes after, not committed.
-- **Never**: strategic and safety exclusions. These become rules in AGENTS.md and SECURITY.md.
-- **Open questions**: each with an owner and the task it blocks.
+## Validated problem
+The tax preparer handles about 11 returns a day when documents are complete. Around 90% of cases
+are routine: read PDFs, extract numbers, apply known deductions, fill the government online form.
+Only a few cases need judgment.
 
-## Rules
-- Evidence beats opinion. Every claim in Validated problem points to an observation.
-- Targets are written before the first real data, or marked "set after N real cases".
-- Every Never item becomes a test, a rule or a review check. A Never with no enforcement is a gap.
-- Linear holds the backlog. The PRD holds scope. When they disagree, Linear wins and the PRD
-  is updated in the same pull request.
-- Open questions that block a task are listed in that task's Depends on.
+Evidence: a prototype with Claude projects and Claude in Chrome filled one full return in 19
+minutes. Slow, but correct.
 
-## Best known references
-- AI Builder Series, Chapter 2 PRD worked example (Notion, The AI Builder Series).
-- Amazon Working Backwards PR/FAQ:
-  https://www.workingbackwards.com/resources/working-backwards-pr-faq
-- North Star framework (Amplitude): https://amplitude.com/books/north-star
-- Shape Up, appetite and fixed scope: https://basecamp.com/shapeup
-- Now, Next, Later roadmaps (ProdPad):
-  https://www.prodpad.com/blog/invented-now-next-later-roadmap/
-- Lenny Rachitsky's PRD templates collection:
-  https://www.lennysnewsletter.com/p/my-favorite-templates-issue-37
+## User
+One expert user: the tax preparer. She keeps final control and submits.
 
-## What worked in past projects
-- ai-builder-series: a stage flag (0 to 1 versus 1 to scale) told the agent how much rigor to
-  apply. Keep it as the Stages section.
-- ai-builder-series: separate "always true" docs from "true at scale" docs kept the PRD short.
-- Super Ramble: an explicit Out of scope line ended repeated debates about live audio. Write
-  Never items as one line each, with the reason.
-- Super Ramble lesson: the brief stayed at 57 lines and stayed read. The roadmap grew to 900
-  lines and drifted. Keep the PRD under two pages.
-- Chapter 2 change: for one expert user, replace "5 real users" with "10 real cases with every
-  correction logged".
+## Stages
+- **Validated (done):** Claude project plus Claude in Chrome. Works, 19 minutes per return.
+- **Minimum lovable (current):** thin web portal plus extraction engine plus Claude in Chrome
+  for filling.
+- **Full version (later):** own Chrome extension with field overlay, flags on the page, source
+  PDF in a side panel.
+
+## Core flow
+1. She opens the portal and picks or creates a client.
+2. She drops the PDFs, or picks the client folder in Drive.
+3. Extraction runs. Batch or scheduled is fine.
+4. She sees the result: flags first, key totals, big changes from last year.
+5. She clicks Fill now. The government site opens in one dedicated tab.
+6. She logs in as the client. Claude in Chrome fills the draft from the client data file.
+7. She reviews the draft on the government site and submits.
+8. She clicks Next client. Same tab is reused.
+
+## North Star Metric
+TODO (gap, see GAPS.md). Candidate: returns per day reaching "Submitted" with no field changed
+by her after Fill now.
+
+## Guardrail metrics
+TODO (gap, see GAPS.md). Candidates: field accuracy versus her submitted version at least 98%,
+zero missed critical flags, zero client data outside the EU.
+
+## Metrics
+- Minutes per return, from documents in to draft ready. Baseline about 40. Target set after 10
+  real returns, because daily volume varies a lot.
+- Field accuracy versus her final submitted version.
+
+## Now (committed)
+Linear SR-15 to SR-22, in TASKS.md: repo and pipeline, login and home queue, new return and
+intake, extraction, rules and flags, review screen, fill handoff, done and next client.
+
+## Next (directional)
+TODO (gap, see GAPS.md). From the Product Doc stages: own Chrome extension with field overlay,
+flags on the page, source PDF side panel. End user portal as a second door to the same engine.
+
+## Never
+- Store client documents outside her Drive.
+- Store client government credentials.
+- Submit without her final review.
+
+## Open questions
+| Question | Owner | Blocks |
+| --- | --- | --- |
+| Which canton forms are in scope first? | Lucas with her | SR-18 canton fields, SR-19 tax rules, SR-21 form map, nightly form check |
+| Who presses submit: her or the client? | Lucas with her | SR-21, SR-22 |
+| Does the canton accept a data import, which could remove the browser step? | Lucas | SR-21 |

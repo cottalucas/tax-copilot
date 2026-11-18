@@ -1,0 +1,46 @@
+import { getModelConfig } from "./config.js";
+import { DataResidencyError } from "./errors.js";
+import { OpenRouterProvider } from "./providers/openrouter.js";
+import { VertexProvider } from "./providers/vertex.js";
+import type { CompletionRequest, CompletionResult, ModelProvider, ProviderName } from "./types.js";
+
+export * from "./types.js";
+export * from "./errors.js";
+export { getModelConfig } from "./config.js";
+
+export interface AdapterDeps {
+  env?: NodeJS.ProcessEnv;
+  /** Injected in tests. Defaults to building the provider from env. */
+  provider?: ModelProvider;
+}
+
+/** Providers allowed to receive real client data. EU region locked only. */
+const CLIENT_DATA_PROVIDERS: readonly ProviderName[] = ["vertex"];
+
+export function createProvider(name: ProviderName, env: NodeJS.ProcessEnv = process.env): ModelProvider {
+  switch (name) {
+    case "openrouter":
+      return OpenRouterProvider.fromEnv(env);
+    case "vertex":
+      return VertexProvider.fromEnv(env);
+  }
+}
+
+/**
+ * The one entry point for every model call in this repo (AGENTS.md).
+ * Provider and model come from MODEL_PROVIDER and APP_MODEL.
+ * Refuses to send client data to any provider outside the EU allow list.
+ */
+export async function complete(request: CompletionRequest, deps: AdapterDeps = {}): Promise<CompletionResult> {
+  const env = deps.env ?? process.env;
+  const config = getModelConfig(env);
+  const provider = deps.provider ?? createProvider(config.provider, env);
+
+  if (request.dataClass === "client" && !CLIENT_DATA_PROVIDERS.includes(provider.name)) {
+    throw new DataResidencyError(
+      `Client data may only go to ${CLIENT_DATA_PROVIDERS.join(", ")}. Provider "${provider.name}" refused.`,
+    );
+  }
+
+  return provider.complete({ ...request, model: request.model ?? config.model });
+}

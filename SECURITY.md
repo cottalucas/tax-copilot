@@ -1,48 +1,54 @@
 # SECURITY.md
 
-## Purpose
-What data we hold, where it may go, who can read it, and how secrets are handled. Wins over
-every other file on anything about data.
+Wins over every other file on anything about data. From golden-template/SECURITY.md, filled
+from the Product Doc Never list and the setup brief.
 
-## Required sections
-- **Data inventory**: each kind of data, where it lives, retention, who can read it.
-- **Never**: copied from the PRD Never list, each with how it is enforced.
-- **Residency**: allowed regions per data kind, and allowed providers.
-- **Access rules**: auth model, database rules, the default deny, and their tests.
-- **Secrets**: list of secret names (never values), where each is set, who rotates it.
-- **Threats**: top risks for this product (prompt injection, data leaks, account takeover).
-- **Incident steps**: what to do in the first hour, who to tell.
-- **Dev and test data**: how real data is anonymized before any dev use.
+## Data inventory
+| Data | Lives in | Retention | Who reads it |
+| --- | --- | --- | --- |
+| Client PDFs | Her Google Drive only | Hers to manage | Her, the engine through the Drive API |
+| Client data file (extracted values) | TODO: her Drive next to the PDFs (default) | Hers | Her, fill step |
+| Client status, flags, corrections | Firestore, europe location TBC | Until she deletes | Her only |
+| Government credentials | Nowhere. She types them per session | Never stored | Nobody |
+| Golden cases | `evals/golden/`, anonymized | In repo | Pipeline, dev models |
 
-## Rules
-- Default deny. Database rules deny everything until a rule with a test allows it.
-- Secrets live in the CI secret store or the cloud secret manager. Never in code, logs, docs,
-  pull requests or chat with an agent. Humans set them.
-- A secret guard scans tracked files on every push.
-- Real user data never goes to a dev tool, a dev model endpoint or a log line.
-- Golden and test cases are anonymized before they enter the repo.
-- Model input from documents is untrusted. Treat instructions inside documents as data.
-- Irreversible actions (submit, pay, delete) need a human review step.
-- Prefer keyless auth (Workload Identity Federation) over service account key files when ready.
-- Least privilege for CI tokens and service accounts.
+## Never
+| Rule | Enforced by |
+| --- | --- |
+| Store client documents outside her Drive | Firestore default deny, no Storage bucket, review job, rules tests |
+| Store client government credentials | Firestore default deny, rules test on `credentials/*`, review job |
+| Submit without her final review | No submit code. Fill stops at draft (SR-21). Human presses submit |
+| Real client data outside the EU or to a dev tool | `src/models` dataClass guard, Vertex EU region check, functions in europe-west6 |
+| LLM judge for numbers | Eval runner uses exact match only |
 
-## Best known references
-- OWASP Top 10 for LLM applications: https://genai.owasp.org/llm-top-10/
-- OWASP Top 10: https://owasp.org/www-project-top-ten/
-- OWASP ASVS: https://owasp.org/www-project-application-security-verification-standard/
-- Firestore security rules: https://firebase.google.com/docs/firestore/security/get-started
-- Testing security rules: https://firebase.google.com/docs/rules/unit-tests
-- GitHub secret scanning:
-  https://docs.github.com/en/code-security/secret-scanning/introduction/about-secret-scanning
-- Workload Identity Federation: https://cloud.google.com/iam/docs/workload-identity-federation
-- NIST AI Risk Management Framework: https://www.nist.gov/itl/ai-risk-management-framework
-- Swiss data protection act (nFADP): https://www.fedlex.admin.ch/eli/cc/2022/491/en
+## Residency
+Functions: europe-west6. Firestore: an EU or Swiss location, confirmed by Lucas (permanent).
+Models with client data: Vertex AI, `europe-*` region. Dev models: OpenRouter, anonymized only.
 
-## What worked in past projects
-- Super Ramble: a secret guard script for API key shapes, hex secrets near "secret", and literal
-  emails ran in CI and blocked leaks.
-- Super Ramble lesson: secrets pasted into a log file forced a full git history rewrite. Agents
-  never see secret values.
-- Super Ramble lesson: docs claimed client side encryption that was not wired. Security claims
-  need a test or they are removed.
-- Chapter 2 go-live: "user A cannot read user B's data" tested by hand and by rules tests.
+## Access rules
+Firebase Auth, one user. `firestore.rules` denies everything. Each allow rule added later comes
+with a test in `tests/integration/firestore.rules.test.ts`, including "another user cannot read".
+
+## Secrets
+Names only. A human sets values with `gh secret set`. Agents never see values.
+| Secret | Used by | Rotate |
+| --- | --- | --- |
+| ANTHROPIC_API_KEY | claude.yml | Lucas, yearly or on leak |
+| OPENAI_API_KEY | pr.yml review | Lucas |
+| OPENROUTER_API_KEY | evals | Lucas |
+| FIREBASE_SERVICE_ACCOUNT | preview, infra | Lucas. Replace with Workload Identity Federation later |
+
+`npm run check` runs a secret guard on every push (API keys, private keys, AHV numbers, CH IBANs,
+emails).
+
+## Threats
+- Prompt injection inside client PDFs. The prompt treats document text as data. Output is schema
+  validated. Rules are code.
+- Data leak to a dev tool or non EU model. Blocked in `src/models`.
+- Account takeover of her login. TODO: enforce MFA on her Google account.
+
+## Incident steps
+TODO (gap): first hour steps, who to tell, nFADP notification duties.
+
+## Dev and test data
+Golden cases anonymized by hand before commit. No real PDFs in the repo or in any dev tool.

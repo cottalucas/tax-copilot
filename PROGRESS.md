@@ -1,38 +1,58 @@
 # PROGRESS.md
 
-## Purpose
-Session memory. What happened, what we guessed, what Golden was missing. Every session starts
-by reading it. Without it every session starts from zero.
+## Current focus
+SR-15: repo, pipeline and eval harness. Scaffolding done, waiting on keys for the final test.
 
-## Required sections
-- **Current focus**: one line.
-- **Next up**: the next one to three tasks, by TASKS.md number.
-- **Log**: dated entries, newest first. What was done, what was verified, what is not done.
-- **Assumptions**: every guess made without the owner, with date and who must confirm.
-- **Template gaps**: every manual step or missing rule Golden did not cover. FEEDBACK.md
-  carries these back to Golden and Notion.
-- **Open questions**: waiting on a human, with the task each blocks.
+## Next up
+1. Lucas: secrets, variables, Firestore location, Linear integration (SETUP.md).
+2. Agent, final test: run infra.yml, one green and one blocked pull request, branch rule, close SR-15.
+3. SR-16: login and home queue.
 
-## Rules
-- Update at the end of every task, in the same pull request.
-- Log entries are short: done, verified, not done. Three to eight lines.
-- State what was verified and how. "Tests pass" names the command.
-- Never paste secrets, tokens, client names or client data into the log.
-- Assumptions stay until a human confirms or rejects them. Then mark the outcome, do not delete.
-- When the Log passes about 200 lines, move old entries to docs/log-archive.md.
+## Log
 
-## Best known references
-- Anthropic, long running agent sessions and progress files:
-  https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents
-- Keep a Changelog, for release level history: https://keepachangelog.com
-- Architecture Decision Records, for decisions that outlive the log: https://adr.github.io
+### 2026-11-18 Setup run (prompt 1, unattended)
+Done:
+- Created cottalucas/golden-template (private, template flag on): 12 topic files plus README,
+  FEEDBACK, CLAUDE pointer. Each under 80 lines.
+- Created cottalucas/tax-copilot from the template. Filled every .md from Notion and Linear.
+- Code: model adapter (`src/models`, OpenRouter plus Vertex stub, data residency guard), Zod
+  extraction schema with source per value, rules interface plus one example rule, eval runner,
+  Cloud Functions health endpoint in europe-west6, web shell, Firestore default deny rules.
+- Workflows: push, pr, nightly, claude, infra. Jobs skip with a warning when a secret is missing.
+- GAPS.md written.
+Verified locally, no keys: `npm run check`, `npm run test:unit` (32 tests),
+`npm run test:integration` (3 rules tests, Firestore emulator), `npm run test:e2e` (1 smoke),
+`npm run evals` (zero cases, warning), `npm run build:functions`, `actionlint` clean.
+Not done: infra deploy, preview, review and evals in CI (need keys), branch rule (final test).
 
-## What worked in past projects
-- ai-builder-series: progress.md with Current focus, Last session, Next up gave clean handoffs
-  between sessions and tools.
-- Super Ramble: an append-only resolution log with "decisions not to relitigate" stopped agents
-  reopening settled choices.
-- Super Ramble lesson: the resolution log reached about 10,000 lines and became too long to
-  read each session. Cap the log and archive.
-- Super Ramble lesson: real secrets landed in the log and forced a git history rewrite. Run a
-  secret guard on every push.
+## Assumptions
+| Date | Assumption | Confirm with |
+| --- | --- | --- |
+| 2026-11-18 | golden-template and tax-copilot did not exist. Created both as private repos under cottalucas | Lucas |
+| 2026-11-18 | Linear has no blocking relations set. Task order follows the journey numbering (0 to 7) | Lucas |
+| 2026-11-18 | Status names: Documents in, Needs review, Ready to fill, Submitted. Notion says "done", Linear SR-22 says "Mark as submitted". Linear wins | Lucas |
+| 2026-11-18 | Firebase project id is unknown. `.firebaserc` uses `demo-tax-copilot` (emulator only). Real id comes from repo variable FIREBASE_PROJECT_ID | Lucas |
+| 2026-11-18 | Firestore location left as a variable (FIRESTORE_LOCATION). Suggested `eur3` or `europe-west6`. Not created | Lucas, permanent choice |
+| 2026-11-18 | Review job uses openai/codex-action with `sandbox: read-only` and posts one comment, updated on reruns | Lucas |
+| 2026-11-18 | Example rule "large salary change" with a 20% threshold. Not a tax rule. Threshold to confirm with her | Lucas with her |
+| 2026-11-18 | Schema fields (employment, deductions, bank accounts) are a generic Swiss starting set. Canton fields empty, TODO | Lucas with her |
+| 2026-11-18 | Web portal uses Vite with plain TypeScript, no UI framework yet. Framework choice left to SR-16 | Lucas |
+| 2026-11-18 | Functions source is the repo root (single package), so functions can import `src/` and `rules/` | Agent |
+| 2026-11-18 | Installed openjdk@21 and actionlint with Homebrew on this laptop to run the emulator and lint workflows | Lucas |
+| 2026-11-18 | Added repo variables beyond the brief: FIREBASE_PROJECT_ID, FIRESTORE_LOCATION, optional EVAL_MODELS | Lucas |
+| 2026-11-18 | Hosting has no rewrite to functions yet, so preview channels deploy without functions | Agent |
+
+## Template gaps
+- Golden had no answer for "repo does not exist yet". SETUP.md should say the agent creates it
+  with `gh repo create --template`.
+- Golden QA.md does not say how a required check behaves when it is path filtered. Solved here
+  by always running the job and skipping steps. Copy back.
+- Golden has no infra workflow pattern (APIs, database create, deploy, health check).
+- Golden has no secret guard script to copy. Add one to golden or a shared snippet.
+- Java is needed for the Firestore emulator. SETUP.md "Only you" list should mention it, or the
+  agent installs it.
+- Repo variables FIREBASE_PROJECT_ID and FIRESTORE_LOCATION are not in the Notion list of variables.
+- Golden has no rule for keeping a single package versus separate functions package.
+
+## Open questions
+See PRD.md, Open questions (canton, submit owner, data import).

@@ -1,0 +1,53 @@
+# Nightly (QA.md): full test:e2e, full evals, government form change check.
+name: nightly
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: test:e2e (full)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+
+  evals:
+    name: evals (full)
+    runs-on: ubuntu-latest
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      MODEL_PROVIDER: ${{ vars.MODEL_PROVIDER }}
+      APP_MODEL: ${{ vars.APP_MODEL }}
+      EVAL_MODELS: ${{ vars.EVAL_MODELS }}
+    steps:
+      - id: gate
+        run: |
+          if [ -z "$OPENROUTER_API_KEY" ] || [ -z "$APP_MODEL" ]; then
+            echo "::warning title=evals skipped::OPENROUTER_API_KEY secret or APP_MODEL variable is not set."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v7
+        if: steps.gate.outputs.run == 'true'
+      - uses: ./.github/actions/setup
+        if: steps.gate.outputs.run == 'true'
+      - if: steps.gate.outputs.run == 'true'
+        run: npm run evals
+
+  form-change:
+    name: government form change check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Placeholder until the canton is chosen
+        run: |
+          echo "::notice title=form change check::Placeholder. Waits for the canton decision (PRD.md, Open questions)."
+          echo "Plan: fetch the canton form, hash its field map, compare with forms/<canton>.map.json, fail and open an issue on change."

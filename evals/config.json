@@ -1,0 +1,7 @@
+{
+  "launchThreshold": {
+    "fieldAccuracy": 0.98,
+    "criticalFlagRecall": 1.0
+  },
+  "note": "Proposed in the Product Doc. She confirms before launch. Change only by a dated decision in PROGRESS.md."
+}

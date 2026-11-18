@@ -1,0 +1,23 @@
+/* Tokens from DESIGN.md. */
+:root {
+  --bg: #fafaf9;
+  --surface: #ffffff;
+  --text: #1c1917;
+  --muted: #57534e;
+  --border: #e7e5e4;
+  --accent: #b91c1c;
+  --focus: #1d4ed8;
+  --radius: 6px;
+  --space: 8px;
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--text);
+  background: var(--bg);
+}
+body { margin: 0; }
+header { display: flex; align-items: center; justify-content: space-between; padding: calc(var(--space) * 2) calc(var(--space) * 3); border-bottom: 1px solid var(--border); background: var(--surface); }
+h1 { font-size: 18px; margin: 0; font-weight: 600; }
+main { max-width: 960px; margin: 0 auto; padding: calc(var(--space) * 4) calc(var(--space) * 3); }
+.empty { border: 1px dashed var(--border); border-radius: var(--radius); padding: calc(var(--space) * 4); text-align: center; color: var(--muted); background: var(--surface); }
+button { font: inherit; padding: var(--space) calc(var(--space) * 2); border-radius: var(--radius); border: 1px solid var(--text); background: var(--text); color: var(--surface); cursor: pointer; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }

@@ -1,49 +1,107 @@
 # TASKS.md
 
-## Purpose
-The work queue. Each task gives the agent everything it needs: what, why, done when.
-Linear is the source of truth. This file mirrors it for agents that work offline.
+Source: Linear project "Tax Copilot", SR-15 to SR-22. Synced 2026-11-18.
+https://linear.app/cottalucas/project/tax-copilot-07d82d29bc2a
+Linear wins over Notion on scope. Titles and criteria copied word for word.
+Depends on: Linear has no blocking relations set. Order below follows the journey (assumption).
 
-## Required sections
-- **Source**: link to the Linear project, and the date of the last sync.
-- **Tasks**: one block per task, in dependency order, in the format below.
-
-Task format (AI Builder Series, Chapter 2):
-
-```
-## Task N: <title> (<LINEAR-ID>)
-Status: [ ] Not started | [~] In progress | [x] Done
-Depends on: Task M, or none
+## Task 0: Repo, pipeline and eval harness (SR-15)
+Status: [~] In progress
+Depends on: none
 
 Description:
-Outcome in one line. Then two to four lines of context.
+Outcome: every change is checked automatically.
+Setup run built the repo, stages, workflows and eval runner. Keys and branch rule come next.
 
 Acceptance criteria:
-- [ ] Testable statement
-- [ ] Testable statement
-```
+- [x] Repo created from the template, with AGENTS.md at the root
+- [ ] GitHub Action runs tests and the golden set on each pull request
+- [ ] Reviewer model comments on each pull request, model set by variable
+- [ ] Merge blocked when tests or evals fail
 
-## Rules
-- One task per journey step, end to end. Ten to twenty tasks per milestone.
-- Every acceptance criterion is testable by a command, a test or a visible check.
-- Linear wins over Notion on scope. Copy titles and criteria from Linear word for word.
-- The agent marks Status and updates PROGRESS.md when a task completes. A human verifies.
-- A task blocked by an open question names it in Depends on.
-- Never mark a task done with a failing criterion. Stop and report instead.
+## Task 1: Login and home queue (SR-16)
+Status: [ ] Not started
+Depends on: Task 0
 
-## Best known references
-- Shape Up, scopes and hill charts: https://basecamp.com/shapeup
-- User story acceptance criteria, Given When Then (Fowler):
-  https://martinfowler.com/bliki/GivenWhenThen.html
-- GitHub Spec Kit, task breakdown from specs: https://github.com/github/spec-kit
-- Linear method: https://linear.app/method
+Description:
+Outcome: she sees what needs her next.
 
-## What worked in past projects
-- Chapter 2: the task format with Status, Depends on and acceptance criteria made agent
-  sessions predictable.
-- Chapter 2 change: one plan per session covering several tasks, stopping at the first failed
-  check, was faster than one task per session.
-- Super Ramble: handing a dated finding to an agent as the spec for a fix worked well. A task
-  is a spec.
-- Super Ramble lesson: tasks without a definition of done turned into multi-round polish
-  passes. Write the criteria first.
+Acceptance criteria:
+- [ ] Firebase Auth login
+- [ ] Clients grouped by status, flagged first
+- [ ] Row shows name, status, flag count
+- [ ] Empty state when there are zero clients
+
+## Task 2: New return and intake (SR-17)
+Status: [ ] Not started
+Depends on: Task 1
+
+Description:
+Outcome: client files are in place.
+
+Acceptance criteria:
+- [ ] Create a client
+- [ ] Drop PDFs or pick a Drive folder
+- [ ] Files stay in her Drive, nothing stored elsewhere
+- [ ] Status shows Documents in
+
+## Task 3: Extraction (SR-18)
+Status: [ ] Not started
+Depends on: Task 2, canton decision (PRD.md Open questions) for canton fields
+
+Description:
+Outcome: one clean data file per client.
+
+Acceptance criteria:
+- [ ] Output validated against the schema
+- [ ] Every value stores source file and page
+- [ ] Runs in batch
+- [ ] Field accuracy reported on golden cases
+
+## Task 4: Rules and flags (SR-19)
+Status: [ ] Not started
+Depends on: Task 3, canton decision for tax rules
+
+Description:
+Outcome: deductions applied, risks surfaced.
+
+Acceptance criteria:
+- [ ] Rules written as code, each with a test
+- [ ] Each flag has a plain language reason
+- [ ] Status moves to Needs review or Ready to fill
+
+## Task 5: Review screen (SR-20)
+Status: [ ] Not started
+Depends on: Task 4
+
+Description:
+Outcome: she checks only the exceptions.
+
+Acceptance criteria:
+- [ ] Flags first, then key totals, then changes from last year
+- [ ] Clicking a value opens its source page
+- [ ] Approve button sets Ready to fill
+
+## Task 6: Fill handoff (SR-21)
+Status: [ ] Not started
+Depends on: Task 5, open questions on submit owner and data import
+
+Description:
+Outcome: draft filled on the government site.
+
+Acceptance criteria:
+- [ ] Fill now opens one dedicated tab
+- [ ] Claude in Chrome fills from the client data file using the saved form map
+- [ ] Time to fill recorded and compared to the 19 minute baseline
+
+## Task 7: Done and next client (SR-22)
+Status: [ ] Not started
+Depends on: Task 6
+
+Description:
+Outcome: the loop closes fast.
+
+Acceptance criteria:
+- [ ] Mark as submitted
+- [ ] Next client reuses the same tab
+- [ ] Her corrections are saved as new eval cases

@@ -1,0 +1,199 @@
+# Every pull request (QA.md). Every job here is a required check on main.
+# Path filtered jobs always run and report a status, so the branch rule can require them.
+# Jobs that need a missing secret skip with a clear message and stay green.
+name: pr
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    name: changes
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      app: ${{ steps.filter.outputs.app }}
+      evals: ${{ steps.filter.outputs.evals }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: filter
+        uses: dorny/paths-filter@v4
+        with:
+          filters: |
+            app:
+              - 'web/**'
+              - 'src/**'
+              - 'rules/**'
+              - 'tests/e2e/**'
+              - 'firebase.json'
+              - 'firestore.rules'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'vite.config.ts'
+              - 'playwright.config.ts'
+            evals:
+              - 'prompts/**'
+              - 'src/schema/**'
+              - 'src/extraction/**'
+              - 'src/models/**'
+              - 'rules/**'
+              - 'evals/**'
+
+  check:
+    name: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - run: npm run check
+
+  unit:
+    name: test:unit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - run: npm run test:unit
+
+  integration:
+    name: test:integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: ./.github/actions/setup
+      - run: npm run test:integration
+
+  e2e:
+    name: test:e2e
+    needs: changes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skip when app code did not change
+        if: needs.changes.outputs.app != 'true'
+        run: echo "::notice title=test:e2e skipped::No app code changed in this pull request."
+      - uses: actions/checkout@v7
+        if: needs.changes.outputs.app == 'true'
+      - uses: ./.github/actions/setup
+        if: needs.changes.outputs.app == 'true'
+      - if: needs.changes.outputs.app == 'true'
+        run: npx playwright install --with-deps chromium
+      - if: needs.changes.outputs.app == 'true'
+        run: npm run test:e2e
+
+  evals:
+    name: evals
+    needs: changes
+    runs-on: ubuntu-latest
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      MODEL_PROVIDER: ${{ vars.MODEL_PROVIDER }}
+      APP_MODEL: ${{ vars.APP_MODEL }}
+      EVAL_MODELS: ${{ vars.EVAL_MODELS }}
+    steps:
+      - id: gate
+        run: |
+          if [ "${{ needs.changes.outputs.evals }}" != "true" ]; then
+            echo "::notice title=evals skipped::No prompt, schema, rules, model adapter or eval case changed."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          elif [ -z "$OPENROUTER_API_KEY" ] || [ -z "$APP_MODEL" ]; then
+            echo "::warning title=evals skipped::OPENROUTER_API_KEY secret or APP_MODEL variable is not set. Evals skipped until a human sets them."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v7
+        if: steps.gate.outputs.run == 'true'
+      - uses: ./.github/actions/setup
+        if: steps.gate.outputs.run == 'true'
+      - if: steps.gate.outputs.run == 'true'
+        run: npm run evals
+
+  preview:
+    name: preview
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
+    env:
+      FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+    steps:
+      - id: gate
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ] || [ -z "$FIREBASE_PROJECT_ID" ]; then
+            echo "::warning title=preview skipped::FIREBASE_SERVICE_ACCOUNT secret or FIREBASE_PROJECT_ID variable is not set."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v7
+        if: steps.gate.outputs.run == 'true'
+      - uses: ./.github/actions/setup
+        if: steps.gate.outputs.run == 'true'
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        if: steps.gate.outputs.run == 'true'
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: ${{ vars.FIREBASE_PROJECT_ID }}
+          channelId: pr-${{ github.event.pull_request.number }}
+          expires: 7d
+
+  review:
+    name: review
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      REVIEWER_MODEL: ${{ vars.REVIEWER_MODEL }}
+    steps:
+      - id: gate
+        run: |
+          if [ -z "$OPENAI_API_KEY" ] || [ -z "$REVIEWER_MODEL" ]; then
+            echo "::warning title=review skipped::OPENAI_API_KEY secret or REVIEWER_MODEL variable is not set."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v7
+        if: steps.gate.outputs.run == 'true'
+        with:
+          fetch-depth: 0
+      - name: Build review prompt
+        if: steps.gate.outputs.run == 'true'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          HEAD_REF: ${{ github.head_ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: node scripts/review-prompt.mjs > "$RUNNER_TEMP/review-prompt.md"
+      - name: Codex review
+        if: steps.gate.outputs.run == 'true'
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          model: ${{ vars.REVIEWER_MODEL }}
+          prompt-file: ${{ runner.temp }}/review-prompt.md
+          output-file: ${{ runner.temp }}/review.md
+          sandbox: read-only
+      - name: Post one review comment
+        if: steps.gate.outputs.run == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+        run: node scripts/post-review.mjs "$RUNNER_TEMP/review.md"

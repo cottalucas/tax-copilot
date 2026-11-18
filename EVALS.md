@@ -1,47 +1,43 @@
 # EVALS.md
 
-## Purpose
-The contract for AI output. Acceptance criteria test the software, evals test the model.
-Without them every prompt change is a guess.
+Source: Notion "Tax Copilot for Expatify, Product Doc", EVALS section. Runner: `npm run evals`.
 
-## Required sections
-Names match the Notion Product Doc EVALS section.
-- **Golden set**: where cases live (evals/golden/), how many, who wrote the truth, how anonymized.
-- **Deterministic checks**: schema valid, required fields present, numbers match the source.
-- **Metrics**: each metric with its formula. Typical: field accuracy, flag recall, cost per case.
-- **Launch threshold**: the numbers that must pass, written before the first run.
-- **Judge**: where an LLM judge is allowed (free text only) and the rubric it uses.
-- **Model comparison**: how to run the same set across models and compare.
-- **Regression rule**: what happens to every expert correction.
-- **When it runs**: link to QA.md.
+## Golden set
+- 10 to 20 past returns, anonymized, with her final submitted values as truth.
+- Location: `evals/golden/*.json`, one file per case. Format in `evals/golden/README.md`.
+- Today: zero cases. The runner passes with a warning until cases exist.
+- Anonymized before entering the repo: no names, AHV numbers, IBANs, addresses, or identifying
+  employer names. The secret guard blocks AHV and CH IBAN patterns.
 
-## Rules
-- Deterministic checks first. Code checks beat judges.
-- Never use an LLM judge for numbers. Exact match, or a tolerance written in the case.
-- Golden cases are anonymized before they enter the repo or any dev tool.
-- Every expert correction becomes a new golden case or a new rule with a test.
-- The threshold is written before testing and only changes by a dated decision.
-- Zero cases is a pass with a loud warning, so the pipeline runs before data exists.
-- Evals run only when prompts, schema, rules, the model adapter or the cases change. They cost
-  tokens. Nightly runs the full set.
-- Record model, provider, cost and latency with every run.
+## Deterministic checks
+- Schema valid: model output parsed by the Zod schema in `src/schema/extraction.ts`.
+- All required fields present: enforced by the schema.
+- Every value has source file and page: enforced by the schema.
+- Totals match source PDFs: TODO once PDF parsing lands (SR-18).
 
-## Best known references
-- Hamel Husain, Your AI product needs evals: https://hamel.dev/blog/posts/evals/
-- Hamel Husain, Creating an LLM judge that drives results: https://hamel.dev/blog/posts/llm-judge/
-- Eugene Yan, task specific evals: https://eugeneyan.com/writing/evals/
-- Anthropic, define success criteria and build evaluations:
-  https://docs.anthropic.com/en/docs/test-and-evaluate/develop-tests
-- OpenAI evals guide: https://platform.openai.com/docs/guides/evals
+## Metrics
+- **Field accuracy**: exact match per expected field, pooled over all cases.
+  correct fields / expected fields. A case that errors counts every field as wrong.
+- **Flag recall**: expected flags raised / expected flags, averaged per case.
+- **Critical flag recall**: lowest over all cases. One missed critical flag fails the run.
+- Cost and latency per call come back from `src/models` (to add to the report in SR-18).
 
-## What worked in past projects
-- Super Ramble: offline evals with no model credits ran on every push and caught regressions
-  for free. Split offline checks from live model runs.
-- Super Ramble: real traces graded automatically, and a user correction plus a grader flag that
-  agreed promoted the case on its own. Corrections are the cheapest source of golden cases.
-- Super Ramble: a prompt duplicated in two files needed its own sync check. Keep one prompt
-  source.
-- Super Ramble lesson: a "fix" for one model parameter broke every live call because the model
-  rejected it. Run a small live eval before deploy whenever model settings change.
-- Chapter 2: launch threshold of 98% field accuracy and zero missed critical flags gave a clear
-  go or no go.
+## Launch threshold
+Proposed, she confirms: 98% field accuracy, zero missed critical flags.
+Stored in `evals/config.json`. Changes only by a dated entry in PROGRESS.md.
+
+## Judge
+Never for numbers. An LLM judge is allowed later only for free text such as flag explanations,
+with a written rubric. None today.
+
+## Model comparison
+Set `EVAL_MODELS` (comma separated) as a repository variable or in `.env`. The runner scores the
+same set per model and prints one row each. The first model decides pass or fail.
+
+## Regression rule
+Every correction she makes becomes a new golden case or a new rule with a test (SR-22).
+
+## When it runs
+On pull requests that touch `prompts/`, `src/schema/`, `src/extraction/`, `src/models/`, `rules/`
+or `evals/`. Full set nightly. Skips with a warning when OPENROUTER_API_KEY or APP_MODEL is missing.
+See QA.md.
