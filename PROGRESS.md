@@ -23,7 +23,11 @@ Done:
 Verified locally, no keys: `npm run check`, `npm run test:unit` (32 tests),
 `npm run test:integration` (3 rules tests, Firestore emulator), `npm run test:e2e` (1 smoke),
 `npm run evals` (zero cases, warning), `npm run build:functions`, `actionlint` clean.
-Not done: infra deploy, preview, review and evals in CI (need keys), branch rule (final test).
+CI: first push failed on two setup bugs, fixed on main the same day: the `lib/` ignore pattern
+hid `evals/lib/` (now `/lib/`), and the `changes` job lost `contents: read`. After the fix, demo
+pull request #1 is green: check, test:unit, test:integration, test:e2e ran and passed; evals,
+preview and review skipped with a warning (no keys).
+Not done: infra deploy, preview, review and evals with keys, branch rule (final test).
 
 ## Assumptions
 | Date | Assumption | Confirm with |
@@ -53,6 +57,9 @@ Not done: infra deploy, preview, review and evals in CI (need keys), branch rule
   agent installs it.
 - Repo variables FIREBASE_PROJECT_ID and FIRESTORE_LOCATION are not in the Notion list of variables.
 - Golden has no rule for keeping a single package versus separate functions package.
+- Golden QA.md should warn: job level `permissions` replace the workflow's, so always repeat
+  `contents: read`. And anchor ignore patterns (`/lib/`) so they do not hide source folders.
+- Golden should say: verify from a clean clone before the first push (caught the ignored folder).
 
 ## Open questions
 See PRD.md, Open questions (canton, submit owner, data import).
