@@ -151,6 +151,9 @@ calibrated rules (none means it would now be a comment).
 | 2026-11-19 | #7 run 3 | Only the first model could fail evals, a later model's injection miss passed | CRITERION | Injection set must hold for every model |
 | 2026-11-19 | #7 run 4 | A missing injection folder passed as an empty suite | CRITERION | Empty injection set fails the run |
 | 2026-11-19 | #7 run 5 | Injection cases could pass from saved outputs without a model call | CRITERION | Injection cases always run live |
+| 2026-11-20 | #7 run 6 | Evals give pull request code github-deployer rights | SECURITY | Open: Lucas chose the deployer for now. Needs his decision |
+| 2026-11-20 | #7 run 6 | Evals skip when no eval input changed | CRITERION | Lucas's instruction (2026-11-20). Explained in the body |
+| 2026-11-20 | #7 run 6 | A fixture could relabel its kind and skip the live run | CRITERION | The folder sets the kind |
 | 2026-11-19 | #7 run 4 | codeql.yml held security-events write inside a pull request defined workflow | SECURITY | CodeQL default setup (extended queries) run by GitHub, plus ruleset "Code scanning blocks merges". codeql.yml deleted |
 
 ## Assumptions

@@ -28,7 +28,8 @@ function loadDir(dir: string, kind: "golden" | "injection"): GoldenCase[] {
   return readdirSync(path)
     .filter((f) => f.endsWith(".json"))
     .sort()
-    .map((f) => ({ kind, ...(JSON.parse(readFileSync(join(path, f), "utf8")) as GoldenCase) }));
+    // The folder decides the kind, never the fixture: an injection case cannot relabel itself.
+    .map((f) => ({ ...(JSON.parse(readFileSync(join(path, f), "utf8")) as GoldenCase), kind }));
 }
 
 function modelsToRun(cases: GoldenCase[]): string[] {
