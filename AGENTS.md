@@ -121,8 +121,8 @@ Names only. A human sets secret values. Agents never see them.
 - Secrets: ANTHROPIC_API_KEY, OPENAI_API_KEY, OPENROUTER_API_KEY, LINEAR_API_KEY.
 - Model roles: EXTRACT_PROVIDER, EXTRACT_MODEL, CHECK_PROVIDER, CHECK_MODEL, EVAL_MODELS
   (optional), VERTEX_PROJECT_ID, VERTEX_REGION. Pipeline: BUILDER_MODEL, REVIEWER_MODEL.
-- Infra: FIREBASE_PROJECT_ID, FIRESTORE_LOCATION, GCP_WIF_PROVIDER, GCP_DEPLOY_SA (runs on main
-  only), GCP_EVALS_SA (Vertex only, pull request jobs).
+- Infra: FIREBASE_PROJECT_ID, FIRESTORE_LOCATION, GCP_WIF_PROVIDER, GCP_DEPLOY_SA (also used by
+  evals for now; a Vertex only identity is logged hardening).
 
 ## Conflict order
 Linear wins on scope. Never do wins on data. ARCHITECTURE.md wins on technical shape. The latest

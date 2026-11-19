@@ -46,7 +46,7 @@ jobs:
         if: steps.shots.outcome == 'success' && vars.CHECK_PROVIDER == 'vertex'
         with:
           workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
-          service_account: ${{ vars.GCP_EVALS_SA }}
+          service_account: ${{ vars.GCP_DEPLOY_SA }}
       - name: Review the screenshots
         if: steps.shots.outcome == 'success'
         run: npm run ux-review -- review "$RUNNER_TEMP/ux-shots"

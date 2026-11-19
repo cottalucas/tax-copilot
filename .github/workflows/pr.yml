@@ -88,8 +88,8 @@ jobs:
       - run: npm run test:e2e
 
   # Golden set and prompt injection set when prompts, schema, rules, src/models or evals change
-  # (nightly runs the full set). Default model: Vertex Gemini in an EU region, keyless login with
-  # the narrow github-evals identity (Vertex only). Fails above the cost budget in budgets.json.
+  # (nightly runs the full set). Default model: Vertex Gemini in the EU, keyless login as
+  # github-deployer for now (a Vertex only identity is logged hardening). Fails above budgets.json.
   # The job always runs and reports, so the branch rule can require it.
   evals:
     name: evals
@@ -105,7 +105,6 @@ jobs:
       VERTEX_PROJECT_ID: ${{ vars.VERTEX_PROJECT_ID }}
       VERTEX_REGION: ${{ vars.VERTEX_REGION }}
       WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER }}
-      EVALS_SA: ${{ vars.GCP_EVALS_SA }}
     steps:
       - id: gate
         name: Decide and check variables
@@ -116,7 +115,7 @@ jobs:
             exit 0
           fi
           missing=""
-          for v in EXTRACT_MODEL VERTEX_PROJECT_ID VERTEX_REGION WIF_PROVIDER EVALS_SA; do
+          for v in EXTRACT_MODEL VERTEX_PROJECT_ID VERTEX_REGION WIF_PROVIDER; do
             [ -z "${!v}" ] && missing="$missing $v"
           done
           if [ -n "$missing" ]; then
@@ -132,7 +131,7 @@ jobs:
         if: steps.gate.outputs.run == 'true'
         with:
           workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
-          service_account: ${{ vars.GCP_EVALS_SA }}
+          service_account: ${{ vars.GCP_DEPLOY_SA }}
       - if: steps.gate.outputs.run == 'true'
         run: npm run evals
 

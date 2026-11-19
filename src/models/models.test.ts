@@ -4,7 +4,7 @@ import { AnthropicProvider, ANTHROPIC_URL } from "./providers/anthropic.js";
 import { OPENAI_BASE_URL, OPENROUTER_BASE_URL, OpenAICompatibleProvider } from "./providers/openai.js";
 import { VertexProvider } from "./providers/vertex.js";
 
-const env = { EXTRACT_PROVIDER: "vertex", EXTRACT_MODEL: "gemini-2.5-flash-lite", CHECK_PROVIDER: "openai", CHECK_MODEL: "test-check" };
+const env = { EXTRACT_PROVIDER: "vertex", EXTRACT_MODEL: "gemini-3.1-flash-lite", CHECK_PROVIDER: "openai", CHECK_MODEL: "test-check" };
 
 function fakeFetch(body: unknown, status = 200) {
   return vi.fn(async (_input: unknown, _init?: unknown) =>
@@ -33,7 +33,7 @@ function vertex(fetch: ReturnType<typeof fakeFetch>, region = "europe-west4") {
 
 describe("getModelConfig", () => {
   it("reads provider and model per role", () => {
-    expect(getModelConfig("extract", env)).toEqual({ provider: "vertex", model: "gemini-2.5-flash-lite" });
+    expect(getModelConfig("extract", env)).toEqual({ provider: "vertex", model: "gemini-3.1-flash-lite" });
     expect(getModelConfig("check", env)).toEqual({ provider: "openai", model: "test-check" });
   });
 
@@ -55,15 +55,15 @@ describe("vertex", () => {
       { env, provider: vertex(fetch) },
     );
     const [url, init] = fetch.mock.calls[0]!;
-    expect(String(url)).toBe("https://europe-west4-aiplatform.googleapis.com/v1/projects/p/locations/europe-west4/publishers/google/models/gemini-2.5-flash-lite:generateContent");
+    expect(String(url)).toBe("https://europe-west4-aiplatform.googleapis.com/v1/projects/p/locations/europe-west4/publishers/google/models/gemini-3.1-flash-lite:generateContent");
     expect(((init as RequestInit).headers as Record<string, string>).authorization).toBe("Bearer token");
     const body = sent(fetch);
     expect(body.systemInstruction).toEqual({ parts: [{ text: "rules" }] });
     expect(body.generationConfig).toEqual({ maxOutputTokens: 500, responseMimeType: "application/json" });
     expect(result.text).toBe('{"ok":true}');
     expect(result.usage).toEqual({ inputTokens: 1000, outputTokens: 200, cachedInputTokens: 400 });
-    // 600 fresh x 0.10 + 400 cached x 0.01 + 200 out x 0.40, per 1M tokens
-    expect(result.costUsd).toBeCloseTo((600 * 0.1 + 400 * 0.01 + 200 * 0.4) / 1e6, 12);
+    // 600 fresh x 0.275 + 400 cached x 0.0275 + 200 out x 1.65, per 1M tokens
+    expect(result.costUsd).toBeCloseTo((600 * 0.275 + 400 * 0.0275 + 200 * 1.65) / 1e6, 12);
   });
 
   it("sends images as inline data", async () => {
@@ -75,8 +75,13 @@ describe("vertex", () => {
     expect(sent(fetch).contents[0].parts).toEqual([{ text: "Review" }, { inlineData: { mimeType: "image/png", data: "AA" } }]);
   });
 
-  it("only accepts EU regions and surfaces API errors", async () => {
+  it("uses the EU multi-region endpoint for eu", () => {
+    expect(vertex(fakeFetch({}), "eu").url("m")).toBe("https://aiplatform.eu.rep.googleapis.com/v1/projects/p/locations/eu/publishers/google/models/m:generateContent");
+  });
+
+  it("only accepts EU locations and surfaces API errors", async () => {
     expect(() => vertex(fakeFetch({}), "us-central1")).toThrow(DataResidencyError);
+    expect(() => vertex(fakeFetch({}), "global")).toThrow(DataResidencyError);
     await expect(complete({ dataClass: "anonymized", messages: [] }, { env, provider: vertex(fakeFetch({ error: { message: "denied" } }, 403)) })).rejects.toThrow(/403: denied/);
   });
 
@@ -142,7 +147,7 @@ describe("data residency", () => {
 
 describe("cost and budget", () => {
   it("prices from config and returns undefined without a price row", () => {
-    expect(priceUsd("vertex", "gemini-2.5-flash-lite", { inputTokens: 1_000_000, outputTokens: 0 })).toBeCloseTo(0.1);
+    expect(priceUsd("vertex", "gemini-3.1-flash-lite", { inputTokens: 1_000_000, outputTokens: 0 })).toBeCloseTo(0.275);
     expect(priceUsd("vertex", "unknown-model", { inputTokens: 1, outputTokens: 1 })).toBeUndefined();
   });
 

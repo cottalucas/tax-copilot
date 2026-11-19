@@ -61,11 +61,15 @@ region until SR-18 decides residency. Other providers see anonymized or syntheti
   variables, so switching is a variable change only:
   - extract role: EXTRACT_PROVIDER, EXTRACT_MODEL (extraction, evals).
   - check role: CHECK_PROVIDER, CHECK_MODEL (pull request review, UX review).
-- Defaults set 2026-11-20: EXTRACT `vertex` + `gemini-2.5-flash-lite` (cheapest Flash Lite on an
-  EU regional endpoint), VERTEX_REGION `europe-west4` (europe-west6 has no Flash Lite),
-  VERTEX_PROJECT_ID `tax-co-pilot`. CHECK `openai` + `gpt-6.2-sol` (decision 3, a stronger gate).
+- Defaults set 2026-11-20: EXTRACT `vertex` + `gemini-3.1-flash-lite`, VERTEX_REGION `eu` (the EU
+  multi-region endpoint `aiplatform.eu.rep.googleapis.com`), VERTEX_PROJECT_ID `tax-co-pilot`.
+  CHECK `openai` + `gpt-6.2-sol` (decision 3, a stronger gate).
+- Why `eu`: probed 2026-11-20, this project gets 404 for every Gemini 2.5 model in europe-west1,
+  europe-west4 and global, and 3.x models serve only on global and `eu`. europe-west6 serves none.
+  `gemini-3.1-flash-lite` is the cheapest that answers in the EU. The adapter refuses global.
 - Vertex uses keyless Google login: Application Default Credentials locally, Workload Identity
-  with the `github-evals` identity (Vertex only) in pull request jobs.
+  as `github-deployer` in CI for now. Later hardening: a Vertex only identity for pull request
+  jobs, and the deployer limited to runs on main (PROGRESS.md > Template gaps).
 - Cost: OpenRouter reports it, the others are priced from `config/model-prices.json`. Prompt
   caching: Vertex and OpenAI cache stable prefixes on their own, Anthropic gets `cache_control`
   on the system prompt. Cached tokens are counted at the cached price.

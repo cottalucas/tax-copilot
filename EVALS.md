@@ -45,7 +45,7 @@ Never for numbers. An LLM judge is allowed later only for free text such as flag
 with a written rubric. None today.
 
 ## Model comparison
-Default model: EXTRACT_PROVIDER and EXTRACT_MODEL (Vertex `gemini-2.5-flash-lite`, EU). Set
+Default model: EXTRACT_PROVIDER and EXTRACT_MODEL (Vertex `gemini-3.1-flash-lite`, EU multi-region). Set
 `EVAL_MODELS` (comma separated, same provider) to score the same set per model. The first model
 decides the golden threshold. The injection set must hold for every model. No OpenRouter calls.
 

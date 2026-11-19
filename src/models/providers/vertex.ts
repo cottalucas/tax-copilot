@@ -4,6 +4,11 @@ import { DataResidencyError } from "../errors.js";
 import { priceUsd } from "../prices.js";
 import type { ChatMessage, CompletionRequest, CompletionResult, ModelProvider } from "../types.js";
 
+/** EU multi-region ("eu") or a single EU region ("europe-*"). Never global or outside the EU. */
+export function isEuLocation(region: string): boolean {
+  return region === "eu" || region.startsWith("europe-");
+}
+
 export interface VertexOptions {
   projectId: string;
   region: string;
@@ -14,7 +19,7 @@ export interface VertexOptions {
 }
 
 /**
- * Gemini on Vertex AI, regional endpoint in an EU region only. The only provider allowed to see
+ * Gemini on Vertex AI, EU multi-region or an EU regional endpoint only. The only provider allowed to see
  * real client data today; the final residency choice is made at SR-18 (ARCHITECTURE.md).
  * Gemini caches repeated prompt prefixes on its own and reports cached tokens.
  */
@@ -24,8 +29,8 @@ export class VertexProvider implements ModelProvider {
   private readonly fetchImpl: typeof globalThis.fetch;
 
   constructor(private readonly options: VertexOptions) {
-    if (!options.region.startsWith("europe-")) {
-      throw new DataResidencyError(`VERTEX_REGION must be an EU region (europe-*). Got "${options.region}".`);
+    if (!isEuLocation(options.region)) {
+      throw new DataResidencyError(`VERTEX_REGION must be "eu" or an EU region (europe-*). Got "${options.region}".`);
     }
     this.fetchImpl = options.fetch ?? globalThis.fetch;
     this.getToken =
@@ -48,7 +53,9 @@ export class VertexProvider implements ModelProvider {
 
   url(model: string): string {
     const { projectId, region } = this.options;
-    return `https://${region}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${region}/publishers/google/models/${model}:generateContent`;
+    // "eu" is the EU multi-region endpoint: data stays in the EU, newer Gemini models serve there.
+    const host = region === "eu" ? "aiplatform.eu.rep.googleapis.com" : `${region}-aiplatform.googleapis.com`;
+    return `https://${host}/v1/projects/${projectId}/locations/${region}/publishers/google/models/${model}:generateContent`;
   }
 
   async complete(request: CompletionRequest & { model: string }): Promise<CompletionResult> {

@@ -13,15 +13,22 @@ SR-24: scaffolding layer (lean docs, gates on every pull request, skills, infra)
 
 ### 2026-11-20 Model setup, cheap (Part 1)
 Done: `src/models` has four providers (vertex default, anthropic, openai, openrouter), picked per
-role by EXTRACT_* and CHECK_* variables. Vertex calls the EU regional endpoint with keyless
+role by EXTRACT_* and CHECK_* variables. Vertex calls the EU multi-region endpoint with keyless
 Google login and prices calls from `config/model-prices.json`. Prompt caching counted for all
 providers (Anthropic `cache_control`). Evals use EXTRACT_* (default Vertex
-`gemini-2.5-flash-lite`, europe-west4), run only when eval inputs change and nightly, and sign in
-as `github-evals`. Injection set: 15 BIPIA attacks (MIT) plus 3 hand written. No OpenRouter in
+`gemini-3.1-flash-lite`, location `eu`), run only when eval inputs change and nightly, and sign in
+as `github-deployer` (Lucas's call: no separate identity yet). Injection set: 15 BIPIA attacks (MIT) plus 3 hand written. No OpenRouter in
 any workflow. Coverage 98.75%, floor raised to 98%.
-Failed: a local eval run on Vertex returned 404 for every Gemini model in every EU region and on
-the global endpoint. The project has no Gemini access yet (console step for Lucas).
-Verified: `npm run check`, `npm run test:unit` (62 tests), `actionlint`.
+Failed first: a local eval run returned 404 on `gemini-2.5-flash-lite` in europe-west4. Probing
+showed every 2.5 model is closed to this project (europe-west1, europe-west4, global), while 3.x
+Flash Lite serves on global and the EU multi-region `eu`. Switched to `gemini-3.1-flash-lite` on
+`eu`. A probe of mine was also broken by zsh eating `$m:g` in URLs: use `${m}` in shell URLs.
+Eval finding: on real calls Flash Lite took a fake pillar 3a deduction from a note addressed to
+"the assistant" (inj-002). The extraction prompt now takes values only from the document's own
+fields and ignores notes aimed at an assistant or reader. Three runs after the fix: 18 of 18
+injection cases held, 0.017 USD per run.
+Verified: `npm run check`, `npm run test:unit` (63 tests, coverage 98.77%), `actionlint`,
+`npm run evals` on Vertex `eu` (3 runs).
 
 ### 2026-11-19 SR-24 gates on every pull request
 Done: every gate runs on every pull request (AGENTS.md > Pipeline). Full unit, integration and
@@ -150,7 +157,7 @@ calibrated rules (none means it would now be a comment).
 | Date | Assumption | Confirm with |
 | --- | --- | --- |
 | 2026-11-20 | CHECK role covers the pull request reviewer and the UX review (decision 2) | Lucas, approved |
-| 2026-11-20 | `gemini-2.5-flash-lite` in europe-west4 is the default: newer Flash Lite models are global only, europe-west6 has none (decision 1) | Lucas, approved |
+| 2026-11-20 | `gemini-3.1-flash-lite` on the EU multi-region `eu` is the default: 2.5 models return 404 for this project, west1, west4 and west6 serve no usable Flash Lite (replaces decision 1) | Lucas |
 | 2026-11-18 | golden-template and tax-copilot did not exist. Created both as private repos under cottalucas. tax-copilot made public 2026-11-19 on Lucas's request | Lucas, confirmed |
 | 2026-11-18 | Linear has no blocking relations set. Task order follows the journey numbering (0 to 7) | Lucas |
 | 2026-11-18 | Status names: Documents in, Needs review, Ready to fill, Submitted. Notion says "done", Linear SR-22 says "Mark as submitted". Linear wins | Lucas |
@@ -166,6 +173,11 @@ calibrated rules (none means it would now be a comment).
 | 2026-11-18 | Hosting has no rewrite to functions yet, so preview channels deploy without functions | Agent |
 
 ## Template gaps
+- Later hardening: a separate Vertex only identity for pull request jobs (evals, UX review), and
+  github-deployer bound to runs on main only. Today evals sign in as github-deployer, so pull
+  request code can act with deploy rights (Lucas's call, 2026-11-20).
+- Golden MODELS guidance should probe which models a new project can call per region: catalogs
+  list models a project cannot use.
 - Staging environment: none yet. Add a staging Firebase project before the first real client.
 - Golden has no gate set: coverage floor, budgets, audit, code scanning, injection set, axe,
   auto merge and halt notifications. Copy this pipeline back as the Golden default.
