@@ -11,14 +11,16 @@ SR-15: repo, pipeline and eval harness. Scaffolding done, waiting on keys for th
 ## Log
 
 ### 2026-11-19 Final test (prompt 2)
-Done: removed the preview stage and FIREBASE_SERVICE_ACCOUNT. Review gates pull requests (fails
-unless "Verdict: Approve"). Evals and review fail when their key is missing. infra.yml is keyless
-(Workload Identity Federation). Repo variables set by the agent (MODELS.md). TASKS.md SR-15 updated.
-Verified: `npm run check`, `npm run test:unit`, `npm run test:integration` locally. In CI, pull
-request #3 (broken unit test) failed test:unit. The first run of this pull request got "Changes
-requested" from the reviewer (scope and TASKS.md), which failed the review job as designed.
+Done: removed the preview stage and FIREBASE_SERVICE_ACCOUNT. The review job fails unless Codex
+says "Verdict: Approve". Evals and review fail when their key is missing. infra.yml is keyless
+(Workload Identity Federation). Repo variables set by the agent (MODELS.md). Repo made public
+(Lucas's choice) so GitHub allows branch protection. Branch rule on main: pull request required,
+no approvals, all seven pr.yml jobs required, branch up to date, admins included. Secret scanning
+and push protection on. SR-15 marked Done in TASKS.md.
+Verified: `npm run check`, `npm run test:unit`, `npm run test:integration` locally. Pull request #3
+(broken unit test): test:unit and review failed, merge state BLOCKED, admin cannot override.
 Not done: infra.yml cannot deploy until the keyless GCP identity exists (SETUP.md > Keyless
-deploy). Branch rule on main refused: needs GitHub Pro or a public repo.
+deploy). That is outside SR-15's criteria.
 
 ### 2026-11-18 Setup run (prompt 1, unattended)
 Done:
@@ -42,11 +44,11 @@ Not done: infra deploy, preview, review and evals with keys, branch rule (final 
 ## Assumptions
 | Date | Assumption | Confirm with |
 | --- | --- | --- |
-| 2026-11-18 | golden-template and tax-copilot did not exist. Created both as private repos under cottalucas | Lucas |
+| 2026-11-18 | golden-template and tax-copilot did not exist. Created both as private repos under cottalucas. tax-copilot made public 2026-11-19 on Lucas's request | Lucas, confirmed |
 | 2026-11-18 | Linear has no blocking relations set. Task order follows the journey numbering (0 to 7) | Lucas |
 | 2026-11-18 | Status names: Documents in, Needs review, Ready to fill, Submitted. Notion says "done", Linear SR-22 says "Mark as submitted". Linear wins | Lucas |
 | 2026-11-18 | Firebase project id is unknown. `.firebaserc` uses `demo-tax-copilot` (emulator only). Real id comes from repo variable FIREBASE_PROJECT_ID | Lucas |
-| 2026-11-18 | Firestore location left as a variable (FIRESTORE_LOCATION). Suggested `eur3` or `europe-west6`. Not created | Lucas, permanent choice |
+| 2026-11-18 | Firestore location left as a variable. Resolved 2026-11-19: the database already existed in europe-west6, variable set to match | Resolved |
 | 2026-11-18 | Review job uses openai/codex-action with `sandbox: read-only` and posts one comment, updated on reruns | Lucas |
 | 2026-11-18 | Example rule "large salary change" with a 20% threshold. Not a tax rule. Threshold to confirm with her | Lucas with her |
 | 2026-11-18 | Schema fields (employment, deductions, bank accounts) are a generic Swiss starting set. Canton fields empty, TODO | Lucas with her |
@@ -57,6 +59,9 @@ Not done: infra deploy, preview, review and evals with keys, branch rule (final 
 | 2026-11-18 | Hosting has no rewrite to functions yet, so preview channels deploy without functions | Agent |
 
 ## Template gaps
+- Branch protection on a private repo needs GitHub Pro. Golden SETUP.md should state the choice up
+  front: Pro, a paid org, or a public repo.
+- Creating the keyless deploy identity in GCP needs the owner. Add it to "Only you".
 - Golden had no answer for "repo does not exist yet". SETUP.md should say the agent creates it
   with `gh repo create --template`.
 - Golden QA.md does not say how a required check behaves when it is path filtered. Solved here
