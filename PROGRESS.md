@@ -10,6 +10,19 @@ SR-15: repo, pipeline and eval harness. Scaffolding done, waiting on keys for th
 
 ## Log
 
+### 2026-11-19 SR-15 docs on main, public repo rule (SR-23, SR-24)
+Done: TASKS.md and PROGRESS.md SR-15 updates brought to main. AGENTS.md Project rules: never
+commit golden cases, client data or real tax rules while the repo is public (SR-23). SR-23 itself
+stays open: it closes when the repo goes private or GitHub Pro is active.
+Evidence for the SR-15 checkmarks, from GitHub on 2026-11-19:
+- Golden set on pull requests: pull request #2 changed `evals/golden/README.md`, so the `evals`
+  job ran `npm run evals` (zero cases, passes with a warning, EVALS.md) and passed.
+- Reviewer comment: pull request #2 has one comment headed "Review (gpt-6.2-sol)" with
+  "Verdict: Approve". The model comes from the REVIEWER_MODEL variable.
+- Merge blocked: `evals` and `test:unit` are both required checks on main. Pull request #3 failed
+  `test:unit` and showed BLOCKED, admins included. A failing `evals` job blocks through the same
+  required check rule.
+
 ### 2026-11-19 Final test (prompt 2)
 Done: removed the preview stage and FIREBASE_SERVICE_ACCOUNT. The review job fails unless Codex
 says "Verdict: Approve". Evals and review fail when their key is missing. infra.yml is keyless
