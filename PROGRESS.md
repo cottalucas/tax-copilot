@@ -11,11 +11,14 @@ SR-15: repo, pipeline and eval harness. Scaffolding done, waiting on keys for th
 ## Log
 
 ### 2026-11-19 Final test (prompt 2)
-Done: removed the preview stage and FIREBASE_SERVICE_ACCOUNT. Review now gates pull requests (fails
+Done: removed the preview stage and FIREBASE_SERVICE_ACCOUNT. Review gates pull requests (fails
 unless "Verdict: Approve"). Evals and review fail when their key is missing. infra.yml is keyless
-(Workload Identity Federation). Repo variables set. This pull request adds a skip link to the client
-queue (DESIGN.md accessibility) and a secret guard note for golden cases.
-Verified: `npm run check`, `npm run test:unit`, `npm run test:e2e` locally. CI result in the pull request.
+(Workload Identity Federation). Repo variables set by the agent (MODELS.md). TASKS.md SR-15 updated.
+Verified: `npm run check`, `npm run test:unit`, `npm run test:integration` locally. In CI, pull
+request #3 (broken unit test) failed test:unit. The first run of this pull request got "Changes
+requested" from the reviewer (scope and TASKS.md), which failed the review job as designed.
+Not done: infra.yml cannot deploy until the keyless GCP identity exists (SETUP.md > Keyless
+deploy). Branch rule on main refused: needs GitHub Pro or a public repo.
 
 ### 2026-11-18 Setup run (prompt 1, unattended)
 Done:

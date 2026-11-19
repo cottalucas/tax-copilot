@@ -11,13 +11,16 @@ Depends on: none
 
 Description:
 Outcome: every change is checked automatically.
-Setup run built the repo, stages, workflows and eval runner. Keys and branch rule come next.
+Setup run built the repo, stages, workflows and eval runner. Final test ran 2026-11-19.
+Blocked on the branch rule: GitHub needs Pro (or a public repo) for branch protection on a
+private repo.
 
 Acceptance criteria:
 - [x] Repo created from the template, with AGENTS.md at the root
-- [ ] GitHub Action runs tests and the golden set on each pull request
-- [ ] Reviewer model comments on each pull request, model set by variable
-- [ ] Merge blocked when tests or evals fail
+- [x] GitHub Action runs tests and the golden set on each pull request (golden set runs when an
+      eval input changes, per QA.md and Notion Golden Project Setup > When each check runs)
+- [x] Reviewer model comments on each pull request, model set by variable
+- [ ] Merge blocked when tests or evals fail (checks fail red, but no branch rule yet)
 
 ## Task 1: Login and home queue (SR-16)
 Status: [ ] Not started
