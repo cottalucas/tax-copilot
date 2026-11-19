@@ -108,3 +108,33 @@ Acceptance criteria:
 - [ ] Mark as submitted
 - [ ] Next client reuses the same tab
 - [ ] Her corrections are saved as new eval cases
+
+## Task 8: Make the repo private before any golden case or tax rule (SR-23)
+Status: [ ] Not started
+Depends on: none. Must be done before the first golden case or real tax rule lands
+
+Description:
+Outcome: no client derived data or expert know how is ever public.
+The repo is public for now, so branch rules work on the free plan. AGENTS.md carries the rule.
+
+Acceptance criteria:
+- [ ] Repo is private, or GitHub Pro is active with branch rules still on
+- [ ] Done before the first golden case lands in evals/golden
+- [ ] Done before the first real tax rule lands in rules/
+
+## Task 9: Scaffolding layer: lean docs, gates, skills, infra (SR-24)
+Status: [~] In progress
+Depends on: Task 0. Blocks Task 1
+
+Description:
+Outcome: SR-15 loose ends closed and the scaffolding layer finished. No domain work.
+
+Acceptance criteria:
+- [x] SR-15 doc updates on main (this pull request)
+- [x] Public repo rule in AGENTS.md (this pull request)
+- [ ] Only the kept files exist. AGENTS.md under 150 lines with the read table
+- [ ] Every gate runs and a failing one blocks the merge
+- [ ] A green pull request merges itself. A red one posts to Linear
+- [ ] Both skills installed and referenced
+- [ ] Firestore exists in europe-west6, Auth enabled
+- [ ] PROGRESS.md log and Template gaps updated

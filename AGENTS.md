@@ -34,7 +34,7 @@ QA.md (pipeline), STYLE.md (any text a person reads).
   evals. src/models enforces this with `dataClass`.
 - Never use an LLM judge for numbers.
 - Never commit golden cases, client data or real tax rules while the repo is public (Linear
-  SR-23). The repo goes private, or GitHub Pro keeps branch rules, before any of them lands.
+  SR-23). The repo must be private before any of them lands. GitHub Pro keeps branch rules then.
 - Stack is locked: Firebase Hosting and Auth, Cloud Functions in europe-west6, Firestore for
   status, flags and corrections only.
 
