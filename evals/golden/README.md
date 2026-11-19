@@ -22,4 +22,7 @@ One JSON file per case. Shape (see `evals/lib/types.ts`):
 }
 ```
 
+Before committing a case, run `npm run check`. The secret guard blocks AHV numbers, CH IBANs and
+email addresses.
+
 Add `"predicted": { ... }` with a saved extraction to score a case offline, with no model call.

@@ -10,6 +10,13 @@ SR-15: repo, pipeline and eval harness. Scaffolding done, waiting on keys for th
 
 ## Log
 
+### 2026-11-19 Final test (prompt 2)
+Done: removed the preview stage and FIREBASE_SERVICE_ACCOUNT. Review now gates pull requests (fails
+unless "Verdict: Approve"). Evals and review fail when their key is missing. infra.yml is keyless
+(Workload Identity Federation). Repo variables set. This pull request adds a skip link to the client
+queue (DESIGN.md accessibility) and a secret guard note for golden cases.
+Verified: `npm run check`, `npm run test:unit`, `npm run test:e2e` locally. CI result in the pull request.
+
 ### 2026-11-18 Setup run (prompt 1, unattended)
 Done:
 - Created cottalucas/golden-template (private, template flag on): 12 topic files plus README,
