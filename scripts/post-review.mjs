@@ -1,11 +1,36 @@
 #!/usr/bin/env node
 // Posts the reviewer output as one pull request comment, updating it on later runs.
-// Then gates the pull request: exits 1 unless the review says "Verdict: Approve".
+// Then gates the pull request: blocks only on a tagged criterion, Never rule or security reason.
 // No human QA on pull requests (AGENTS.md): a failed review halts the pull request.
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
 export const MARKER = "<!-- tax-copilot-review -->";
+
+export const BLOCK_TAGS = ["CRITERION", "NEVER", "SECURITY"];
+
+/** Returns the tagged block reasons, for example [{ tag: "NEVER", text: "src/x.ts:12 ..." }]. */
+export function parseBlockReasons(review) {
+  const reasons = [];
+  for (const m of String(review).matchAll(/^\s*[-*]\s*`?\[(CRITERION|NEVER|SECURITY)\]`?\s*(.+)$/gim)) {
+    reasons.push({ tag: m[1].toUpperCase(), text: m[2].trim() });
+  }
+  return reasons;
+}
+
+/**
+ * Decides the gate. Blocks only when the reviewer requests changes with at least one tagged
+ * reason (criterion, Never rule, security). A request without a tagged reason is a comment.
+ * No verdict at all fails closed.
+ */
+export function decide(review) {
+  const verdict = parseVerdict(review);
+  if (verdict === null) return { block: true, reasons: [], note: "Review has no verdict line. Failing closed." };
+  const reasons = parseBlockReasons(review);
+  if (verdict === "approve") return { block: false, reasons: [], note: "Verdict: Approve" };
+  if (reasons.length === 0) return { block: false, reasons, note: "Changes requested without a tagged block reason. Treated as comments." };
+  return { block: true, reasons, note: `Blocked: ${reasons.map((r) => `[${r.tag}] ${r.text}`).join(" | ")}` };
+}
 
 /** Returns "approve", "changes" or null when the review has no verdict line. */
 export function parseVerdict(review) {
@@ -36,16 +61,14 @@ function main() {
     console.log("Posted review comment");
   }
 
-  const verdict = parseVerdict(review);
-  if (verdict === "approve") {
-    console.log("Review verdict: Approve");
+  const result = decide(review);
+  if (!result.block) {
+    console.log(result.note);
     return;
   }
-  console.error(
-    verdict === "changes"
-      ? "::error title=review::Reviewer requested changes. See the review comment."
-      : "::error title=review::Review has no verdict line. Failing closed.",
-  );
+  // Each block reason is logged in PROGRESS.md > Review blocks by the agent that fixes it.
+  for (const r of result.reasons) console.error(`::error title=review [${r.tag}]::${r.text}`);
+  if (result.reasons.length === 0) console.error(`::error title=review::${result.note}`);
   process.exit(1);
 }
 

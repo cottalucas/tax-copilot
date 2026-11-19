@@ -19,6 +19,11 @@ QA.md (pipeline), STYLE.md (any text a person reads).
 - At the end of each task: mark it in TASKS.md, add a Log entry to PROGRESS.md, same pull request.
 - Docs change in the same pull request as the code that changes them. Docs state what the code
   does today.
+- Exception: when Lucas asks for a separate docs pull request, docs may follow the code. The
+  pull request body says so.
+- When the review blocks, add a row to PROGRESS.md > Review blocks before fixing it. The reviewer
+  blocks only for an unmet criterion, a broken Never rule or a security issue
+  (`scripts/review-rules.md`). Everything else is a comment.
 - Small pull requests. Put the Linear id (SR-n) in the branch name and the title.
 - Load STYLE.md before writing copy, docs or pull request text.
 

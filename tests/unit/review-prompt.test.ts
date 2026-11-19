@@ -28,3 +28,23 @@ describe("review verdict gate", async () => {
     expect(parseVerdict("Looks fine to me")).toBeNull();
   });
 });
+
+describe("review block reasons", async () => {
+  // @ts-expect-error plain JS script without types
+  const { decide, parseBlockReasons } = await import("../../scripts/post-review.mjs");
+
+  it("reads only the three allowed tags", () => {
+    const review = "Verdict: Changes requested\n\nBlock reasons:\n- [NEVER] src/a.ts:3 model call outside src/models\n- [STYLE] docs nit\n- `[SECURITY]` key in .env\n";
+    expect(parseBlockReasons(review)).toEqual([
+      { tag: "NEVER", text: "src/a.ts:3 model call outside src/models" },
+      { tag: "SECURITY", text: "key in .env" },
+    ]);
+  });
+
+  it("blocks only with a tagged reason", () => {
+    expect(decide("**Verdict: Changes requested**\n- [CRITERION] TASKS.md:4 missed").block).toBe(true);
+    expect(decide("**Verdict: Changes requested**\n- docs should be in the same pull request").block).toBe(false);
+    expect(decide("**Verdict: Approve**\nBlock reasons: None").block).toBe(false);
+    expect(decide("no verdict").block).toBe(true);
+  });
+});

@@ -10,14 +10,14 @@ SR-15: repo, pipeline and eval harness. Scaffolding done, waiting on keys for th
 
 ## Log
 
-### 2026-11-19 SR-15 docs on main, public repo rule (SR-23, SR-24)
-Done: TASKS.md and PROGRESS.md SR-15 updates brought to main. AGENTS.md Project rules: never
+### 2026-11-19 SR-15 docs on main, public repo rule, reviewer calibrated (SR-23, SR-24)
+Done: this pull request brings the SR-15 updates of TASKS.md and PROGRESS.md to main. AGENTS.md Project rules: never
 commit golden cases, client data or real tax rules while the repo is public (SR-23). SR-23 itself
 stays open: it closes when the repo is private. GitHub Pro then keeps the branch rules on.
 Evidence for the SR-15 checkmarks, from GitHub on 2026-11-19:
-- Golden set on pull requests: pull request #2 ran the `evals` job (`npm run evals`, zero cases,
-  passes with a warning). From this pull request on, `evals` runs on every pull request, as the
-  Linear criterion says. The Notion path filter is dropped (Linear wins on scope).
+- Golden set on pull requests: the path filter is gone, so `evals` runs on every pull request, as
+  the Linear criterion says (Linear wins over the Notion filter). Pull request #5 is the first run
+  with the changed workflow: its `evals` job ran `npm run evals` (zero cases, warning) and passed.
 - Reviewer comment: pull request #2 has one comment headed "Review (gpt-6.2-sol)" with
   "Verdict: Approve". The model comes from the REVIEWER_MODEL variable.
 - Merge blocked: `evals` and `test:unit` are both required checks on main. Pull request #3 failed
@@ -54,6 +54,23 @@ hid `evals/lib/` (now `/lib/`), and the `changes` job lost `contents: read`. Aft
 pull request #1 is green: check, test:unit, test:integration, test:e2e ran and passed; evals,
 preview and review skipped with a warning (no keys).
 Not done: infra deploy, preview, review and evals with keys, branch rule (final test).
+
+Reviewer calibrated on 2026-11-19 at Lucas's request: it blocks only for an unmet claimed
+criterion, a broken Never rule or a security issue (`scripts/review-rules.md`). Each reason is
+tagged [CRITERION], [NEVER] or [SECURITY]. A request for changes without a tag is a comment.
+AGENTS.md allows a separate docs pull request when Lucas asks for it.
+
+## Review blocks
+Every block, so the reviewer can be tuned. Category is the tag the block would get under the
+calibrated rules (none means it would now be a comment).
+| Date | Pull request | Reason given | Category | Action |
+| --- | --- | --- | --- | --- |
+| 2026-11-19 | #2 run 1 | Skip link outside SR-15 scope, TASKS.md not updated | none | Removed the skip link |
+| 2026-11-19 | #2 run 2 | SR-15 "merge blocked" not met (no branch rule) | CRITERION | Repo made public, branch rule set |
+| 2026-11-19 | #4 run 1 | Log lacked evidence for SR-15 checkmarks, SR-23 rule not logged | CRITERION | Added evidence and log entry |
+| 2026-11-19 | #4 run 2 | Branch name lacked SR-23 and SR-24, docs after code, rule wording | none | New branch, clarified rule (#5) |
+| 2026-11-19 | #5 run 1 | Golden set not run on every pull request (path filter) | CRITERION | Dropped the evals path filter |
+| 2026-11-19 | #5 run 2 | Docs after code, "already on main" wording, eval evidence predates change | none | Exception added, wording fixed, reviewer calibrated |
 
 ## Assumptions
 | Date | Assumption | Confirm with |
