@@ -70,7 +70,12 @@ async function main() {
   const injection = loadDir("injection", "injection");
   const all = [...golden, ...injection];
   if (golden.length === 0) write("WARNING: evals/golden has zero cases. The golden set passes until cases exist (EVALS.md).");
-  if (all.length === 0) return;
+  // The injection set is a required gate: an empty or missing suite fails the run.
+  if (injection.length === 0) {
+    write("## Evals\n\nFAILED: evals/injection has no cases. The prompt injection set must run on every pull request.");
+    process.exitCode = 1;
+    return;
+  }
 
   // requireCost: a call without a reported cost fails the run, so spend is always verified.
   const budget = new CostBudget(budgets.evalMaxCostUsd, { requireCost: true });

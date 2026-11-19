@@ -1,10 +1,10 @@
-# Halt step (AGENTS.md > Pipeline). When pr or codeql fails on a pull request, comment on the
+# Halt step (AGENTS.md > Pipeline). When pr fails on a pull request, comment on the
 # Linear issue named in the title or branch and mention the repo owner on the pull request.
 name: halt
 
 on:
   workflow_run:
-    workflows: [pr, codeql]
+    workflows: [pr]
     types: [completed]
 
 permissions:

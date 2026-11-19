@@ -1,6 +1,7 @@
 # Every pull request (AGENTS.md > Pipeline). No human QA: a pull request halts when any gate fails.
-# Required on main: changes, check, test:unit, test:integration, test:e2e, evals, audit, review,
-# and codeql (codeql.yml). ux-shots and ux-review.yml comment only and are not required.
+# Required on main: changes, check, test:unit, test:integration, test:e2e, evals, audit, review.
+# Code scanning: CodeQL default setup plus a ruleset (no workflow here). ux-shots and
+# ux-review.yml comment only and are not required.
 # A missing secret or variable fails the job: keys are in, so nothing skips silently.
 name: pr
 

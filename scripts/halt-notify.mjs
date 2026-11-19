@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Halt step (AGENTS.md > Pipeline). Runs after a pr or codeql workflow fails on a pull request.
+// Halt step (AGENTS.md > Pipeline). Runs after the pr workflow fails on a pull request.
 // Posts a comment on each Linear issue named in the title or branch, and a GitHub comment that
 // mentions the repo owner so they get a notification.
 import { execFileSync } from "node:child_process";

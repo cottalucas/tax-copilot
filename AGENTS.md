@@ -90,9 +90,9 @@ repo owner is mentioned on the pull request.
 | Regression and budgets | `test:unit` | Any test fails, line coverage on `src/` under `coverage-floor.json`, a function over `budgets.json` seconds |
 | Firestore rules | `test:integration` | Any rules test fails |
 | End to end and accessibility | `test:e2e` | Any Playwright test fails, any WCAG 2.2 AA violation |
-| Golden set, injection set, cost | `evals` | Under the launch threshold, any injection field changed, cost over `budgets.json` or not reported |
+| Golden set, injection set, cost | `evals` | Under the launch threshold, an empty injection set, any injection field changed by any model, cost over `budgets.json` or not reported |
 | Dependencies | `audit` | A high or critical advisory in production dependencies |
-| Code scanning | `codeql` | Any open error, warning, high or critical alert on the pull request |
+| Code scanning | CodeQL default setup + ruleset | Any error or warning alert, or a high or critical security alert (GitHub ruleset, outside the repo's workflows) |
 | Review | `review` | Codex blocks with a tagged [CRITERION], [NEVER] or [SECURITY] reason, or its output is malformed |
 | Changed files | `changes` | Path filter error |
 | UX review (comments only) | `ux-shots`, ux-review.yml | Never blocks. Runs when `web/` or DESIGN.md changes. Screenshots come from pull request code with no secrets, the model call runs base code only |
@@ -100,7 +100,7 @@ repo owner is mentioned on the pull request.
 | Trigger | Workflow |
 | --- | --- |
 | Push, any branch | push.yml: check, test:unit |
-| Pull request | pr.yml, codeql.yml. automerge.yml (pull_request_target, API only, branches of this repo only) |
+| Pull request | pr.yml, CodeQL default setup. automerge.yml (pull_request_target, API only, branches of this repo only) |
 | After pr.yml | halt.yml on failure: Linear comment, GitHub mention. ux-review.yml: screenshot review |
 | Nightly 02:00 UTC | nightly.yml: full test:e2e, full evals, form change check (placeholder) |
 | Mention @claude | claude.yml: Claude Code builder, model from BUILDER_MODEL |

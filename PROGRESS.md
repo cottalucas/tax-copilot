@@ -13,8 +13,8 @@ SR-24: scaffolding layer (lean docs, gates on every pull request, skills, infra)
 
 ### 2026-11-19 SR-24 gates on every pull request
 Done: every gate runs on every pull request (AGENTS.md > Pipeline). Full unit, integration and
-end to end suites. `audit` (production dependencies, high and above). `codeql` (security
-extended, fails on open alerts). Secret guard and GitHub push protection. Firestore rules tests.
+end to end suites. `audit` (production dependencies, high and above). Code scanning: CodeQL
+default setup (extended) and a ruleset that blocks merges on alerts. Secret guard and GitHub push protection. Firestore rules tests.
 Prompt injection set (3 synthetic cases) and page tag neutralizing. Budgets in `budgets.json`:
 functions at most 60 s (unit tested), eval cost at most 1 USD per run. Coverage floor 93% on
 `src/` that only goes up (`coverage-floor.json`, lowering it fails). Playwright axe checks for
@@ -130,6 +130,8 @@ calibrated rules (none means it would now be a comment).
 | 2026-11-19 | #7 run 2 | Auto merge write token in a workflow the pull request defines | SECURITY | automerge.yml moved to pull_request_target: base code, API only, never pull request code |
 | 2026-11-19 | #7 run 2 | Infra criterion claimed without a successful run | CRITERION | Not claimed here. The infra run after merge is the evidence |
 | 2026-11-19 | #7 run 3 | Only the first model could fail evals, a later model's injection miss passed | CRITERION | Injection set must hold for every model |
+| 2026-11-19 | #7 run 4 | A missing injection folder passed as an empty suite | CRITERION | Empty injection set fails the run |
+| 2026-11-19 | #7 run 4 | codeql.yml held security-events write inside a pull request defined workflow | SECURITY | CodeQL default setup (extended queries) run by GitHub, plus ruleset "Code scanning blocks merges". codeql.yml deleted |
 
 ## Assumptions
 | Date | Assumption | Confirm with |
