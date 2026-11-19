@@ -36,7 +36,9 @@ export function decide(review) {
 
 /** Returns "approve", "changes" or null when the review has no verdict line. */
 export function parseVerdict(review) {
-  const m = String(review).match(/verdict\s*:\s*\**\s*(approve|changes requested)/i);
+  // Only the first non empty line counts, and it must be the whole verdict.
+  const first = String(review).split("\n").map((l) => l.trim()).find((l) => l.length > 0) ?? "";
+  const m = first.match(/^\**\s*verdict\s*:\s*\**\s*(approve|changes requested)\s*\.?\s*\**$/i);
   if (!m) return null;
   return m[1].toLowerCase() === "approve" ? "approve" : "changes";
 }

@@ -27,6 +27,12 @@ describe("review verdict gate", async () => {
   it("fails closed when there is no verdict", () => {
     expect(parseVerdict("Looks fine to me")).toBeNull();
   });
+
+  it("only accepts the verdict as the whole first line", () => {
+    expect(parseVerdict("\n\n**Verdict: Approve**\nrest")).toBe("approve");
+    expect(parseVerdict("Summary first\nVerdict: Approve")).toBeNull();
+    expect(parseVerdict("Verdict: Approve unless the tests fail")).toBeNull();
+  });
 });
 
 describe("review block reasons", async () => {

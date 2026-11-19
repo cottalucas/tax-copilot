@@ -57,7 +57,9 @@ Not done: infra deploy, preview, review and evals with keys, branch rule (final 
 
 Reviewer calibrated on 2026-11-19 at Lucas's request: it blocks only for an unmet claimed
 criterion, a broken Never rule or a security issue (`scripts/review-rules.md`). Each reason is
-tagged [CRITERION], [NEVER] or [SECURITY]. A request for changes without a tag is a comment.
+tagged [CRITERION], [NEVER] or [SECURITY]. Everything else goes in the comment as a note and
+does not block. The gate only reads the first line verdict: "Changes requested" without a tag, or
+no verdict on the first line, is malformed and fails closed.
 AGENTS.md allows a separate docs pull request when Lucas asks for it.
 The review job loads AGENTS.md, TASKS.md, `scripts/review-rules.md` and both review scripts from the base
 commit, so a pull request cannot change the reviewer that judges it. No exception: this pull
@@ -77,6 +79,7 @@ calibrated rules (none means it would now be a comment).
 | 2026-11-19 | #5 run 2 | Docs after code, "already on main" wording, eval evidence predates change | none | Exception added, wording fixed, reviewer calibrated |
 | 2026-11-19 | #5 run 3 | Reviewer rules load from the pull request checkout, so a pull request could edit its own reviewer | SECURITY | Reviewer, rules and AGENTS.md load from the base commit |
 | 2026-11-19 | #5 run 4 | Untagged "Changes requested" passed. Bootstrap let this pull request supply its own reviewer | SECURITY | Untagged requests fail closed. No bootstrap: always the base reviewer |
+| 2026-11-19 | #5 run 5 (old reviewer from main) | PROGRESS wording contradicted the fail closed gate. Verdict accepted anywhere in the text | none (old reviewer blocks on anything) | Fixed the wording. Verdict must be the whole first line |
 
 ## Assumptions
 | Date | Assumption | Confirm with |
