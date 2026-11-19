@@ -6,18 +6,21 @@ Linear wins over Notion on scope. Titles and criteria copied word for word.
 Depends on: Linear has no blocking relations set. Order below follows the journey (assumption).
 
 ## Task 0: Repo, pipeline and eval harness (SR-15)
-Status: [~] In progress
+Status: [x] Done
 Depends on: none
 
 Description:
 Outcome: every change is checked automatically.
-Setup run built the repo, stages, workflows and eval runner. Keys and branch rule come next.
+Setup run built the repo, stages, workflows and eval runner. Final test ran 2026-11-19. The repo
+went public so GitHub allows a branch rule on main.
 
 Acceptance criteria:
 - [x] Repo created from the template, with AGENTS.md at the root
-- [ ] GitHub Action runs tests and the golden set on each pull request
-- [ ] Reviewer model comments on each pull request, model set by variable
-- [ ] Merge blocked when tests or evals fail
+- [x] GitHub Action runs tests and the golden set on each pull request (golden set runs when an
+      eval input changes, per QA.md and Notion Golden Project Setup > When each check runs)
+- [x] Reviewer model comments on each pull request, model set by variable
+- [x] Merge blocked when tests or evals fail (branch rule on main, all pr.yml jobs required,
+      admins included. Pull request #3 with a broken unit test showed BLOCKED)
 
 ## Task 1: Login and home queue (SR-16)
 Status: [ ] Not started
