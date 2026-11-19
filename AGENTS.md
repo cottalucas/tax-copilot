@@ -8,10 +8,11 @@ here. Backlog: Linear project Tax Copilot. Product: PRD.md. System: ARCHITECTURE
 | --- | --- | --- |
 | install | `npm ci` | Node 22 (`.nvmrc`) |
 | check | `npm run check` | TypeScript, ESLint, secret guard |
-| test:unit | `npm run test:unit` | Vitest, network mocked |
+| test:unit | `npm run test:unit` | Vitest with coverage floor, network mocked |
 | test:integration | `npm run test:integration` | Firestore emulator, needs Java 11+ |
 | test:e2e | `npm run test:e2e` | Playwright. First run: `npx playwright install chromium` |
-| evals | `npm run evals` | Golden set runner, needs OPENROUTER_API_KEY when cases exist |
+| evals | `npm run evals` | Golden and injection sets. Needs OPENROUTER_API_KEY and APP_MODEL |
+| ux-review | `npm run ux-review` | Screenshot review. Needs a running app at BASE_URL |
 | build | `npm run build` | Web to `dist/`, functions to `lib/` |
 | review | CI only | Codex, model from REVIEWER_MODEL. Must say "Verdict: Approve" |
 
@@ -29,7 +30,7 @@ code.
 | Schema, extraction, rules, golden cases | EVALS.md, ARCHITECTURE.md > Data model |
 | Any screen or UI copy | DESIGN.md, skill `nielsen-heuristics-audit` |
 | Any text a person reads (copy, docs, pull requests) | skill `stop-slop` |
-| Pipeline, workflows, gates | AGENTS.md > Pipeline |
+| Pipeline, workflows, gates, budgets | AGENTS.md > Pipeline, `budgets.json` |
 | Secrets, client data, residency | AGENTS.md > Never do, ARCHITECTURE.md > Security |
 
 Skills live in `.agents/skills/` (see its README). Load a skill only when the task needs it.
@@ -54,7 +55,7 @@ Skills live in `.agents/skills/` (see its README). Load a skill only when the ta
 - Scope changes, or when Linear and a doc disagree.
 - A new dependency on a paid service, a new region, or a new Google Cloud API.
 - Any change to `firestore.rules` that allows a read or write.
-- Changing a launch threshold, a budget or the coverage floor.
+- Changing a launch threshold or a budget, or lowering the coverage floor.
 - Deleting work you did not write.
 - The same failure twice.
 
@@ -75,33 +76,51 @@ Skills live in `.agents/skills/` (see its README). Load a skill only when the ta
 
 ## Definition of done
 - Every acceptance criterion of the Linear issue passes, checked by a test or a visible check.
-- Every required pipeline job passes (below). The review job says "Verdict: Approve".
+- Every gate below passes, including the review.
 - PROGRESS.md updated. No secret or client data in the diff.
 
 ## Pipeline
-No human QA on pull requests. A pull request halts when tests, evals or review fail.
+No human QA. Every pull request runs every gate. When all pass, the pull request merges itself
+(squash). When one fails, the pull request is blocked, the Linear issue gets a comment and the
+repo owner is mentioned on the pull request.
 
-| Trigger | Workflow | Jobs |
+| Gate | Job | Fails when |
 | --- | --- | --- |
-| Push, any branch | push.yml | check, test:unit |
-| Pull request | pr.yml | changes, check, test:unit, test:integration, test:e2e, evals, review |
-| Nightly 02:00 UTC | nightly.yml | full test:e2e, full evals, form change check (placeholder) |
-| Mention @claude | claude.yml | Claude Code builder, model from BUILDER_MODEL |
-| Manual | infra.yml | Google Cloud setup, keyless auth |
+| Types, lint, secrets, DESIGN.md | `check` | Any error, a secret shaped value, a DESIGN.md lint error |
+| Regression and budgets | `test:unit` | Any test fails, line coverage on `src/` under `coverage-floor.json`, a function over `budgets.json` seconds |
+| Firestore rules | `test:integration` | Any rules test fails |
+| End to end and accessibility | `test:e2e` | Any Playwright test fails, any WCAG 2.2 AA violation |
+| Golden set, injection set, cost | `evals` | Under the launch threshold, any injection field changed, cost over `budgets.json` |
+| Dependencies | `audit` | A high or critical advisory in production dependencies |
+| Code scanning | `codeql` | Any open error, warning, high or critical alert on the pull request |
+| Review | `review` | Codex blocks with a tagged [CRITERION], [NEVER] or [SECURITY] reason, or its output is malformed |
+| Changed files | `changes` | Path filter error |
+| UX review (comments only) | `ux-review` | Never blocks. Runs when `web/` or DESIGN.md changes |
 
-- Required on main: a pull request plus every pr.yml job. Admins included. No approvals.
-- `test:e2e` runs when app code changes. `evals` runs on every pull request (Linear SR-15).
-- `evals` and `review` fail when their key or model variable is missing.
-- The reviewer reads the acceptance criteria from the Linear issue named in the title or branch.
+| Trigger | Workflow |
+| --- | --- |
+| Push, any branch | push.yml: check, test:unit |
+| Pull request | pr.yml, codeql.yml, automerge.yml |
+| Gate failure on a pull request | halt.yml: Linear comment, GitHub mention |
+| Nightly 02:00 UTC | nightly.yml: full test:e2e, full evals, form change check (placeholder) |
+| Mention @claude | claude.yml: Claude Code builder, model from BUILDER_MODEL |
+| Manual | infra.yml: Google Cloud setup. Live app deploy only when ticked |
+
+- Required on main: a pull request plus every gate except `ux-review`. Admins included. No
+  approvals. Branches need not be up to date (GitHub auto merge does not update them).
+- Coverage floor only goes up: `node scripts/coverage-floor.mjs --update` after coverage rises.
+- The reviewer judges the acceptance criteria the pull request body quotes from its Linear issue.
+  pr.yml gets no Linear key: a pull request can edit pr.yml. Reading Linear moves to the
+  `pull_request_target` review job, which never runs pull request code.
 - The reviewer blocks only for an unmet claimed criterion, a broken Never rule or a security
-  issue, tagged [CRITERION], [NEVER] or [SECURITY] (`scripts/review-rules.md`). Everything else is
-  a comment. It loads from the base commit, so a pull request cannot change its own reviewer.
+  issue (`scripts/review-rules.md`). Everything else is a comment. It loads from the base commit
+  and runs in a trusted folder, so a pull request cannot change its own reviewer.
 
 ## Secrets and variables
 Names only. A human sets secret values. Agents never see them.
 - Secrets: ANTHROPIC_API_KEY, OPENAI_API_KEY, OPENROUTER_API_KEY, LINEAR_API_KEY.
 - Variables: MODEL_PROVIDER, APP_MODEL, EVAL_MODELS, BUILDER_MODEL, REVIEWER_MODEL,
-  FIREBASE_PROJECT_ID, FIRESTORE_LOCATION, GCP_WIF_PROVIDER, GCP_DEPLOY_SA.
+  UX_REVIEW_MODEL, FIREBASE_PROJECT_ID, FIRESTORE_LOCATION, GCP_WIF_PROVIDER, GCP_DEPLOY_SA.
 
 ## Conflict order
 Linear wins on scope. Never do wins on data. ARCHITECTURE.md wins on technical shape. The latest

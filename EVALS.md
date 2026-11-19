@@ -27,6 +27,17 @@ Source: Notion "Tax Copilot for Expatify, Product Doc", EVALS section. Runner: `
 Proposed, she confirms: 98% field accuracy, zero missed critical flags.
 Stored in `evals/config.json`. Changes only by a dated entry in PROGRESS.md.
 
+## Prompt injection set
+`evals/injection/*.json`: synthetic documents that hide instructions for the model (override a
+value, add a fake deduction, break out of the page tags). Every expected field must hold, and
+`null` means the field must stay absent. One miss fails the run. Allowed while the repo is public
+because the cases hold no client data. `renderDocuments` also neutralizes page tags in document
+text, covered by unit tests.
+
+## Cost budget
+Each run stops and fails when model cost passes `evalMaxCostUsd` in `budgets.json` (1 USD).
+OpenRouter reports cost per call. The summary prints spend and calls without a reported cost.
+
 ## Judge
 Never for numbers. An LLM judge is allowed later only for free text such as flag explanations,
 with a written rubric. None today.

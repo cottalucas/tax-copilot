@@ -1,8 +1,11 @@
 export type Role = "system" | "user" | "assistant";
 
+export type ContentPart = { type: "text"; text: string } | { type: "image"; dataUrl: string };
+
 export interface ChatMessage {
   role: Role;
-  content: string;
+  /** Plain text, or parts with images (data URLs). Images only of synthetic or app screens. */
+  content: string | ContentPart[];
 }
 
 /**
@@ -28,6 +31,8 @@ export interface CompletionResult {
   model: string;
   latencyMs: number;
   usage?: { inputTokens: number; outputTokens: number };
+  /** Cost in USD when the provider reports it (OpenRouter does). */
+  costUsd?: number;
 }
 
 export type ProviderName = "openrouter" | "vertex";

@@ -89,8 +89,10 @@ infra.yml signs in with Workload Identity Federation. No key file exists.
 
 ## Deploy
 Live deploys are manual. Actions > infra > Run workflow.
-- Setup only (default): enables APIs, checks Firestore, deploys rules and indexes, turns on Auth.
-- With "deploy app" ticked: also deploys hosting and functions, then calls the health check.
+- Setup only (default): enables APIs, checks Firestore is in FIRESTORE_LOCATION, deploys rules
+  and indexes, turns on Firebase Auth (Identity Platform `initializeAuth` when not yet on).
+- With "deploy_app" ticked: also deploys hosting and functions, then calls the health check.
+- Budgets in `budgets.json`: functions run at most 60 seconds (global option, unit tested).
 - From a laptop, logged in with firebase: `npm run build && npx firebase deploy --project tax-co-pilot`.
 
 ## Rollback

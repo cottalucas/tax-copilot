@@ -1,0 +1,5 @@
+{
+  "note": "Budgets enforced in CI (AGENTS.md > Pipeline). Changing a value needs Lucas's approval.",
+  "functionMaxSeconds": 60,
+  "evalMaxCostUsd": 1.0
+}

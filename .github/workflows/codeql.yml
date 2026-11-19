@@ -1,0 +1,45 @@
+# Code scanning (AGENTS.md > Pipeline). Required on main. Fails on any open error or
+# warning level alert for the pull request, not only on analysis errors.
+name: codeql
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 3 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  codeql:
+    name: codeql
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: javascript-typescript
+          queries: security-extended
+      - id: analyze
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:javascript-typescript
+      - name: Fail on alerts in this pull request
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REF: refs/pull/${{ github.event.pull_request.number }}/merge
+        run: |
+          count=$(gh api "repos/${GITHUB_REPOSITORY}/code-scanning/alerts?ref=${REF}&state=open&per_page=100" \
+            --jq '[.[] | select(.rule.severity == "error" or .rule.severity == "warning" or .rule.security_severity_level == "high" or .rule.security_severity_level == "critical")] | length')
+          if [ "$count" != "0" ]; then
+            echo "::error title=codeql::$count open code scanning alert(s) on this pull request. See the Security tab."
+            exit 1
+          fi
+          echo "No open code scanning alerts on this pull request."

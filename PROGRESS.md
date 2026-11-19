@@ -11,6 +11,22 @@ SR-24: scaffolding layer (lean docs, gates on every pull request, skills, infra)
 
 ## Log
 
+### 2026-11-19 SR-24 gates on every pull request
+Done: every gate runs on every pull request (AGENTS.md > Pipeline). Full unit, integration and
+end to end suites. `audit` (production dependencies, high and above). `codeql` (security
+extended, fails on open alerts). Secret guard and GitHub push protection. Firestore rules tests.
+Prompt injection set (3 synthetic cases) and page tag neutralizing. Budgets in `budgets.json`:
+functions at most 60 s (unit tested), eval cost at most 1 USD per run. Coverage floor 93% on
+`src/` that only goes up (`coverage-floor.json`, lowering it fails). Playwright axe checks for
+WCAG 2.2 AA. Screenshot UX review against Nielsen's heuristics, comments only. Auto merge
+(squash) once every required check passes. Halt workflow (workflow_run, base code only) posts to
+Linear and mentions the owner. Upgraded zod 4, openai 7, firebase-admin 14, firebase-functions 7
+(two high advisories cleared). The extraction prompt now includes the JSON Schema generated from
+Zod (it was missing). infra.yml: Firebase Auth step, Firestore location check, live app deploy
+off by default.
+Verified locally: `npm run check`, `npm run test:unit` (coverage 93.5%), `npm run test:e2e`
+(with axe), `npm run test:integration`, `actionlint`. Evals need the CI key.
+
 ### 2026-11-19 SR-24 lean context files, DESIGN.md, skills
 Done: AGENTS.md rewritten (commands first, read table, always do, ask first, never do, pipeline).
 QA, SECURITY, MODELS, STYLE, SETUP and FEEDBACK merged into AGENTS.md and ARCHITECTURE.md.
@@ -122,6 +138,11 @@ calibrated rules (none means it would now be a comment).
 | 2026-11-18 | Hosting has no rewrite to functions yet, so preview channels deploy without functions | Agent |
 
 ## Template gaps
+- Staging environment: none yet. Add a staging Firebase project before the first real client.
+- Golden has no gate set: coverage floor, budgets, audit, code scanning, injection set, axe,
+  auto merge and halt notifications. Copy this pipeline back as the Golden default.
+- GitHub auto merge cannot update branches on the free plan (no merge queue), so "branch must be
+  up to date" is off. Golden should say so.
 - Any secret in a `pull_request` workflow (OPENAI_API_KEY, OPENROUTER_API_KEY today) can be read
   by a same repo pull request that edits the workflow. Only accounts with write access can do
   that, but agents have it. Follow up with the `pull_request_target` review job (diff only, never

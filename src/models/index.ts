@@ -1,3 +1,4 @@
+import type { CostBudget } from "./budget.js";
 import { getModelConfig } from "./config.js";
 import { DataResidencyError } from "./errors.js";
 import { OpenRouterProvider } from "./providers/openrouter.js";
@@ -7,11 +8,14 @@ import type { CompletionRequest, CompletionResult, ModelProvider, ProviderName }
 export * from "./types.js";
 export * from "./errors.js";
 export { getModelConfig } from "./config.js";
+export { CostBudget } from "./budget.js";
 
 export interface AdapterDeps {
   env?: NodeJS.ProcessEnv;
   /** Injected in tests. Defaults to building the provider from env. */
   provider?: ModelProvider;
+  /** Caps spend for the run this call belongs to. */
+  budget?: CostBudget;
 }
 
 /** Providers allowed to receive real client data. EU region locked only. */
@@ -42,5 +46,7 @@ export async function complete(request: CompletionRequest, deps: AdapterDeps = {
     );
   }
 
-  return provider.complete({ ...request, model: request.model ?? config.model });
+  const result = await provider.complete({ ...request, model: request.model ?? config.model });
+  deps.budget?.record(result);
+  return result;
 }

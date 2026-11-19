@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { complete, DataResidencyError, getModelConfig, ModelConfigError } from "./index.js";
+import { BudgetExceededError, complete, CostBudget, DataResidencyError, getModelConfig, ModelConfigError } from "./index.js";
 import { OPENROUTER_BASE_URL, OpenRouterProvider } from "./providers/openrouter.js";
 import { VertexProvider } from "./providers/vertex.js";
 
@@ -95,5 +95,52 @@ describe("data residency", () => {
         { env: { MODEL_PROVIDER: "vertex", APP_MODEL: "m" }, provider },
       ),
     ).rejects.toThrow(/stub/);
+  });
+});
+
+describe("cost and budget", () => {
+  it("asks OpenRouter for the cost and returns it", async () => {
+    const fetch = fakeFetch({ ...chatResponse, usage: { ...chatResponse.usage, cost: 0.0042 } });
+    const provider = new OpenRouterProvider({ apiKey: "k", fetch: fetch as unknown as typeof globalThis.fetch });
+    const result = await complete({ messages: [], dataClass: "anonymized" }, { env, provider });
+    expect(result.costUsd).toBe(0.0042);
+    expect(JSON.parse(String((fetch.mock.calls[0]![1] as RequestInit).body)).usage).toEqual({ include: true });
+  });
+
+  it("fails the run when spend passes the budget", async () => {
+    const fetch = fakeFetch({ ...chatResponse, usage: { ...chatResponse.usage, cost: 0.6 } });
+    const provider = new OpenRouterProvider({ apiKey: "k", fetch: fetch as unknown as typeof globalThis.fetch });
+    const budget = new CostBudget(1);
+    await complete({ messages: [], dataClass: "anonymized" }, { env, provider, budget });
+    await expect(complete({ messages: [], dataClass: "anonymized" }, { env, provider, budget })).rejects.toThrow(
+      BudgetExceededError,
+    );
+    expect(budget.calls).toBe(2);
+  });
+
+  it("counts calls with unknown cost", () => {
+    const budget = new CostBudget(1);
+    budget.record({ model: "m" });
+    expect(budget.unknownCostCalls).toBe(1);
+    expect(() => new CostBudget(0)).toThrow();
+  });
+});
+
+describe("image input", () => {
+  it("sends images as image_url parts", async () => {
+    const fetch = fakeFetch(chatResponse);
+    const provider = new OpenRouterProvider({ apiKey: "k", fetch: fetch as unknown as typeof globalThis.fetch });
+    await complete(
+      {
+        dataClass: "anonymized",
+        messages: [{ role: "user", content: [{ type: "text", text: "Review" }, { type: "image", dataUrl: "data:image/png;base64,AA" }] }],
+      },
+      { env, provider },
+    );
+    const sent = JSON.parse(String((fetch.mock.calls[0]![1] as RequestInit).body));
+    expect(sent.messages[0].content).toEqual([
+      { type: "text", text: "Review" },
+      { type: "image_url", image_url: { url: "data:image/png;base64,AA" } },
+    ]);
   });
 });
