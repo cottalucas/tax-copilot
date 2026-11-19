@@ -106,10 +106,8 @@ jobs:
     steps:
       - id: gate
         run: |
-          if [ "${{ needs.changes.outputs.evals }}" != "true" ]; then
-            echo "::notice title=evals skipped::No prompt, schema, rules, model adapter or eval case changed."
-            echo "run=false" >> "$GITHUB_OUTPUT"
-          elif [ -z "$OPENROUTER_API_KEY" ] || [ -z "$APP_MODEL" ]; then
+          # Golden set runs on every pull request (Linear SR-15 wins over the Notion path filter).
+          if [ -z "$OPENROUTER_API_KEY" ] || [ -z "$APP_MODEL" ]; then
             echo "::error title=evals blocked::OPENROUTER_API_KEY secret or APP_MODEL variable is not set."
             exit 1
           else

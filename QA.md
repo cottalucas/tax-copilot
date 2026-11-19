@@ -17,7 +17,7 @@ Pipeline stages from golden-template/QA.md, bound to this project's tools.
 | Trigger | Workflow | Stages |
 | --- | --- | --- |
 | Push, any branch | push.yml | check, test:unit |
-| Pull request | pr.yml | check, test:unit, test:integration, test:e2e*, evals*, review |
+| Pull request | pr.yml | check, test:unit, test:integration, test:e2e*, evals, review |
 | Nightly 02:00 UTC | nightly.yml | full test:e2e, full evals, government form change check (placeholder) |
 | Mention @claude | claude.yml | Claude Code builder, model from BUILDER_MODEL |
 | Manual | infra.yml | APIs, Firestore, rules, hosting, functions, health check. Keyless auth |
@@ -25,8 +25,7 @@ Pipeline stages from golden-template/QA.md, bound to this project's tools.
 ## Path filters
 \* test:e2e runs when app code changes: `web/`, `src/`, `rules/`, `tests/e2e/`, `firebase.json`,
 `firestore.rules`, `package*.json`, `vite.config.ts`, `playwright.config.ts`.
-\* evals run when eval inputs change: `prompts/`, `src/schema/`, `src/extraction/`, `src/models/`,
-`rules/`, `evals/`.
+evals run on every pull request (Linear SR-15). Nightly runs the full set too.
 Skipped jobs still run and report green with a notice, so the branch rule can require them.
 
 ## Required checks on main
@@ -37,7 +36,7 @@ evals or review fail.
 ## Missing secret behavior
 | Job | Needs | Without it |
 | --- | --- | --- |
-| evals | OPENROUTER_API_KEY, APP_MODEL | Fails (skips only when no eval input changed) |
+| evals | OPENROUTER_API_KEY, APP_MODEL | Fails |
 | review | OPENAI_API_KEY, REVIEWER_MODEL | Fails |
 | claude | ANTHROPIC_API_KEY, BUILDER_MODEL | Skips with a warning |
 | infra | FIREBASE_PROJECT_ID, FIRESTORE_LOCATION, GCP_WIF_PROVIDER, GCP_DEPLOY_SA | Fails with the missing names |

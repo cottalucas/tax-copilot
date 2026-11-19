@@ -38,6 +38,5 @@ same set per model and prints one row each. The first model decides pass or fail
 Every correction she makes becomes a new golden case or a new rule with a test (SR-22).
 
 ## When it runs
-On pull requests that touch `prompts/`, `src/schema/`, `src/extraction/`, `src/models/`, `rules/`
-or `evals/`. Full set nightly. Skips with a warning when OPENROUTER_API_KEY or APP_MODEL is missing.
-See QA.md.
+On every pull request (Linear SR-15) and nightly. Fails when OPENROUTER_API_KEY or APP_MODEL is
+missing. See QA.md.

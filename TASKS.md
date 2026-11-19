@@ -16,8 +16,8 @@ went public so GitHub allows a branch rule on main.
 
 Acceptance criteria:
 - [x] Repo created from the template, with AGENTS.md at the root
-- [x] GitHub Action runs tests and the golden set on each pull request (golden set runs when an
-      eval input changes, per QA.md and Notion Golden Project Setup > When each check runs)
+- [x] GitHub Action runs tests and the golden set on each pull request (the `evals` job runs on
+      every pull request since 2026-11-19. Linear wins over the Notion path filter)
 - [x] Reviewer model comments on each pull request, model set by variable
 - [x] Merge blocked when tests or evals fail (branch rule on main, all pr.yml jobs required,
       admins included. Pull request #3 with a broken unit test showed BLOCKED)
@@ -119,6 +119,7 @@ The repo is public for now, so branch rules work on the free plan. AGENTS.md car
 
 Acceptance criteria:
 - [ ] Repo is private, or GitHub Pro is active with branch rules still on
+      (AGENTS.md is stricter: the repo must be private. Pro only keeps branch rules on)
 - [ ] Done before the first golden case lands in evals/golden
 - [ ] Done before the first real tax rule lands in rules/
 

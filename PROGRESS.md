@@ -13,10 +13,11 @@ SR-15: repo, pipeline and eval harness. Scaffolding done, waiting on keys for th
 ### 2026-11-19 SR-15 docs on main, public repo rule (SR-23, SR-24)
 Done: TASKS.md and PROGRESS.md SR-15 updates brought to main. AGENTS.md Project rules: never
 commit golden cases, client data or real tax rules while the repo is public (SR-23). SR-23 itself
-stays open: it closes when the repo goes private or GitHub Pro is active.
+stays open: it closes when the repo is private. GitHub Pro then keeps the branch rules on.
 Evidence for the SR-15 checkmarks, from GitHub on 2026-11-19:
-- Golden set on pull requests: pull request #2 changed `evals/golden/README.md`, so the `evals`
-  job ran `npm run evals` (zero cases, passes with a warning, EVALS.md) and passed.
+- Golden set on pull requests: pull request #2 ran the `evals` job (`npm run evals`, zero cases,
+  passes with a warning). From this pull request on, `evals` runs on every pull request, as the
+  Linear criterion says. The Notion path filter is dropped (Linear wins on scope).
 - Reviewer comment: pull request #2 has one comment headed "Review (gpt-6.2-sol)" with
   "Verdict: Approve". The model comes from the REVIEWER_MODEL variable.
 - Merge blocked: `evals` and `test:unit` are both required checks on main. Pull request #3 failed
@@ -72,6 +73,8 @@ Not done: infra deploy, preview, review and evals with keys, branch rule (final 
 | 2026-11-18 | Hosting has no rewrite to functions yet, so preview channels deploy without functions | Agent |
 
 ## Template gaps
+- Golden QA.md runs evals only when eval inputs change. Linear SR-15 asks for every pull
+  request. Decide which one Golden keeps.
 - Branch protection on a private repo needs GitHub Pro. Golden SETUP.md should state the choice up
   front: Pro, a paid org, or a public repo.
 - Creating the keyless deploy identity in GCP needs the owner. Add it to "Only you".
