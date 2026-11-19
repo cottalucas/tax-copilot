@@ -159,7 +159,6 @@ jobs:
         if: steps.gate.outputs.run == 'true'
         env:
           TRUSTED_DIR: ${{ runner.temp }}/trusted
-          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
           HEAD_REF: ${{ github.head_ref }}

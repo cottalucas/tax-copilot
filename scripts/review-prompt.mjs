@@ -47,7 +47,7 @@ async function main() {
   const issues = await Promise.all(ids.map((id) => fetchLinearIssue(id, process.env.LINEAR_API_KEY)));
   const criteria = issues.filter(Boolean).join("\n\n") ||
     (ids.length
-      ? `Could not read ${ids.join(", ")} from Linear. Say so, and review against AGENTS.md and the pull request body.`
+      ? `Linear is not read in this job (no key). Use the acceptance criteria for ${ids.join(", ")} that the pull request body quotes. If the body quotes none, block with [CRITERION] and say so.`
       : "No task id (SR-n) found in the title or branch. Say so, and review against AGENTS.md only.");
   let diff = execFileSync("git", ["diff", "--stat", "--patch", `${BASE_SHA}...HEAD`], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
   if (diff.length > MAX_DIFF) diff = diff.slice(0, MAX_DIFF) + "\n[diff truncated]";

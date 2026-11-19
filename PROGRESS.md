@@ -19,7 +19,9 @@ gains environments, data inventory, models, keyless identity, deploy and rollbac
 follows the Google Labs DESIGN.md spec on a light take of the Linear base, linted by
 `npm run check:design` (0 errors, 0 warnings). CSS tokens match DESIGN.md. Skills `stop-slop` and
 `nielsen-heuristics-audit` in `.agents/skills/` (MIT, copied verbatim), linked from
-`.claude/skills`. The reviewer reads acceptance criteria from Linear with LINEAR_API_KEY.
+`.claude/skills`. The reviewer judges the criteria the pull request body quotes. pr.yml gets no
+Linear key (a pull request can edit pr.yml). The review prompt can read Linear once the review
+moves to `pull_request_target`.
 Verified: `npm run check`, `npm run test:unit`.
 
 ### 2026-11-19 One time admin merge of #5
@@ -100,6 +102,7 @@ calibrated rules (none means it would now be a comment).
 | 2026-11-19 | #5 run 5 (old reviewer from main) | PROGRESS wording contradicted the fail closed gate. Verdict accepted anywhere in the text | none (old reviewer blocks on anything) | Fixed the wording. Verdict must be the whole first line |
 | 2026-11-19 | #5 run 6 (old reviewer from main) | Codex ran in the pull request checkout and could load its AGENTS.md. Approve passed next to a tagged blocker | would be SECURITY | Codex runs in the trusted folder. Tagged blockers always block |
 | 2026-11-19 | #5 run 7 (old reviewer from main) | Unclaimed SR-24 criteria judged missed, base docs rule, pull request can edit pr.yml | old reviewer, no tags | One time admin merge approved by Lucas. pr.yml risk logged below |
+| 2026-11-19 | #6 run 1 (calibrated) | LINEAR_API_KEY passed to pr.yml, which a pull request can edit | SECURITY | Key removed from pr.yml. Criteria come from the pull request body |
 
 ## Assumptions
 | Date | Assumption | Confirm with |
@@ -119,6 +122,10 @@ calibrated rules (none means it would now be a comment).
 | 2026-11-18 | Hosting has no rewrite to functions yet, so preview channels deploy without functions | Agent |
 
 ## Template gaps
+- Any secret in a `pull_request` workflow (OPENAI_API_KEY, OPENROUTER_API_KEY today) can be read
+  by a same repo pull request that edits the workflow. Only accounts with write access can do
+  that, but agents have it. Follow up with the `pull_request_target` review job (diff only, never
+  pull request code) and keep model keys out of pull request workflows where possible.
 - Golden must ship with the calibrated reviewer (`scripts/review-rules.md`, `post-review.mjs`
   with tagged reasons and fail closed, base commit loading). A project that starts with a strict
   reviewer can never change it through the gates and needs an admin merge, as tax-copilot did.
