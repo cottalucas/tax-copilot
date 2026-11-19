@@ -1,11 +1,11 @@
 # Auto merge (AGENTS.md > Pipeline). Turns on GitHub auto merge for every pull request from a
 # branch of this repo that is not a draft. GitHub merges it (squash) once every required check
-# passes. Fork pull requests never auto merge: the repo is public, and forks get no secrets, so
-# their evals and review fail and they stay blocked.
+# passes. pull_request_target: this file and its token come from main, and the job never checks
+# out or runs pull request code. It only calls the GitHub API. Fork pull requests never auto merge.
 name: automerge
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, reopened, ready_for_review]
 
 permissions:

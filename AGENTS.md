@@ -100,7 +100,7 @@ repo owner is mentioned on the pull request.
 | Trigger | Workflow |
 | --- | --- |
 | Push, any branch | push.yml: check, test:unit |
-| Pull request | pr.yml, codeql.yml, automerge.yml (branches of this repo only, never forks) |
+| Pull request | pr.yml, codeql.yml. automerge.yml (pull_request_target, API only, branches of this repo only) |
 | After pr.yml | halt.yml on failure: Linear comment, GitHub mention. ux-review.yml: screenshot review |
 | Nightly 02:00 UTC | nightly.yml: full test:e2e, full evals, form change check (placeholder) |
 | Mention @claude | claude.yml: Claude Code builder, model from BUILDER_MODEL |

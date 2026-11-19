@@ -125,6 +125,10 @@ calibrated rules (none means it would now be a comment).
 | 2026-11-19 | #7 run 1 | Auto merge cannot work for fork pull requests | CRITERION | Same repo only, on purpose: forks never auto merge in a public repo |
 | 2026-11-19 | #7 run 1 | infra trusted FIRESTORE_LOCATION, a wrong value could pass outside europe-west6 | CRITERION | infra fails unless the location is europe-west6 |
 | 2026-11-19 | #7 run 1 | Calls without a reported cost could pass the 1 USD gate | CRITERION | Unknown cost fails the run |
+| 2026-11-19 | #7 run 2 | CodeQL count could read a failed request as zero alerts | SECURITY | pipefail, the request must succeed |
+| 2026-11-19 | #7 run 2 | "Branch must be up to date" off weakens the merge gate | SECURITY | Kept: Lucas approved decision 2. Without a PAT or GitHub App a workflow cannot update branches and rerun checks. Nightly and push runs on main catch drift |
+| 2026-11-19 | #7 run 2 | Auto merge write token in a workflow the pull request defines | SECURITY | automerge.yml moved to pull_request_target: base code, API only, never pull request code |
+| 2026-11-19 | #7 run 2 | Infra criterion claimed without a successful run | CRITERION | Not claimed here. The infra run after merge is the evidence |
 
 ## Assumptions
 | Date | Assumption | Confirm with |
@@ -148,7 +152,8 @@ calibrated rules (none means it would now be a comment).
 - Golden has no gate set: coverage floor, budgets, audit, code scanning, injection set, axe,
   auto merge and halt notifications. Copy this pipeline back as the Golden default.
 - GitHub auto merge cannot update branches on the free plan (no merge queue), so "branch must be
-  up to date" is off. Golden should say so.
+  up to date" is off. A GitHub App token could update branches and rerun checks. Golden should
+  ship that, or say so.
 - Any secret in a `pull_request` workflow (OPENAI_API_KEY, OPENROUTER_API_KEY today) can be read
   by a same repo pull request that edits the workflow. Only accounts with write access can do
   that, but agents have it. Follow up with the `pull_request_target` review job (diff only, never

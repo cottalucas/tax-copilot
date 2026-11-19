@@ -35,10 +35,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REF: refs/pull/${{ github.event.pull_request.number }}/merge
+        shell: bash
         run: |
-          # --paginate reads every page, one alert number per line.
-          count=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/code-scanning/alerts?ref=${REF}&state=open&per_page=100" \
-            --jq '.[] | select(.rule.severity == "error" or .rule.severity == "warning" or .rule.security_severity_level == "high" or .rule.security_severity_level == "critical") | .number' | wc -l | tr -d ' ')
+          set -euo pipefail
+          # --paginate reads every page. A failed request fails the step (no silent zero).
+          alerts=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/code-scanning/alerts?ref=${REF}&state=open&per_page=100" \
+            --jq '.[] | select(.rule.severity == "error" or .rule.severity == "warning" or .rule.security_severity_level == "high" or .rule.security_severity_level == "critical") | .number')
+          count=$(printf '%s' "$alerts" | grep -c . || true)
           if [ "$count" != "0" ]; then
             echo "::error title=codeql::$count open code scanning alert(s) on this pull request. See the Security tab."
             exit 1
