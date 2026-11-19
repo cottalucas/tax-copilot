@@ -126,10 +126,13 @@ golden-template/SETUP.md.
 Severity: medium
 
 ## 14. Keyless deploy auth
-Missing: Workload Identity Federation. FIREBASE_SERVICE_ACCOUNT is a long lived key.
-Why it matters: a leaked key gives deploy rights. Google recommends keyless auth for CI.
-Update: Notion "Golden Project Setup" > Ideas to do less (already listed): move to Setup todo.
-Severity: low
+Missing: the Workload Identity Federation pool and service account. infra.yml now uses keyless
+auth (2026-11-19) and FIREBASE_SERVICE_ACCOUNT is gone, but the agent was not allowed to create
+the GCP identity, so a human runs SETUP.md > Keyless deploy once.
+Why it matters: infra.yml cannot deploy until then. No key file means nothing to leak.
+Update: Notion "Golden Project Setup" > Who does what > Only you: add "create the keyless deploy
+identity (one command block)". Remove the service account key step from Setup todo.
+Severity: medium
 
 ## 15. Cost cap
 Missing: a daily model spend cap and a cost per return target.

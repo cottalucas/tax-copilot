@@ -44,13 +44,14 @@ QA.md (pipeline), STYLE.md (any text a person reads).
 | test:integration | `npm run test:integration` (Firestore emulator, needs Java 11+) |
 | test:e2e | `npm run test:e2e` (Playwright smoke) |
 | evals | `npm run evals` (golden set runner) |
-| preview | `npm run preview` (Firebase Hosting preview channel) |
+| review | runs in CI only (Codex, REVIEWER_MODEL). Must say "Verdict: Approve" |
 
 ## Definition of done
 - Every acceptance criterion of the task passes, checked by a test or a visible check.
 - check, test:unit and test:integration pass. test:e2e passes when app code changed. evals pass
   when prompts, schema, rules, src/models or evals changed.
 - TASKS.md and PROGRESS.md updated. No secret or client data in the diff.
+- The review job approves. No human QA: a failed test, eval or review halts the pull request.
 
 ## Escalate when
 - Scope changes, or Linear and a doc disagree.

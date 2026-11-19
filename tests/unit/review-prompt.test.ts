@@ -13,3 +13,18 @@ describe("review prompt helpers", () => {
     expect(taskSection(md, "SR-99")).toBe("");
   });
 });
+
+describe("review verdict gate", async () => {
+  // @ts-expect-error plain JS script without types
+  const { parseVerdict } = await import("../../scripts/post-review.mjs");
+
+  it("approves only on an explicit Approve verdict", () => {
+    expect(parseVerdict("**Verdict: Approve**\n\nAll good")).toBe("approve");
+    expect(parseVerdict("Verdict: Changes requested\n- missing test")).toBe("changes");
+    expect(parseVerdict("**Verdict:** Changes requested")).toBe("changes");
+  });
+
+  it("fails closed when there is no verdict", () => {
+    expect(parseVerdict("Looks fine to me")).toBeNull();
+  });
+});

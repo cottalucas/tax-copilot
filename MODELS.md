@@ -21,11 +21,11 @@ region that does not start with `europe-`.
 ## Variables
 | Name | Kind | Where | Suggested value |
 | --- | --- | --- | --- |
-| MODEL_PROVIDER | Repo variable, env | App and evals | `openrouter` until Vertex is live |
-| APP_MODEL | Repo variable, env | App and evals | A current Claude Sonnet id from openrouter.ai/models (check the exact id there) |
-| EVAL_MODELS | Repo variable, optional | Evals | Two or three OpenRouter ids to compare |
-| BUILDER_MODEL | Repo variable | claude.yml | `claude-opus-5-5` |
-| REVIEWER_MODEL | Repo variable | pr.yml review | A current Codex model id from OpenAI |
+| MODEL_PROVIDER | Repo variable, env | App and evals | `openrouter` (set 2026-11-19) |
+| APP_MODEL | Repo variable, env | App and evals | `anthropic/claude-sonnet-5.5` (set 2026-11-19) |
+| EVAL_MODELS | Repo variable, optional | Evals | `anthropic/claude-sonnet-5.5,google/gemini-3.8-flash` (set 2026-11-19) |
+| BUILDER_MODEL | Repo variable | claude.yml | `claude-opus-5-5` (set 2026-11-19) |
+| REVIEWER_MODEL | Repo variable | pr.yml review | `gpt-6.2-sol` (set 2026-11-19) |
 | OPENROUTER_API_KEY | Secret | Evals | Set by a human |
 | ANTHROPIC_API_KEY | Secret | claude.yml | Set by a human |
 | OPENAI_API_KEY | Secret | review | Set by a human |

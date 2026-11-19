@@ -36,7 +36,7 @@ Names only. A human sets values with `gh secret set`. Agents never see values.
 | ANTHROPIC_API_KEY | claude.yml | Lucas, yearly or on leak |
 | OPENAI_API_KEY | pr.yml review | Lucas |
 | OPENROUTER_API_KEY | evals | Lucas |
-| FIREBASE_SERVICE_ACCOUNT | preview, infra | Lucas. Replace with Workload Identity Federation later |
+| (none for deploys) | infra | Keyless: Workload Identity Federation, variables GCP_WIF_PROVIDER and GCP_DEPLOY_SA. No key file exists |
 
 `npm run check` runs a secret guard on every push (API keys, private keys, AHV numbers, CH IBANs,
 emails).

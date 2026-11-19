@@ -1,6 +1,7 @@
 # Every pull request (QA.md). Every job here is a required check on main.
+# No human QA: a pull request halts when tests, evals or review fail.
 # Path filtered jobs always run and report a status, so the branch rule can require them.
-# Jobs that need a missing secret skip with a clear message and stay green.
+# A missing secret or variable fails the job: keys are in, so nothing skips silently.
 name: pr
 
 on:
@@ -109,8 +110,8 @@ jobs:
             echo "::notice title=evals skipped::No prompt, schema, rules, model adapter or eval case changed."
             echo "run=false" >> "$GITHUB_OUTPUT"
           elif [ -z "$OPENROUTER_API_KEY" ] || [ -z "$APP_MODEL" ]; then
-            echo "::warning title=evals skipped::OPENROUTER_API_KEY secret or APP_MODEL variable is not set. Evals skipped until a human sets them."
-            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "::error title=evals blocked::OPENROUTER_API_KEY secret or APP_MODEL variable is not set."
+            exit 1
           else
             echo "run=true" >> "$GITHUB_OUTPUT"
           fi
@@ -120,38 +121,6 @@ jobs:
         if: steps.gate.outputs.run == 'true'
       - if: steps.gate.outputs.run == 'true'
         run: npm run evals
-
-  preview:
-    name: preview
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
-      checks: write
-    env:
-      FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-      FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
-    steps:
-      - id: gate
-        run: |
-          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ] || [ -z "$FIREBASE_PROJECT_ID" ]; then
-            echo "::warning title=preview skipped::FIREBASE_SERVICE_ACCOUNT secret or FIREBASE_PROJECT_ID variable is not set."
-            echo "run=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          fi
-      - uses: actions/checkout@v7
-        if: steps.gate.outputs.run == 'true'
-      - uses: ./.github/actions/setup
-        if: steps.gate.outputs.run == 'true'
-      - uses: FirebaseExtended/action-hosting-deploy@v0
-        if: steps.gate.outputs.run == 'true'
-        with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          projectId: ${{ vars.FIREBASE_PROJECT_ID }}
-          channelId: pr-${{ github.event.pull_request.number }}
-          expires: 7d
 
   review:
     name: review
@@ -166,8 +135,8 @@ jobs:
       - id: gate
         run: |
           if [ -z "$OPENAI_API_KEY" ] || [ -z "$REVIEWER_MODEL" ]; then
-            echo "::warning title=review skipped::OPENAI_API_KEY secret or REVIEWER_MODEL variable is not set."
-            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "::error title=review blocked::OPENAI_API_KEY secret or REVIEWER_MODEL variable is not set."
+            exit 1
           else
             echo "run=true" >> "$GITHUB_OUTPUT"
           fi
@@ -192,7 +161,8 @@ jobs:
           prompt-file: ${{ runner.temp }}/review-prompt.md
           output-file: ${{ runner.temp }}/review.md
           sandbox: read-only
-      - name: Post one review comment
+      # Posts or updates one comment, then fails the job on "Verdict: Changes requested".
+      - name: Post one review comment and gate on the verdict
         if: steps.gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

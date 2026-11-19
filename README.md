@@ -31,7 +31,8 @@ npm run test:e2e           # first run: npx playwright install chromium
 npm run evals
 ```
 
-No keys are needed for check and tests. See [QA.md](QA.md) for when each stage runs.
+No keys are needed for check and tests. Pull requests have no human QA: tests, evals and the
+Codex review gate every merge. See [QA.md](QA.md) for when each stage runs.
 
 ## Docs
 [AGENTS](AGENTS.md) · [PRD](PRD.md) · [ARCHITECTURE](ARCHITECTURE.md) · [TASKS](TASKS.md) ·

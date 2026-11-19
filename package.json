@@ -17,7 +17,6 @@
     "test:integration": "firebase emulators:exec --only firestore --project demo-tax-copilot \"vitest run -c vitest.integration.config.ts\"",
     "test:e2e": "playwright test",
     "evals": "tsx evals/run.ts",
-    "preview": "npm run build:web && firebase hosting:channel:deploy \"${PREVIEW_CHANNEL:-local}\" --expires 7d",
     "build": "npm run build:web && npm run build:functions",
     "build:web": "vite build",
     "build:functions": "tsc -p tsconfig.build.json",
