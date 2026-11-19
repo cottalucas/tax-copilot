@@ -32,7 +32,8 @@ function loadDir(dir: string, kind: "golden" | "injection"): GoldenCase[] {
 }
 
 function modelsToRun(cases: GoldenCase[]): string[] {
-  if (!cases.some((c) => c.predicted === undefined)) return ["offline"];
+  // Injection cases always call the models, so offline mode only applies to golden cases.
+  if (!cases.some((c) => c.predicted === undefined || c.kind === "injection")) return ["offline"];
   const list = (process.env.EVAL_MODELS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
   return list.length > 0 ? list : [getModelConfig().model];
 }
@@ -40,7 +41,7 @@ function modelsToRun(cases: GoldenCase[]): string[] {
 async function scoreCase(c: GoldenCase, model: string, budget: CostBudget): Promise<CaseScore> {
   let extraction: ExtractedReturn;
   try {
-    if (c.predicted !== undefined) {
+    if (c.predicted !== undefined && c.kind !== "injection") {
       const parsed = parseExtractedReturn(c.predicted);
       if (!parsed.success) throw new Error("predicted output fails the schema");
       extraction = parsed.data;

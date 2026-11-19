@@ -131,6 +131,7 @@ calibrated rules (none means it would now be a comment).
 | 2026-11-19 | #7 run 2 | Infra criterion claimed without a successful run | CRITERION | Not claimed here. The infra run after merge is the evidence |
 | 2026-11-19 | #7 run 3 | Only the first model could fail evals, a later model's injection miss passed | CRITERION | Injection set must hold for every model |
 | 2026-11-19 | #7 run 4 | A missing injection folder passed as an empty suite | CRITERION | Empty injection set fails the run |
+| 2026-11-19 | #7 run 5 | Injection cases could pass from saved outputs without a model call | CRITERION | Injection cases always run live |
 | 2026-11-19 | #7 run 4 | codeql.yml held security-events write inside a pull request defined workflow | SECURITY | CodeQL default setup (extended queries) run by GitHub, plus ruleset "Code scanning blocks merges". codeql.yml deleted |
 
 ## Assumptions
