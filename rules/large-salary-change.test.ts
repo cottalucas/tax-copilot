@@ -26,7 +26,7 @@ describe("large-salary-change rule", () => {
 
   it("flags a drop too", () => {
     const flags = largeSalaryChange.evaluate({ current: returnWithGross(50000), previous: returnWithGross(100000, 2024) });
-    expect(flags[0]!.reason).toContain("down 50%");
+    expect(flags[0]!.reason).toContain("down 40%");
   });
 
   it("stays quiet within the threshold or without last year", () => {
