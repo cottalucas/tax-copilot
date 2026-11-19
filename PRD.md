@@ -32,11 +32,11 @@ One expert user: the tax preparer. She keeps final control and submits.
 8. She clicks Next client. Same tab is reused.
 
 ## North Star Metric
-TODO (gap, see GAPS.md). Candidate: returns per day reaching "Submitted" with no field changed
+TODO (gap, see PROGRESS.md > Open gaps). Candidate: returns per day reaching "Submitted" with no field changed
 by her after Fill now.
 
 ## Guardrail metrics
-TODO (gap, see GAPS.md). Candidates: field accuracy versus her submitted version at least 98%,
+TODO (gap, see PROGRESS.md > Open gaps). Candidates: field accuracy versus her submitted version at least 98%,
 zero missed critical flags, zero client data outside the EU.
 
 ## Metrics
@@ -45,11 +45,11 @@ zero missed critical flags, zero client data outside the EU.
 - Field accuracy versus her final submitted version.
 
 ## Now (committed)
-Linear SR-15 to SR-22, in TASKS.md: repo and pipeline, login and home queue, new return and
+Linear SR-15 to SR-22: repo and pipeline, login and home queue, new return and
 intake, extraction, rules and flags, review screen, fill handoff, done and next client.
 
 ## Next (directional)
-TODO (gap, see GAPS.md). From the Product Doc stages: own Chrome extension with field overlay,
+TODO (gap, see PROGRESS.md > Open gaps). From the Product Doc stages: own Chrome extension with field overlay,
 flags on the page, source PDF side panel. End user portal as a second door to the same engine.
 
 ## Never

@@ -13,7 +13,7 @@ export interface OpenRouterOptions {
 
 /**
  * OpenRouter through its OpenAI compatible endpoint.
- * Dev and anonymized evals only. Never real client data (SECURITY.md).
+ * Dev and anonymized evals only. Never real client data (AGENTS.md > Never do).
  */
 export class OpenRouterProvider implements ModelProvider {
   readonly name = "openrouter" as const;

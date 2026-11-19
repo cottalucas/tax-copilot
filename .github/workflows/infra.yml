@@ -1,5 +1,5 @@
 # Manual infra setup and deploy. Actions > infra > Run workflow.
-# Keyless: Workload Identity Federation, no service account key (SECURITY.md).
+# Keyless: Workload Identity Federation, no service account key (ARCHITECTURE.md > Keyless deploy identity).
 # Needs variables: FIREBASE_PROJECT_ID, FIRESTORE_LOCATION, GCP_WIF_PROVIDER, GCP_DEPLOY_SA.
 # FIRESTORE_LOCATION can never change after the database exists. A human confirms it first.
 name: infra
@@ -38,7 +38,7 @@ jobs:
           [ -z "$PROJECT" ] && missing="$missing FIREBASE_PROJECT_ID"
           [ -z "$FIRESTORE_LOCATION" ] && missing="$missing FIRESTORE_LOCATION"
           if [ -n "$missing" ]; then
-            echo "::error title=infra blocked::Missing variables:$missing. See SETUP.md, Keyless deploy."
+            echo "::error title=infra blocked::Missing variables:$missing. See ARCHITECTURE.md > Keyless deploy identity."
             exit 1
           fi
       - uses: actions/checkout@v7

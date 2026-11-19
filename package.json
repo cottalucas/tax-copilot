@@ -9,7 +9,7 @@
     "node": "22"
   },
   "scripts": {
-    "check": "npm run check:types && npm run check:lint && npm run check:secrets",
+    "check": "npm run check:types && npm run check:lint && npm run check:secrets && npm run check:design",
     "check:types": "tsc -p tsconfig.json --noEmit",
     "check:lint": "eslint .",
     "check:secrets": "node scripts/check-secrets.mjs",
@@ -20,7 +20,8 @@
     "build": "npm run build:web && npm run build:functions",
     "build:web": "vite build",
     "build:functions": "tsc -p tsconfig.build.json",
-    "dev": "vite"
+    "dev": "vite",
+    "check:design": "design.md lint DESIGN.md > /dev/null"
   },
   "dependencies": {
     "firebase-admin": "^13.0.0",
@@ -31,6 +32,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@firebase/rules-unit-testing": "^6.0.0",
+    "@google/design.md": "^0.4.0",
     "@playwright/test": "^1.65.1",
     "@types/node": "^26.6.6",
     "eslint": "^10.15.0",

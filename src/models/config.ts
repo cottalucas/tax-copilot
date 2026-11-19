@@ -28,7 +28,7 @@ export function getModelConfig(env: NodeJS.ProcessEnv = process.env): ModelConfi
 export function requireEnv(env: NodeJS.ProcessEnv, name: string): string {
   const value = (env[name] ?? "").trim();
   if (!value) {
-    throw new ModelConfigError(`${name} is not set. A human sets it as a secret (SECURITY.md).`);
+    throw new ModelConfigError(`${name} is not set. A human sets it as a secret (AGENTS.md > Secrets and variables).`);
   }
   return value;
 }

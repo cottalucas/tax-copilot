@@ -2,7 +2,7 @@
 
 Anonymized past returns with her final submitted values as truth. Target: 10 to 20 cases.
 
-Rules (EVALS.md, SECURITY.md):
+Rules (EVALS.md, AGENTS.md > Never do):
 - Anonymize before a file enters this folder. No names, addresses, AHV numbers, IBANs or employer
   names that identify a person. Use ids like `case-001`.
 - Real client documents never go here. Only anonymized page text.

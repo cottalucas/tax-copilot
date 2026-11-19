@@ -1,4 +1,4 @@
-# Every pull request (QA.md). Every job here is a required check on main.
+# Every pull request (AGENTS.md > Pipeline). Every job here is a required check on main.
 # No human QA: a pull request halts when tests, evals or review fail.
 # Path filtered jobs always run and report a status, so the branch rule can require them.
 # A missing secret or variable fails the job: keys are in, so nothing skips silently.
@@ -159,6 +159,7 @@ jobs:
         if: steps.gate.outputs.run == 'true'
         env:
           TRUSTED_DIR: ${{ runner.temp }}/trusted
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
           HEAD_REF: ${{ github.head_ref }}

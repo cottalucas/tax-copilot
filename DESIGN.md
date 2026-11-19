@@ -1,88 +1,227 @@
+---
+version: alpha
+name: Tax Copilot
+description: "A calm, dense, light work surface for one professional tax preparer. Based on the Linear analysis in VoltAgent/awesome-design-md (single lavender accent, hairline borders, dense type), moved to a light canvas for long reading sessions next to PDFs. Red appears only on flags."
+colors:
+  primary: "#5e6ad2"
+  on-primary: "#ffffff"
+  primary-hover: "#4f5bc4"
+  focus: "#5e6ad2"
+  canvas: "#f7f8f8"
+  surface: "#ffffff"
+  surface-sunken: "#f1f2f4"
+  ink: "#1b1c1f"
+  ink-muted: "#3c4149"
+  ink-subtle: "#5f636b"
+  hairline: "#e3e4e8"
+  hairline-strong: "#cfd1d6"
+  flag-critical: "#b4232a"
+  flag-warning: "#9a5b00"
+  success: "#1f7a36"
+typography:
+  title:
+    fontFamily: Inter
+    fontSize: 18px
+    fontWeight: 600
+    lineHeight: 1.3
+    letterSpacing: -0.2px
+  section:
+    fontFamily: Inter
+    fontSize: 15px
+    fontWeight: 600
+    lineHeight: 1.4
+    letterSpacing: -0.1px
+  body:
+    fontFamily: Inter
+    fontSize: 14px
+    fontWeight: 400
+    lineHeight: 1.5
+    letterSpacing: 0px
+  body-strong:
+    fontFamily: Inter
+    fontSize: 14px
+    fontWeight: 500
+    lineHeight: 1.5
+    letterSpacing: 0px
+  table:
+    fontFamily: Inter
+    fontSize: 13px
+    fontWeight: 400
+    lineHeight: 1.4
+    letterSpacing: 0px
+    fontFeature: "'tnum' 1"
+  label:
+    fontFamily: Inter
+    fontSize: 12px
+    fontWeight: 500
+    lineHeight: 1.3
+    letterSpacing: 0.2px
+  button:
+    fontFamily: Inter
+    fontSize: 13px
+    fontWeight: 500
+    lineHeight: 1.2
+    letterSpacing: 0px
+  mono:
+    fontFamily: JetBrains Mono
+    fontSize: 12px
+    fontWeight: 400
+    lineHeight: 1.5
+    letterSpacing: 0px
+rounded:
+  xs: 4px
+  sm: 6px
+  md: 8px
+  full: 9999px
+spacing:
+  xxs: 4px
+  xs: 8px
+  sm: 12px
+  md: 16px
+  lg: 24px
+  xl: 32px
+components:
+  page:
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.ink}"
+    typography: "{typography.body}"
+  divider:
+    backgroundColor: "{colors.hairline}"
+    height: 1px
+  input-outline:
+    backgroundColor: "{colors.hairline-strong}"
+    height: 1px
+  focus-ring:
+    backgroundColor: "{colors.focus}"
+    width: 2px
+  button-primary:
+    backgroundColor: "{colors.primary}"
+    textColor: "{colors.on-primary}"
+    typography: "{typography.button}"
+    rounded: "{rounded.sm}"
+    padding: 6px 12px
+  button-primary-hover:
+    backgroundColor: "{colors.primary-hover}"
+    textColor: "{colors.on-primary}"
+    typography: "{typography.button}"
+    rounded: "{rounded.sm}"
+  button-secondary:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.ink}"
+    typography: "{typography.button}"
+    rounded: "{rounded.sm}"
+    padding: 6px 12px
+  queue-row:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.ink}"
+    typography: "{typography.table}"
+    padding: 8px 12px
+  status-badge:
+    backgroundColor: "{colors.surface-sunken}"
+    textColor: "{colors.ink-muted}"
+    typography: "{typography.label}"
+    rounded: "{rounded.full}"
+    padding: 2px 8px
+  flag-card:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.ink}"
+    typography: "{typography.body}"
+    rounded: "{rounded.md}"
+    padding: 12px 16px
+  flag-badge-critical:
+    backgroundColor: "{colors.flag-critical}"
+    textColor: "{colors.on-primary}"
+    typography: "{typography.label}"
+    rounded: "{rounded.full}"
+  flag-badge-warning:
+    backgroundColor: "{colors.flag-warning}"
+    textColor: "{colors.on-primary}"
+    typography: "{typography.label}"
+    rounded: "{rounded.full}"
+  status-badge-submitted:
+    backgroundColor: "{colors.success}"
+    textColor: "{colors.on-primary}"
+    typography: "{typography.label}"
+    rounded: "{rounded.full}"
+  source-link:
+    textColor: "{colors.primary}"
+    typography: "{typography.table}"
+  drop-zone:
+    backgroundColor: "{colors.surface-sunken}"
+    textColor: "{colors.ink-subtle}"
+    typography: "{typography.body}"
+    rounded: "{rounded.md}"
+    padding: 24px
+---
+
 # DESIGN.md
 
-Screens from Linear SR-16 to SR-22. Read before any UI work. Copy rules in STYLE.md.
+Format: [Google Labs DESIGN.md spec](https://github.com/google-labs-code/design.md) (alpha). Tokens
+in the front matter are normative. Base: Linear analysis from
+[VoltAgent/awesome-design-md](https://github.com/VoltAgent/awesome-design-md) (MIT), adapted.
+Screens come from Linear issues SR-16 to SR-22. Lint with `npm run check:design`.
 
-## Vibe
-Calm, dense, Swiss clean. An expert tool, not a consumer app.
+## Overview
+An expert tool for one tax preparer who checks about 11 returns a day. It should feel calm,
+dense and exact: more spreadsheet than marketing page. Exceptions first, everything else quiet.
+Every number can show where it came from. Desktop first: she works on a laptop at 1024 to 1440 px.
 
-## Status names
-Fixed here, used word for word in code (`rules/types.ts`):
-Documents in · Needs review · Ready to fill · Submitted
+## Colors
+- **Ink (#1b1c1f)** for text and numbers. **Ink muted** and **ink subtle** for labels and metadata.
+- **Canvas (#f7f8f8)** behind everything, **surface (#ffffff)** for tables and cards, **hairline
+  (#e3e4e8)** borders instead of shadows.
+- **Primary lavender (#5e6ad2)** is the one accent: primary buttons, focus rings, source links.
+- **Flag critical (#b4232a)** and **flag warning (#9a5b00)** appear only on flags. **Success
+  (#1f7a36)** only on Submitted.
 
-## Screens
+## Typography
+Inter for everything, JetBrains Mono for ids and file names. Body 14 px, tables 13 px with tabular
+figures so amounts line up. Titles stay small (18 px). Weight, not size, carries hierarchy.
 
-### 1. Login (SR-16)
-Job: get her in. Main action: Sign in with Google (Firebase Auth).
-| State | What she sees |
-| --- | --- |
-| Empty | Product name, one Sign in button |
-| Loading | Button disabled, "Signing in" |
-| Error | "Sign in failed. Try again." plus the provider reason |
-| Success | Redirect to Home queue |
+## Layout
+4 px base grid, spacing scale 4 to 32. Content max width 1200 px. Tables are full width with 8 px
+vertical row padding. The review screen uses two columns: values on the left, source page on the
+right.
 
-### 2. Home queue (SR-16)
-Job: show what needs her next. Main action: open a client. Data: name, status, flag count.
-Grouped by status, flagged first.
-| State | What she sees |
-| --- | --- |
-| Empty | "No clients yet" and a New client button |
-| Loading | Skeleton rows, no layout shift |
-| Error | "Could not load clients." and Retry |
-| Partial | Rows loaded, a row with a failed extraction shows "Extraction failed" |
-| Success | Groups: Needs review, Documents in, Ready to fill, Submitted |
+## Elevation & Depth
+Flat. Hairline borders separate surfaces. One shadow only, for menus and the source page panel.
 
-### 3. New client and intake (SR-17)
-Job: get files in place. Main actions: create client, drop PDFs or pick a Drive folder.
-| State | What she sees |
-| --- | --- |
-| Empty | Name field, drop zone, Pick Drive folder |
-| Loading | Per file progress, saved to her Drive |
-| Error | Per file: "Upload failed" with reason. Drive denied: "Drive access needed" |
-| Partial | Some files in, failed ones listed with Retry |
-| Success | Status Documents in |
+## Shapes
+Small radii: 6 px buttons and inputs, 8 px cards, full radius for badges.
 
-### 4. Extraction progress (SR-18)
-Job: show the batch is working. Shown as a status on the queue row and client page.
-States: queued, running, failed with reason, done. Never a blank row.
+## Motion & Micro-interaction
+120 ms ease-out for hover and focus, 200 ms ease-in-out for panels. Motion is prose only: the
+spec has no motion token key in this linter version. No motion on numbers. Respect reduced motion.
 
-### 5. Review (SR-19, SR-20)
-Job: she checks only the exceptions. Order: flags first, then key totals, then changes from last
-year. Each value opens its source page. Main action: Approve sets Ready to fill.
-| State | What she sees |
-| --- | --- |
-| Empty | No flags: "No flags. Check totals and approve." |
-| Loading | Skeleton sections |
-| Error | "Could not load this return." and Retry |
-| Partial | Fields that failed schema validation listed as "Not extracted" |
-| Success | Flag cards with plain language reason, totals, change list, Approve |
-
-### 6. Fill handoff (SR-21)
-Job: start the fill. Main action: Fill now opens one dedicated tab.
-States: ready, tab open and filling, fill error with the field that failed, filled with time
-taken compared to the 19 minute baseline.
-
-### 7. Done and next client (SR-22)
-Job: close the loop fast. Main actions: Mark as submitted, Next client (reuses the same tab).
-States: submitting, submitted, error. Corrections saved as eval cases, shown as a count.
-
-## Tokens
-Text #1c1917 · Muted #57534e · Background #fafaf9 · Surface #ffffff · Border #e7e5e4 ·
-Flag #b91c1c · Focus #1d4ed8. Type: Inter or system sans, 14 px body, 18 px titles.
-Spacing scale 4, 8, 16, 24, 32. Radius 6. See `web/src/styles.css`.
+## Voice & Content Strategy
+Plain, short, exact. Load the `stop-slop` skill before writing copy. Status names are fixed and
+used word for word in code (`rules/types.ts`): Documents in, Needs review, Ready to fill,
+Submitted. Flag reasons are one plain sentence that says what to check. Errors say what happened
+and what to do next.
 
 ## Components
-Queue row · Status badge · Flag card · Value with source link · Primary button · Drop zone.
+Queue row, status badge, flag card, critical flag badge, source link, drop zone, primary and
+secondary buttons. Tokens in the front matter. Every clickable element has a visible focus ring.
 
-## Accessibility
-WCAG 2.2 AA. Contrast 4.5:1. Visible focus. Every action reachable by keyboard.
+## Do's and Don'ts
+Do:
+- Show all five states for every screen: empty, loading, error, partial, success.
+- Put flags first, then key totals, then changes from last year.
+- Link every extracted value to its source page.
+- Keep every action reachable by keyboard. WCAG 2.2 AA, text contrast at least 4.5:1.
 
-## Anti-patterns
-No emoji as icons. No gradients. No spinners without text. No modal for the main flow. No blank
-screens.
+Don't:
+- No emoji as icons, no gradients, no illustrations.
+- No spinner without text, no blank screens, no modal for the main flow.
+- No red outside flags. No second accent color.
 
-## Pre-delivery checklist
-- [ ] All five states built for the screen
-- [ ] Status names match this file
-- [ ] Every extracted value links to its source page
-- [ ] Keyboard path works end to end
-- [ ] Works at 1024 and 1440 px (desktop first, she works on a laptop)
+## Screens and states
+| Screen (issue) | Job and main action | Empty | Loading | Error | Partial | Success |
+| --- | --- | --- | --- | --- | --- | --- |
+| Login (SR-16) | Get her in. Sign in with Google | Name and one button | Button disabled, "Signing in" | "Sign in failed. Try again." | n/a | Home queue |
+| Home queue (SR-16) | What needs her next. Open a client | "No clients yet", New client | Skeleton rows | "Could not load clients." Retry | Row shows "Extraction failed" | Groups by status, flagged first |
+| New client and intake (SR-17) | Files in place. Drop PDFs or pick a Drive folder | Name field, drop zone | Per file progress | Per file reason, "Drive access needed" | Failed files with Retry | Status Documents in |
+| Extraction progress (SR-18) | Show the batch works | Queued | Running | Failed with reason | Some documents done | Done |
+| Review (SR-19, SR-20) | Check only exceptions. Approve | "No flags. Check totals and approve." | Skeleton sections | "Could not load this return." Retry | "Not extracted" fields listed | Flags, totals, changes, Approve |
+| Fill handoff (SR-21) | Start the fill. Fill now | Ready | Tab open, filling | Field that failed | Some fields filled | Filled, time vs 19 min |
+| Done and next client (SR-22) | Close the loop. Mark as submitted, Next client | n/a | Submitting | Reason and Retry | n/a | Submitted, corrections count |

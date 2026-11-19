@@ -1,4 +1,4 @@
-# Every push: check and test:unit. Budget under 2 minutes (QA.md).
+# Every push: check and test:unit. Budget under 2 minutes (AGENTS.md > Pipeline).
 name: push
 
 on:

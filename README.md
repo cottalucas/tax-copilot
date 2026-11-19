@@ -4,8 +4,8 @@ Extraction engine, tax rules and a thin review portal for one Swiss tax preparer
 control and submits. Built from [golden-template](https://github.com/cottalucas/golden-template).
 
 ## Start here
-Agents: read [AGENTS.md](AGENTS.md). Humans: [PRD.md](PRD.md), then [TASKS.md](TASKS.md) and
-[PROGRESS.md](PROGRESS.md). Setup gaps against best practice: [GAPS.md](GAPS.md).
+Agents: read [AGENTS.md](AGENTS.md). Humans: [PRD.md](PRD.md), then [PROGRESS.md](PROGRESS.md).
+Tasks live in Linear, project Tax Copilot.
 
 ## Layout
 | Path | What |
@@ -19,6 +19,7 @@ Agents: read [AGENTS.md](AGENTS.md). Humans: [PRD.md](PRD.md), then [TASKS.md](T
 | `evals/` | Golden set runner, cases in `evals/golden/` |
 | `web/` | Portal (Vite, TypeScript) |
 | `tests/` | Unit helpers, Firestore rules tests, Playwright smoke |
+| `.agents/skills/` | Skills any agent can load: `stop-slop`, `nielsen-heuristics-audit` |
 | `.github/workflows/` | push, pr, nightly, claude, infra |
 
 ## Commands
@@ -32,10 +33,8 @@ npm run evals
 ```
 
 No keys are needed for check and tests. Pull requests have no human QA: tests, evals and the
-Codex review gate every merge. See [QA.md](QA.md) for when each stage runs.
+Codex review gate every merge. See [AGENTS.md](AGENTS.md) > Pipeline.
 
 ## Docs
-[AGENTS](AGENTS.md) · [PRD](PRD.md) · [ARCHITECTURE](ARCHITECTURE.md) · [TASKS](TASKS.md) ·
-[EVALS](EVALS.md) · [PROGRESS](PROGRESS.md) · [DESIGN](DESIGN.md) · [STYLE](STYLE.md) ·
-[QA](QA.md) · [MODELS](MODELS.md) · [SECURITY](SECURITY.md) · [SETUP](SETUP.md) ·
-[FEEDBACK](FEEDBACK.md) · [GAPS](GAPS.md)
+[AGENTS](AGENTS.md) · [PRD](PRD.md) · [ARCHITECTURE](ARCHITECTURE.md) · [EVALS](EVALS.md) ·
+[DESIGN](DESIGN.md) · [PROGRESS](PROGRESS.md)
