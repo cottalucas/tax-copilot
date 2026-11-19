@@ -19,16 +19,18 @@ export function parseBlockReasons(review) {
 }
 
 /**
- * Decides the gate. Blocks only when the reviewer requests changes with at least one tagged
- * reason (criterion, Never rule, security). A request without a tagged reason is a comment.
- * No verdict at all fails closed.
+ * Decides the gate. Approve passes. Changes requested blocks, and must carry at least one tagged
+ * reason (criterion, Never rule, security). Malformed output (no verdict, or changes requested
+ * without a tag) fails closed.
  */
 export function decide(review) {
   const verdict = parseVerdict(review);
   if (verdict === null) return { block: true, reasons: [], note: "Review has no verdict line. Failing closed." };
   const reasons = parseBlockReasons(review);
   if (verdict === "approve") return { block: false, reasons: [], note: "Verdict: Approve" };
-  if (reasons.length === 0) return { block: false, reasons, note: "Changes requested without a tagged block reason. Treated as comments." };
+  // The rules allow "Changes requested" only with a tagged reason. Without one the output is
+  // malformed, so the gate fails closed rather than letting a real blocker through.
+  if (reasons.length === 0) return { block: true, reasons, note: "Changes requested without a [CRITERION], [NEVER] or [SECURITY] tag. Malformed review, failing closed." };
   return { block: true, reasons, note: `Blocked: ${reasons.map((r) => `[${r.tag}] ${r.text}`).join(" | ")}` };
 }
 

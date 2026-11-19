@@ -41,9 +41,10 @@ describe("review block reasons", async () => {
     ]);
   });
 
-  it("blocks only with a tagged reason", () => {
+  it("approves, blocks on tagged reasons, fails closed on malformed output", () => {
     expect(decide("**Verdict: Changes requested**\n- [CRITERION] TASKS.md:4 missed").block).toBe(true);
-    expect(decide("**Verdict: Changes requested**\n- docs should be in the same pull request").block).toBe(false);
+    expect(decide("**Verdict: Changes requested**\n- docs should be in the same pull request").block).toBe(true);
+    expect(decide("**Verdict: Changes requested**\n- docs should be in the same pull request").note).toMatch(/Malformed/);
     expect(decide("**Verdict: Approve**\nBlock reasons: None").block).toBe(false);
     expect(decide("no verdict").block).toBe(true);
   });

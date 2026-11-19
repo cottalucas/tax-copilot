@@ -142,8 +142,8 @@ jobs:
         if: steps.gate.outputs.run == 'true'
         with:
           fetch-depth: 0
-      # The reviewer, its rules, AGENTS.md and TASKS.md come from the base commit, so a pull request
-      # cannot change the reviewer that judges it. One bootstrap exception: no review-rules.md on base.
+      # The reviewer, its rules, AGENTS.md and TASKS.md come only from the base commit, never from
+      # the pull request, so a pull request cannot change the reviewer that judges it.
       - name: Load the reviewer from the base commit
         if: steps.gate.outputs.run == 'true'
         env:
@@ -151,16 +151,10 @@ jobs:
         run: |
           t="$RUNNER_TEMP/trusted"
           mkdir -p "$t/scripts"
-          if git cat-file -e "$BASE_SHA:scripts/review-rules.md" 2>/dev/null; then
-            for f in AGENTS.md TASKS.md scripts/review-rules.md scripts/review-prompt.mjs scripts/post-review.mjs; do
-              git show "$BASE_SHA:$f" > "$t/$f"
-            done
-            echo "Reviewer loaded from base commit $BASE_SHA."
-          else
-            echo "::warning title=review bootstrap::Base has no scripts/review-rules.md yet. Using this pull request's reviewer once."
-            cp AGENTS.md TASKS.md "$t/"
-            cp scripts/review-rules.md scripts/review-prompt.mjs scripts/post-review.mjs "$t/scripts/"
-          fi
+          for f in AGENTS.md TASKS.md scripts/review-rules.md scripts/review-prompt.mjs scripts/post-review.mjs; do
+            if git cat-file -e "$BASE_SHA:$f" 2>/dev/null; then git show "$BASE_SHA:$f" > "$t/$f"; fi
+          done
+          echo "Reviewer loaded from base commit $BASE_SHA."
       - name: Build review prompt
         if: steps.gate.outputs.run == 'true'
         env:

@@ -60,9 +60,9 @@ criterion, a broken Never rule or a security issue (`scripts/review-rules.md`). 
 tagged [CRITERION], [NEVER] or [SECURITY]. A request for changes without a tag is a comment.
 AGENTS.md allows a separate docs pull request when Lucas asks for it.
 The review job loads AGENTS.md, TASKS.md, `scripts/review-rules.md` and both review scripts from the base
-commit, so a pull request cannot change the reviewer that judges it. This pull request is the one
-bootstrap exception: main has no `review-rules.md` yet, so it runs its own copy once (warning in
-the log).
+commit, so a pull request cannot change the reviewer that judges it. No exception: this pull
+request is judged by the reviewer already on main. "Changes requested" without a tag fails
+closed as malformed output.
 
 ## Review blocks
 Every block, so the reviewer can be tuned. Category is the tag the block would get under the
@@ -76,6 +76,7 @@ calibrated rules (none means it would now be a comment).
 | 2026-11-19 | #5 run 1 | Golden set not run on every pull request (path filter) | CRITERION | Dropped the evals path filter |
 | 2026-11-19 | #5 run 2 | Docs after code, "already on main" wording, eval evidence predates change | none | Exception added, wording fixed, reviewer calibrated |
 | 2026-11-19 | #5 run 3 | Reviewer rules load from the pull request checkout, so a pull request could edit its own reviewer | SECURITY | Reviewer, rules and AGENTS.md load from the base commit |
+| 2026-11-19 | #5 run 4 | Untagged "Changes requested" passed. Bootstrap let this pull request supply its own reviewer | SECURITY | Untagged requests fail closed. No bootstrap: always the base reviewer |
 
 ## Assumptions
 | Date | Assumption | Confirm with |

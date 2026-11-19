@@ -12,7 +12,9 @@ Block (Verdict: Changes requested) for exactly three reasons, nothing else:
   change that removes, skips or weakens a gate, the review job or this file.
 
 Everything else is a comment and does not block: process and "Always do" rules, docs style,
-naming, test ideas, scope questions, missing log lines. When in doubt, comment.
+naming, test ideas, scope questions, missing log lines. When in doubt, comment and approve.
+Never write "Changes requested" without a tagged block reason: the gate treats that as malformed
+and fails.
 
 ## Output
 One GitHub comment in Markdown, under 300 words, plain language, no em dashes:
