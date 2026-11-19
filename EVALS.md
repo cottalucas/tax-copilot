@@ -6,6 +6,7 @@ Source: Notion "Tax Copilot for Expatify, Product Doc", EVALS section. Runner: `
 - 10 to 20 past returns, anonymized, with her final submitted values as truth.
 - Location: `evals/golden/*.json`, one file per case. Format in `evals/golden/README.md`.
 - Today: zero cases. The runner passes with a warning until cases exist.
+- No golden case lands while the repo is public (Linear SR-23, AGENTS.md > Never do).
 - Anonymized before entering the repo: no names, AHV numbers, IBANs, addresses, or identifying
   employer names. The secret guard blocks AHV and CH IBAN patterns.
 
@@ -39,4 +40,5 @@ Every correction she makes becomes a new golden case or a new rule with a test (
 
 ## When it runs
 On every pull request (Linear SR-15) and nightly. Fails when OPENROUTER_API_KEY or APP_MODEL is
-missing. See QA.md.
+missing.
+See AGENTS.md > Pipeline.

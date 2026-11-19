@@ -1,4 +1,4 @@
-# Nightly (QA.md): full test:e2e, full evals, government form change check.
+# Nightly (AGENTS.md > Pipeline): full test:e2e, full evals, government form change check.
 name: nightly
 
 on:

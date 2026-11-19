@@ -1,4 +1,4 @@
-# Every pull request (QA.md). Every job here is a required check on main.
+# Every pull request (AGENTS.md > Pipeline). Every job here is a required check on main.
 # No human QA: a pull request halts when tests, evals or review fail.
 # Path filtered jobs always run and report a status, so the branch rule can require them.
 # A missing secret or variable fails the job: keys are in, so nothing skips silently.

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Secret guard (SECURITY.md). Scans git tracked files for secret shaped and PII shaped content.
+// Secret guard (AGENTS.md > Never do). Scans git tracked files for secret shaped and PII shaped content.
 // Lesson from Super Ramble: secrets in a log file forced a git history rewrite.
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";

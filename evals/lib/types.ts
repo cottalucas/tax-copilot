@@ -7,7 +7,7 @@ export interface ExpectedFlag {
   critical?: boolean;
 }
 
-/** One golden case. Anonymized before it enters the repo (SECURITY.md). */
+/** One golden case. Anonymized before it enters the repo (AGENTS.md > Never do). */
 export interface GoldenCase {
   id: string;
   taxYear: number;

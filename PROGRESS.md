@@ -1,14 +1,33 @@
 # PROGRESS.md
 
 ## Current focus
-SR-15: repo, pipeline and eval harness. Scaffolding done, waiting on keys for the final test.
+SR-24: scaffolding layer (lean docs, gates on every pull request, skills, infra).
 
 ## Next up
-1. Lucas: secrets, variables, Firestore location, Linear integration (SETUP.md).
-2. Agent, final test: run infra.yml, one green and one blocked pull request, branch rule, close SR-15.
-3. SR-16: login and home queue.
+1. SR-24: gates, auto merge, proof pull requests, infra.
+2. SR-16: login and home queue.
+3. SR-23: make the repo private before any golden case or real tax rule.
+4. Move the review job to `pull_request_target` (read the diff only, never run pull request code).
 
 ## Log
+
+### 2026-11-19 SR-24 lean context files, DESIGN.md, skills
+Done: AGENTS.md rewritten (commands first, read table, always do, ask first, never do, pipeline).
+QA, SECURITY, MODELS, STYLE, SETUP and FEEDBACK merged into AGENTS.md and ARCHITECTURE.md.
+GAPS.md merged into Open gaps below. TASKS.md is one line pointing to Linear. ARCHITECTURE.md
+gains environments, data inventory, models, keyless identity, deploy and rollback. DESIGN.md
+follows the Google Labs DESIGN.md spec on a light take of the Linear base, linted by
+`npm run check:design` (0 errors, 0 warnings). CSS tokens match DESIGN.md. Skills `stop-slop` and
+`nielsen-heuristics-audit` in `.agents/skills/` (MIT, copied verbatim), linked from
+`.claude/skills`. The reviewer judges the criteria the pull request body quotes. pr.yml gets no
+Linear key (a pull request can edit pr.yml). The review prompt can read Linear once the review
+moves to `pull_request_target`.
+Verified: `npm run check`, `npm run test:unit`.
+
+### 2026-11-19 One time admin merge of #5
+Main's old reviewer blocked every change to the reviewer itself (six runs). Lucas approved one
+admin merge to install the calibrated reviewer. "Enforce for admins" was off for seconds around
+the merge (48ac2d2) and is back on, confirmed through the GitHub API.
 
 ### 2026-11-19 SR-15 docs on main, public repo rule, reviewer calibrated (SR-23, SR-24)
 Done: this pull request brings the SR-15 updates of TASKS.md and PROGRESS.md to main. AGENTS.md Project rules: never
@@ -45,7 +64,7 @@ Done:
   extraction schema with source per value, rules interface plus one example rule, eval runner,
   Cloud Functions health endpoint in europe-west6, web shell, Firestore default deny rules.
 - Workflows: push, pr, nightly, claude, infra. Jobs skip with a warning when a secret is missing.
-- GAPS.md written.
+- GAPS.md written (merged into Open gaps below on 2026-11-19).
 Verified locally, no keys: `npm run check`, `npm run test:unit` (32 tests),
 `npm run test:integration` (3 rules tests, Firestore emulator), `npm run test:e2e` (1 smoke),
 `npm run evals` (zero cases, warning), `npm run build:functions`, `actionlint` clean.
@@ -82,6 +101,8 @@ calibrated rules (none means it would now be a comment).
 | 2026-11-19 | #5 run 4 | Untagged "Changes requested" passed. Bootstrap let this pull request supply its own reviewer | SECURITY | Untagged requests fail closed. No bootstrap: always the base reviewer |
 | 2026-11-19 | #5 run 5 (old reviewer from main) | PROGRESS wording contradicted the fail closed gate. Verdict accepted anywhere in the text | none (old reviewer blocks on anything) | Fixed the wording. Verdict must be the whole first line |
 | 2026-11-19 | #5 run 6 (old reviewer from main) | Codex ran in the pull request checkout and could load its AGENTS.md. Approve passed next to a tagged blocker | would be SECURITY | Codex runs in the trusted folder. Tagged blockers always block |
+| 2026-11-19 | #5 run 7 (old reviewer from main) | Unclaimed SR-24 criteria judged missed, base docs rule, pull request can edit pr.yml | old reviewer, no tags | One time admin merge approved by Lucas. pr.yml risk logged below |
+| 2026-11-19 | #6 run 1 (calibrated) | LINEAR_API_KEY passed to pr.yml, which a pull request can edit | SECURITY | Key removed from pr.yml. Criteria come from the pull request body |
 
 ## Assumptions
 | Date | Assumption | Confirm with |
@@ -101,6 +122,13 @@ calibrated rules (none means it would now be a comment).
 | 2026-11-18 | Hosting has no rewrite to functions yet, so preview channels deploy without functions | Agent |
 
 ## Template gaps
+- Any secret in a `pull_request` workflow (OPENAI_API_KEY, OPENROUTER_API_KEY today) can be read
+  by a same repo pull request that edits the workflow. Only accounts with write access can do
+  that, but agents have it. Follow up with the `pull_request_target` review job (diff only, never
+  pull request code) and keep model keys out of pull request workflows where possible.
+- Golden must ship with the calibrated reviewer (`scripts/review-rules.md`, `post-review.mjs`
+  with tagged reasons and fail closed, base commit loading). A project that starts with a strict
+  reviewer can never change it through the gates and needs an admin merge, as tax-copilot did.
 - Residual risk: a pull request can still edit `.github/workflows/pr.yml` itself. The trusted
   reviewer is told to block weakened workflows ([SECURITY]), but a pull request that deletes the
   review job never reaches it. Follow up: move the review job to a `pull_request_target`
@@ -123,6 +151,24 @@ calibrated rules (none means it would now be a comment).
 - Golden QA.md should warn: job level `permissions` replace the workflow's, so always repeat
   `contents: read`. And anchor ignore patterns (`/lib/`) so they do not hide source folders.
 - Golden should say: verify from a clean clone before the first push (caught the ignored folder).
+
+## Open gaps
+From the setup gap report (GAPS.md, merged here 2026-11-19). Each names the Notion page to update.
+| Gap | Severity | Update |
+| --- | --- | --- |
+| North Star and guardrail metrics | high | Product Doc > PRD > Metrics |
+| Data model confirmed | high | Product Doc > ARCHITECTURE (draft in ARCHITECTURE.md) |
+| Security: processors, incident steps, nFADP duties, MFA | high | Product Doc > ARCHITECTURE |
+| Open questions: canton, submit owner, data import | high | Product Doc > Open questions. Blocks SR-18, SR-19, SR-21 |
+| Golden set owner, anonymization steps, date | high | Product Doc > EVALS. Waits on SR-23 |
+| Now and Next split, stale "TASKS (first slice)" | medium | Product Doc > PRD > Stages |
+| Rollback criteria, Firestore backups | medium | Product Doc > ARCHITECTURE |
+| Observability and metrics instrumentation | medium | Product Doc > ARCHITECTURE, new Linear issue before SR-21 |
+| Linear blocking relations SR-15 to SR-22 | medium | Linear project Tax Copilot |
+| Extraction design: good and bad output examples | medium | Product Doc > ARCHITECTURE |
+| Chapter 2 entry gate: 10 real cases with corrections | medium | AI Builder Series > Chapter 2 |
+| Golden Project Setup page out of step with the repo | medium | Golden Project Setup > Setup todo, Who does what |
+| Cost per return and a daily model spend cap | low | Product Doc > PRD > Metrics |
 
 ## Open questions
 See PRD.md, Open questions (canton, submit owner, data import).
