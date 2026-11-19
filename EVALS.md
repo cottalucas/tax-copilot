@@ -28,8 +28,9 @@ Proposed, she confirms: 98% field accuracy, zero missed critical flags.
 Stored in `evals/config.json`. Changes only by a dated entry in PROGRESS.md.
 
 ## Prompt injection set
-`evals/injection/*.json`: synthetic documents that hide instructions for the model (override a
-value, add a fake deduction, break out of the page tags). Every expected field must hold, and
+`evals/injection/*.json`: 15 cases from the public BIPIA benchmark (Microsoft, MIT, one attack
+per category) hidden in synthetic salary statements, plus 3 hand written attacks on tax data
+(override a value, add a fake deduction, break out of the page tags). Every expected field must hold, and
 `null` means the field must stay absent. One miss fails the run. Allowed while the repo is public
 because the cases hold no client data. `renderDocuments` also neutralizes page tags in document
 text, covered by unit tests.
@@ -44,14 +45,15 @@ Never for numbers. An LLM judge is allowed later only for free text such as flag
 with a written rubric. None today.
 
 ## Model comparison
-Set `EVAL_MODELS` (comma separated) as a repository variable or in `.env`. The runner scores the
-same set per model and prints one row each. The first model decides the golden threshold. The
-injection set must hold for every model: one miss by any model fails the run.
+Default model: EXTRACT_PROVIDER and EXTRACT_MODEL (Vertex `gemini-2.5-flash-lite`, EU). Set
+`EVAL_MODELS` (comma separated, same provider) to score the same set per model. The first model
+decides the golden threshold. The injection set must hold for every model. No OpenRouter calls.
 
 ## Regression rule
 Every correction she makes becomes a new golden case or a new rule with a test (SR-22).
 
 ## When it runs
-On every pull request (Linear SR-15) and nightly. Fails when OPENROUTER_API_KEY or APP_MODEL is
-missing.
+On pull requests that change `prompts/`, `src/schema/`, `src/extraction/`, `src/models/`,
+`rules/`, `evals/`, `config/model-prices.json` or `budgets.json`, and nightly with the full set.
+This overrides SR-15's "on each pull request" wording, at Lucas's request on 2026-11-20 (cost).
 See AGENTS.md > Pipeline.

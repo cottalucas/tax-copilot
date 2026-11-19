@@ -71,7 +71,7 @@ async function review(shotsDir: string) {
   const result = await complete(
     {
       dataClass: "anonymized",
-      model: process.env.UX_REVIEW_MODEL || undefined,
+      role: "check",
       maxTokens: 1200,
       messages: [
         { role: "system", content: buildPrompt(heuristics, design) },

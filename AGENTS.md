@@ -11,7 +11,7 @@ here. Backlog: Linear project Tax Copilot. Product: PRD.md. System: ARCHITECTURE
 | test:unit | `npm run test:unit` | Vitest with coverage floor, network mocked |
 | test:integration | `npm run test:integration` | Firestore emulator, needs Java 11+ |
 | test:e2e | `npm run test:e2e` | Playwright. First run: `npx playwright install chromium` |
-| evals | `npm run evals` | Golden and injection sets. Needs OPENROUTER_API_KEY and APP_MODEL |
+| evals | `npm run evals` | Golden and injection sets on EXTRACT_* (Vertex, keyless Google login) |
 | ux-review | `npm run ux-review` | Screenshot review. Needs a running app at BASE_URL |
 | build | `npm run build` | Web to `dist/`, functions to `lib/` |
 | review | CI only | Codex, model from REVIEWER_MODEL. Must say "Verdict: Approve" |
@@ -26,7 +26,7 @@ code.
 | --- | --- |
 | Any task | AGENTS.md, PRD.md, PROGRESS.md, the Linear issue |
 | Data, Firestore, functions, deploy, rollback | ARCHITECTURE.md |
-| Any model call, prompt, `src/models` | ARCHITECTURE.md > Models, EVALS.md |
+| Any model call, prompt, `src/models`, model prices | ARCHITECTURE.md > Models, EVALS.md, `config/model-prices.json` |
 | Schema, extraction, rules, golden cases | EVALS.md, ARCHITECTURE.md > Data model |
 | Any screen or UI copy | DESIGN.md, skill `nielsen-heuristics-audit` |
 | Any text a person reads (copy, docs, pull requests) | skill `stop-slop` |
@@ -90,7 +90,7 @@ repo owner is mentioned on the pull request.
 | Regression and budgets | `test:unit` | Any test fails, line coverage on `src/` under `coverage-floor.json`, a function over `budgets.json` seconds |
 | Firestore rules | `test:integration` | Any rules test fails |
 | End to end and accessibility | `test:e2e` | Any Playwright test fails, any WCAG 2.2 AA violation |
-| Golden set, injection set, cost | `evals` | Under the launch threshold, an empty injection set, any injection field changed by any model, cost over `budgets.json` or not reported |
+| Golden set, injection set, cost | `evals` | Runs when prompts, schema, rules, `src/models` or evals change (nightly: full). Fails under the launch threshold, on an empty injection set, any injection field changed, cost over `budgets.json` or not reported |
 | Dependencies | `audit` | A high or critical advisory in production dependencies |
 | Code scanning | CodeQL default setup + ruleset | Any error or warning alert, or a high or critical security alert (GitHub ruleset, outside the repo's workflows) |
 | Review | `review` | Codex blocks with a tagged [CRITERION], [NEVER] or [SECURITY] reason, or its output is malformed |
@@ -119,8 +119,10 @@ repo owner is mentioned on the pull request.
 ## Secrets and variables
 Names only. A human sets secret values. Agents never see them.
 - Secrets: ANTHROPIC_API_KEY, OPENAI_API_KEY, OPENROUTER_API_KEY, LINEAR_API_KEY.
-- Variables: MODEL_PROVIDER, APP_MODEL, EVAL_MODELS, BUILDER_MODEL, REVIEWER_MODEL,
-  UX_REVIEW_MODEL, FIREBASE_PROJECT_ID, FIRESTORE_LOCATION, GCP_WIF_PROVIDER, GCP_DEPLOY_SA.
+- Model roles: EXTRACT_PROVIDER, EXTRACT_MODEL, CHECK_PROVIDER, CHECK_MODEL, EVAL_MODELS
+  (optional), VERTEX_PROJECT_ID, VERTEX_REGION. Pipeline: BUILDER_MODEL, REVIEWER_MODEL.
+- Infra: FIREBASE_PROJECT_ID, FIRESTORE_LOCATION, GCP_WIF_PROVIDER, GCP_DEPLOY_SA (runs on main
+  only), GCP_EVALS_SA (Vertex only, pull request jobs).
 
 ## Conflict order
 Linear wins on scope. Never do wins on data. ARCHITECTURE.md wins on technical shape. The latest

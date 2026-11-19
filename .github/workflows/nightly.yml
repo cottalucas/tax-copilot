@@ -22,26 +22,23 @@ jobs:
   evals:
     name: evals (full)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     env:
-      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-      MODEL_PROVIDER: ${{ vars.MODEL_PROVIDER }}
-      APP_MODEL: ${{ vars.APP_MODEL }}
+      EXTRACT_PROVIDER: ${{ vars.EXTRACT_PROVIDER }}
+      EXTRACT_MODEL: ${{ vars.EXTRACT_MODEL }}
       EVAL_MODELS: ${{ vars.EVAL_MODELS }}
+      VERTEX_PROJECT_ID: ${{ vars.VERTEX_PROJECT_ID }}
+      VERTEX_REGION: ${{ vars.VERTEX_REGION }}
     steps:
-      - id: gate
-        run: |
-          if [ -z "$OPENROUTER_API_KEY" ] || [ -z "$APP_MODEL" ]; then
-            echo "::warning title=evals skipped::OPENROUTER_API_KEY secret or APP_MODEL variable is not set."
-            echo "run=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          fi
       - uses: actions/checkout@v7
-        if: steps.gate.outputs.run == 'true'
       - uses: ./.github/actions/setup
-        if: steps.gate.outputs.run == 'true'
-      - if: steps.gate.outputs.run == 'true'
-        run: npm run evals
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_EVALS_SA }}
+      - run: npm run evals
 
   form-change:
     name: government form change check

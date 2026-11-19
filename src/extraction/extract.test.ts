@@ -2,13 +2,13 @@ import { describe, expect, it } from "vitest";
 import type { ModelProvider } from "../models/index.js";
 import { extractionJsonSchema, extractReturn, loadExtractionPrompt, renderDocuments } from "./extract.js";
 
-const env = { MODEL_PROVIDER: "openrouter", APP_MODEL: "test/model" };
+const env = { EXTRACT_PROVIDER: "vertex", EXTRACT_MODEL: "test-model" };
 
 function providerReturning(text: string): ModelProvider {
   return {
-    name: "openrouter",
+    name: "vertex",
     async complete(req) {
-      return { text, provider: "openrouter", model: req.model, latencyMs: 1 };
+      return { text, provider: "vertex", model: req.model, latencyMs: 1 };
     },
   };
 }

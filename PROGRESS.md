@@ -11,6 +11,18 @@ SR-24: scaffolding layer (lean docs, gates on every pull request, skills, infra)
 
 ## Log
 
+### 2026-11-20 Model setup, cheap (Part 1)
+Done: `src/models` has four providers (vertex default, anthropic, openai, openrouter), picked per
+role by EXTRACT_* and CHECK_* variables. Vertex calls the EU regional endpoint with keyless
+Google login and prices calls from `config/model-prices.json`. Prompt caching counted for all
+providers (Anthropic `cache_control`). Evals use EXTRACT_* (default Vertex
+`gemini-2.5-flash-lite`, europe-west4), run only when eval inputs change and nightly, and sign in
+as `github-evals`. Injection set: 15 BIPIA attacks (MIT) plus 3 hand written. No OpenRouter in
+any workflow. Coverage 98.75%, floor raised to 98%.
+Failed: a local eval run on Vertex returned 404 for every Gemini model in every EU region and on
+the global endpoint. The project has no Gemini access yet (console step for Lucas).
+Verified: `npm run check`, `npm run test:unit` (62 tests), `actionlint`.
+
 ### 2026-11-19 SR-24 gates on every pull request
 Done: every gate runs on every pull request (AGENTS.md > Pipeline). Full unit, integration and
 end to end suites. `audit` (production dependencies, high and above). Code scanning: CodeQL
@@ -137,6 +149,8 @@ calibrated rules (none means it would now be a comment).
 ## Assumptions
 | Date | Assumption | Confirm with |
 | --- | --- | --- |
+| 2026-11-20 | CHECK role covers the pull request reviewer and the UX review (decision 2) | Lucas, approved |
+| 2026-11-20 | `gemini-2.5-flash-lite` in europe-west4 is the default: newer Flash Lite models are global only, europe-west6 has none (decision 1) | Lucas, approved |
 | 2026-11-18 | golden-template and tax-copilot did not exist. Created both as private repos under cottalucas. tax-copilot made public 2026-11-19 on Lucas's request | Lucas, confirmed |
 | 2026-11-18 | Linear has no blocking relations set. Task order follows the journey numbering (0 to 7) | Lucas |
 | 2026-11-18 | Status names: Documents in, Needs review, Ready to fill, Submitted. Notion says "done", Linear SR-22 says "Mark as submitted". Linear wins | Lucas |

@@ -3,7 +3,7 @@
  * - Golden set: evals/golden/*.json (anonymized real cases). Zero cases passes with a warning.
  * - Injection set: evals/injection/*.json (synthetic prompt injection cases). Every field must hold.
  * - A case with "predicted" is scored offline, no model call.
- * - Otherwise extracts through src/models with APP_MODEL, or each model in EVAL_MODELS.
+ * - Otherwise extracts through src/models with EXTRACT_MODEL, or each model in EVAL_MODELS.
  * - Fails below the launch threshold, on any injection miss, or when cost passes budgets.json.
  */
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -35,7 +35,7 @@ function modelsToRun(cases: GoldenCase[]): string[] {
   // Injection cases always call the models, so offline mode only applies to golden cases.
   if (!cases.some((c) => c.predicted === undefined || c.kind === "injection")) return ["offline"];
   const list = (process.env.EVAL_MODELS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-  return list.length > 0 ? list : [getModelConfig().model];
+  return list.length > 0 ? list : [getModelConfig("extract").model];
 }
 
 async function scoreCase(c: GoldenCase, model: string, budget: CostBudget): Promise<CaseScore> {
@@ -98,7 +98,7 @@ async function main() {
       rows.push(
         `| ${model} | ${gs ? `${gs.cases} cases, ${pct(gs.fieldAccuracy)} fields, ${pct(gs.criticalFlagRecall)} critical flags` : "no cases"} | ${is ? `${is.cases} cases, ${pct(is.fieldAccuracy)} fields held` : "none"} | ${goldenPass && injectionPass ? "yes" : "no"} |`,
       );
-      // The golden set threshold applies to the first model (APP_MODEL, or the first in EVAL_MODELS).
+      // The golden set threshold applies to the first model (EXTRACT_MODEL, or the first in EVAL_MODELS).
       // The injection set is security: it must hold for every model, so any miss fails the run.
       if ((i === 0 && !goldenPass) || !injectionPass) failed = true;
     }

@@ -15,7 +15,7 @@ Locked unless marked open.
 | Portal | Web app on Firebase Hosting, Firebase Auth | `web/` (Vite, TypeScript) |
 | Engine | Cloud Functions v2, europe-west6 (Zurich) | `src/functions/` |
 | Extraction | Model call through the adapter, fixed JSON schema, Zod validated | `src/extraction/`, `src/schema/`, `prompts/` |
-| Models | One adapter. OpenRouter for dev and evals, Vertex AI EU for client data | `src/models/` |
+| Models | One adapter, four providers, chosen per role by variables. Default Vertex Gemini in the EU | `src/models/` |
 | Rules | Plain code with tests, not prompts | `rules/` |
 | Storage | Firestore: client status, flags, corrections only. No documents | `firestore.rules` |
 | Files | Stay in her Google Drive, read through the Drive API | TODO SR-17 |
@@ -52,19 +52,25 @@ Draft, confirmed in SR-16 and SR-17.
 | Golden cases | `evals/golden/`, anonymized. None while the repo is public (SR-23) | Pipeline, dev models |
 
 Functions run in europe-west6. Client data reaches models only through Vertex AI in a `europe-*`
-region. OpenRouter sees anonymized or synthetic data only.
+region until SR-18 decides residency. Other providers see anonymized or synthetic data only.
 
 ## Models
 - Adapter: `src/models/index.ts`, `complete(request)`. ESLint blocks `openai`,
   `@anthropic-ai/sdk` and `@google-cloud/vertexai` imports anywhere else.
-- Request: `messages`, `dataClass` ("anonymized" or "client"), optional `json`, `maxTokens`,
-  `model` (override for evals). Result: `text`, `provider`, `model`, `latencyMs`, `usage`.
-- Providers: `openrouter` (dev and evals) and `vertex` (stub until SR-18, EU regions only). The
-  adapter refuses `dataClass: "client"` for any provider except vertex.
-- Variables, values set 2026-11-19: MODEL_PROVIDER `openrouter`, APP_MODEL
-  `anthropic/claude-sonnet-5.5`, EVAL_MODELS `anthropic/claude-sonnet-5.5,google/gemini-3.8-flash`,
-  BUILDER_MODEL `claude-opus-5-5`, REVIEWER_MODEL `gpt-6.2-sol`. Later: VERTEX_PROJECT_ID,
-  VERTEX_REGION (`europe-*`).
+- Providers: `vertex` (default), `anthropic`, `openai`, `openrouter`. Each role picks one with
+  variables, so switching is a variable change only:
+  - extract role: EXTRACT_PROVIDER, EXTRACT_MODEL (extraction, evals).
+  - check role: CHECK_PROVIDER, CHECK_MODEL (pull request review, UX review).
+- Defaults set 2026-11-20: EXTRACT `vertex` + `gemini-2.5-flash-lite` (cheapest Flash Lite on an
+  EU regional endpoint), VERTEX_REGION `europe-west4` (europe-west6 has no Flash Lite),
+  VERTEX_PROJECT_ID `tax-co-pilot`. CHECK `openai` + `gpt-6.2-sol` (decision 3, a stronger gate).
+- Vertex uses keyless Google login: Application Default Credentials locally, Workload Identity
+  with the `github-evals` identity (Vertex only) in pull request jobs.
+- Cost: OpenRouter reports it, the others are priced from `config/model-prices.json`. Prompt
+  caching: Vertex and OpenAI cache stable prefixes on their own, Anthropic gets `cache_control`
+  on the system prompt. Cached tokens are counted at the cached price.
+- Real client data: today only `vertex` in a `europe-*` region may receive it (`dataClass:
+  "client"`). The final residency choice for real client data is made at SR-18.
 - No orchestration framework. LangChain only when a feature needs multi step orchestration.
 - Only pass the parameters a request sets. Some models reject sampling parameters.
 

@@ -1,5 +1,6 @@
 # Every pull request (AGENTS.md > Pipeline). No human QA: a pull request halts when any gate fails.
 # Required on main: changes, check, test:unit, test:integration, test:e2e, evals, audit, review.
+# evals runs its steps only when eval inputs change, and reports green otherwise.
 # Code scanning: CodeQL default setup plus a ruleset (no workflow here). ux-shots and
 # ux-review.yml comment only and are not required.
 # A missing secret or variable fails the job: keys are in, so nothing skips silently.
@@ -24,6 +25,7 @@ jobs:
       pull-requests: read
     outputs:
       screens: ${{ steps.filter.outputs.screens }}
+      evals: ${{ steps.filter.outputs.evals }}
     steps:
       - uses: actions/checkout@v7
       - id: filter
@@ -33,6 +35,15 @@ jobs:
             screens:
               - 'web/**'
               - 'DESIGN.md'
+            evals:
+              - 'prompts/**'
+              - 'src/schema/**'
+              - 'src/extraction/**'
+              - 'src/models/**'
+              - 'rules/**'
+              - 'evals/**'
+              - 'config/model-prices.json'
+              - 'budgets.json'
 
   check:
     name: check
@@ -76,26 +87,54 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
 
-  # Golden set and prompt injection set on every pull request (Linear SR-15). Fails above the
-  # model cost budget in budgets.json.
+  # Golden set and prompt injection set when prompts, schema, rules, src/models or evals change
+  # (nightly runs the full set). Default model: Vertex Gemini in an EU region, keyless login with
+  # the narrow github-evals identity (Vertex only). Fails above the cost budget in budgets.json.
+  # The job always runs and reports, so the branch rule can require it.
   evals:
     name: evals
+    needs: changes
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     env:
-      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-      MODEL_PROVIDER: ${{ vars.MODEL_PROVIDER }}
-      APP_MODEL: ${{ vars.APP_MODEL }}
+      EXTRACT_PROVIDER: ${{ vars.EXTRACT_PROVIDER }}
+      EXTRACT_MODEL: ${{ vars.EXTRACT_MODEL }}
       EVAL_MODELS: ${{ vars.EVAL_MODELS }}
+      VERTEX_PROJECT_ID: ${{ vars.VERTEX_PROJECT_ID }}
+      VERTEX_REGION: ${{ vars.VERTEX_REGION }}
+      WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER }}
+      EVALS_SA: ${{ vars.GCP_EVALS_SA }}
     steps:
-      - name: Check secrets and variables
+      - id: gate
+        name: Decide and check variables
         run: |
-          if [ -z "$OPENROUTER_API_KEY" ] || [ -z "$APP_MODEL" ]; then
-            echo "::error title=evals blocked::OPENROUTER_API_KEY secret or APP_MODEL variable is not set."
+          if [ "${{ needs.changes.outputs.evals }}" != "true" ]; then
+            echo "::notice title=evals skipped::No prompt, schema, rules, src/models or eval change. Nightly runs the full set."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          missing=""
+          for v in EXTRACT_MODEL VERTEX_PROJECT_ID VERTEX_REGION WIF_PROVIDER EVALS_SA; do
+            [ -z "${!v}" ] && missing="$missing $v"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error title=evals blocked::Missing variables:$missing."
             exit 1
           fi
+          echo "run=true" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v7
+        if: steps.gate.outputs.run == 'true'
       - uses: ./.github/actions/setup
-      - run: npm run evals
+        if: steps.gate.outputs.run == 'true'
+      - uses: google-github-actions/auth@v3
+        if: steps.gate.outputs.run == 'true'
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_EVALS_SA }}
+      - if: steps.gate.outputs.run == 'true'
+        run: npm run evals
 
   # Dependency audit: production dependencies, high and critical fail the pull request.
   audit:

@@ -1,0 +1,8 @@
+{
+  "note": "Data, not code: USD per 1M tokens, used to log and cap cost. Add a row before switching a role to a new model, or evals fail on unknown cost. Sources: cloud.google.com/vertex-ai/generative-ai/pricing, openai.com/api/pricing, anthropic.com/pricing. Checked 2026-11-20.",
+  "vertex": {
+    "gemini-2.5-flash-lite": { "input": 0.10, "cachedInput": 0.01, "output": 0.40 }
+  },
+  "openai": {},
+  "anthropic": {}
+}

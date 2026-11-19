@@ -11,18 +11,30 @@ export interface ChatMessage {
 /**
  * What kind of data a call carries. Decides which providers may receive it.
  * - "anonymized": synthetic or anonymized data. Any provider.
- * - "client": real client data. Only an EU region locked provider (vertex).
+ * - "client": real client data. Only vertex in an EU region (final residency decided at SR-18).
  */
 export type DataClass = "anonymized" | "client";
+
+/** Which job the call does. Each role has its own provider and model variables. */
+export type ModelRole = "extract" | "check";
 
 export interface CompletionRequest {
   messages: ChatMessage[];
   dataClass: DataClass;
+  /** Picks EXTRACT_* or CHECK_* variables. Default "extract". */
+  role?: ModelRole;
   /** Ask the provider for a JSON object response. */
   json?: boolean;
   maxTokens?: number;
-  /** Overrides APP_MODEL for this call. Used by evals to compare models. */
+  /** Overrides the role's model for this call. Used by evals to compare models. */
   model?: string;
+}
+
+export interface Usage {
+  inputTokens: number;
+  outputTokens: number;
+  /** Input tokens served from the provider's prompt cache. */
+  cachedInputTokens?: number;
 }
 
 export interface CompletionResult {
@@ -30,12 +42,12 @@ export interface CompletionResult {
   provider: ProviderName;
   model: string;
   latencyMs: number;
-  usage?: { inputTokens: number; outputTokens: number };
-  /** Cost in USD when the provider reports it (OpenRouter does). */
+  usage?: Usage;
+  /** Cost in USD: reported by the provider (OpenRouter) or priced from config/model-prices.json. */
   costUsd?: number;
 }
 
-export type ProviderName = "openrouter" | "vertex";
+export type ProviderName = "vertex" | "anthropic" | "openai" | "openrouter";
 
 export interface ModelProvider {
   readonly name: ProviderName;
