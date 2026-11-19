@@ -58,11 +58,12 @@ Not done: infra deploy, preview, review and evals with keys, branch rule (final 
 Reviewer calibrated on 2026-11-19 at Lucas's request: it blocks only for an unmet claimed
 criterion, a broken Never rule or a security issue (`scripts/review-rules.md`). Each reason is
 tagged [CRITERION], [NEVER] or [SECURITY]. Everything else goes in the comment as a note and
-does not block. The gate only reads the first line verdict: "Changes requested" without a tag, or
-no verdict on the first line, is malformed and fails closed.
+does not block. The gate reads the verdict from the first non empty line only. "Changes
+requested" without a tag, no verdict there, or "Approve" next to a tagged blocker fails closed.
 AGENTS.md allows a separate docs pull request when Lucas asks for it.
 The review job loads AGENTS.md, TASKS.md, `scripts/review-rules.md` and both review scripts from the base
-commit, so a pull request cannot change the reviewer that judges it. No exception: this pull
+commit, and runs Codex in that trusted folder (it does not see the pull request's files, only the
+diff in its prompt), so a pull request cannot change the reviewer that judges it. No exception: this pull
 request is judged by the reviewer already on main. "Changes requested" without a tag fails
 closed as malformed output.
 
@@ -80,6 +81,7 @@ calibrated rules (none means it would now be a comment).
 | 2026-11-19 | #5 run 3 | Reviewer rules load from the pull request checkout, so a pull request could edit its own reviewer | SECURITY | Reviewer, rules and AGENTS.md load from the base commit |
 | 2026-11-19 | #5 run 4 | Untagged "Changes requested" passed. Bootstrap let this pull request supply its own reviewer | SECURITY | Untagged requests fail closed. No bootstrap: always the base reviewer |
 | 2026-11-19 | #5 run 5 (old reviewer from main) | PROGRESS wording contradicted the fail closed gate. Verdict accepted anywhere in the text | none (old reviewer blocks on anything) | Fixed the wording. Verdict must be the whole first line |
+| 2026-11-19 | #5 run 6 (old reviewer from main) | Codex ran in the pull request checkout and could load its AGENTS.md. Approve passed next to a tagged blocker | would be SECURITY | Codex runs in the trusted folder. Tagged blockers always block |
 
 ## Assumptions
 | Date | Assumption | Confirm with |

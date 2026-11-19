@@ -53,5 +53,6 @@ describe("review block reasons", async () => {
     expect(decide("**Verdict: Changes requested**\n- docs should be in the same pull request").note).toMatch(/Malformed/);
     expect(decide("**Verdict: Approve**\nBlock reasons: None").block).toBe(false);
     expect(decide("no verdict").block).toBe(true);
+    expect(decide("**Verdict: Approve**\n- [SECURITY] key in .env").block).toBe(true);
   });
 });

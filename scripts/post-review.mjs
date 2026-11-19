@@ -27,6 +27,8 @@ export function decide(review) {
   const verdict = parseVerdict(review);
   if (verdict === null) return { block: true, reasons: [], note: "Review has no verdict line. Failing closed." };
   const reasons = parseBlockReasons(review);
+  // A tagged blocker always blocks, even under an Approve verdict (contradictory output).
+  if (verdict === "approve" && reasons.length > 0) return { block: true, reasons, note: "Approve verdict with tagged block reasons. Contradictory review, failing closed." };
   if (verdict === "approve") return { block: false, reasons: [], note: "Verdict: Approve" };
   // The rules allow "Changes requested" only with a tagged reason. Without one the output is
   // malformed, so the gate fails closed rather than letting a real blocker through.
@@ -36,7 +38,8 @@ export function decide(review) {
 
 /** Returns "approve", "changes" or null when the review has no verdict line. */
 export function parseVerdict(review) {
-  // Only the first non empty line counts, and it must be the whole verdict.
+  // Only the first non empty line counts (leading blank lines are skipped), and it must be the
+  // whole verdict.
   const first = String(review).split("\n").map((l) => l.trim()).find((l) => l.length > 0) ?? "";
   const m = first.match(/^\**\s*verdict\s*:\s*\**\s*(approve|changes requested)\s*\.?\s*\**$/i);
   if (!m) return null;

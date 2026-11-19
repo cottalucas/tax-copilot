@@ -173,6 +173,9 @@ jobs:
           prompt-file: ${{ runner.temp }}/review-prompt.md
           output-file: ${{ runner.temp }}/review.md
           sandbox: read-only
+          # Run Codex in the trusted folder, so it never loads the pull request's own AGENTS.md.
+          # The diff is in the prompt.
+          working-directory: ${{ runner.temp }}/trusted
       # Posts or updates one comment, then fails the job on "Verdict: Changes requested".
       - name: Post one review comment and gate on the verdict
         if: steps.gate.outputs.run == 'true'
