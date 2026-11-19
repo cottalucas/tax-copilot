@@ -27,4 +27,32 @@ describe("review verdict gate", async () => {
   it("fails closed when there is no verdict", () => {
     expect(parseVerdict("Looks fine to me")).toBeNull();
   });
+
+  it("only accepts the verdict as the whole first line", () => {
+    expect(parseVerdict("\n\n**Verdict: Approve**\nrest")).toBe("approve");
+    expect(parseVerdict("Summary first\nVerdict: Approve")).toBeNull();
+    expect(parseVerdict("Verdict: Approve unless the tests fail")).toBeNull();
+  });
+});
+
+describe("review block reasons", async () => {
+  // @ts-expect-error plain JS script without types
+  const { decide, parseBlockReasons } = await import("../../scripts/post-review.mjs");
+
+  it("reads only the three allowed tags", () => {
+    const review = "Verdict: Changes requested\n\nBlock reasons:\n- [NEVER] src/a.ts:3 model call outside src/models\n- [STYLE] docs nit\n- `[SECURITY]` key in .env\n";
+    expect(parseBlockReasons(review)).toEqual([
+      { tag: "NEVER", text: "src/a.ts:3 model call outside src/models" },
+      { tag: "SECURITY", text: "key in .env" },
+    ]);
+  });
+
+  it("approves, blocks on tagged reasons, fails closed on malformed output", () => {
+    expect(decide("**Verdict: Changes requested**\n- [CRITERION] TASKS.md:4 missed").block).toBe(true);
+    expect(decide("**Verdict: Changes requested**\n- docs should be in the same pull request").block).toBe(true);
+    expect(decide("**Verdict: Changes requested**\n- docs should be in the same pull request").note).toMatch(/Malformed/);
+    expect(decide("**Verdict: Approve**\nBlock reasons: None").block).toBe(false);
+    expect(decide("no verdict").block).toBe(true);
+    expect(decide("**Verdict: Approve**\n- [SECURITY] key in .env").block).toBe(true);
+  });
 });

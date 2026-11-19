@@ -6,18 +6,21 @@ Linear wins over Notion on scope. Titles and criteria copied word for word.
 Depends on: Linear has no blocking relations set. Order below follows the journey (assumption).
 
 ## Task 0: Repo, pipeline and eval harness (SR-15)
-Status: [~] In progress
+Status: [x] Done
 Depends on: none
 
 Description:
 Outcome: every change is checked automatically.
-Setup run built the repo, stages, workflows and eval runner. Keys and branch rule come next.
+Setup run built the repo, stages, workflows and eval runner. Final test ran 2026-11-19. The repo
+went public so GitHub allows a branch rule on main.
 
 Acceptance criteria:
 - [x] Repo created from the template, with AGENTS.md at the root
-- [ ] GitHub Action runs tests and the golden set on each pull request
-- [ ] Reviewer model comments on each pull request, model set by variable
-- [ ] Merge blocked when tests or evals fail
+- [x] GitHub Action runs tests and the golden set on each pull request (the `evals` job runs on
+      every pull request since 2026-11-19. Linear wins over the Notion path filter)
+- [x] Reviewer model comments on each pull request, model set by variable
+- [x] Merge blocked when tests or evals fail (branch rule on main, all pr.yml jobs required,
+      admins included. Pull request #3 with a broken unit test showed BLOCKED)
 
 ## Task 1: Login and home queue (SR-16)
 Status: [ ] Not started
@@ -105,3 +108,34 @@ Acceptance criteria:
 - [ ] Mark as submitted
 - [ ] Next client reuses the same tab
 - [ ] Her corrections are saved as new eval cases
+
+## Task 8: Make the repo private before any golden case or tax rule (SR-23)
+Status: [ ] Not started
+Depends on: none. Must be done before the first golden case or real tax rule lands
+
+Description:
+Outcome: no client derived data or expert know how is ever public.
+The repo is public for now, so branch rules work on the free plan. AGENTS.md carries the rule.
+
+Acceptance criteria:
+- [ ] Repo is private, or GitHub Pro is active with branch rules still on
+      (AGENTS.md is stricter: the repo must be private. Pro only keeps branch rules on)
+- [ ] Done before the first golden case lands in evals/golden
+- [ ] Done before the first real tax rule lands in rules/
+
+## Task 9: Scaffolding layer: lean docs, gates, skills, infra (SR-24)
+Status: [~] In progress
+Depends on: Task 0. Blocks Task 1
+
+Description:
+Outcome: SR-15 loose ends closed and the scaffolding layer finished. No domain work.
+
+Acceptance criteria:
+- [x] SR-15 doc updates on main (this pull request)
+- [x] Public repo rule in AGENTS.md (this pull request)
+- [ ] Only the kept files exist. AGENTS.md under 150 lines with the read table
+- [ ] Every gate runs and a failing one blocks the merge
+- [ ] A green pull request merges itself. A red one posts to Linear
+- [ ] Both skills installed and referenced
+- [ ] Firestore exists in europe-west6, Auth enabled
+- [ ] PROGRESS.md log and Template gaps updated

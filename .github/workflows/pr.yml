@@ -106,10 +106,8 @@ jobs:
     steps:
       - id: gate
         run: |
-          if [ "${{ needs.changes.outputs.evals }}" != "true" ]; then
-            echo "::notice title=evals skipped::No prompt, schema, rules, model adapter or eval case changed."
-            echo "run=false" >> "$GITHUB_OUTPUT"
-          elif [ -z "$OPENROUTER_API_KEY" ] || [ -z "$APP_MODEL" ]; then
+          # Golden set runs on every pull request (Linear SR-15 wins over the Notion path filter).
+          if [ -z "$OPENROUTER_API_KEY" ] || [ -z "$APP_MODEL" ]; then
             echo "::error title=evals blocked::OPENROUTER_API_KEY secret or APP_MODEL variable is not set."
             exit 1
           else
@@ -144,14 +142,28 @@ jobs:
         if: steps.gate.outputs.run == 'true'
         with:
           fetch-depth: 0
+      # The reviewer, its rules, AGENTS.md and TASKS.md come only from the base commit, never from
+      # the pull request, so a pull request cannot change the reviewer that judges it.
+      - name: Load the reviewer from the base commit
+        if: steps.gate.outputs.run == 'true'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          t="$RUNNER_TEMP/trusted"
+          mkdir -p "$t/scripts"
+          for f in AGENTS.md TASKS.md scripts/review-rules.md scripts/review-prompt.mjs scripts/post-review.mjs; do
+            if git cat-file -e "$BASE_SHA:$f" 2>/dev/null; then git show "$BASE_SHA:$f" > "$t/$f"; fi
+          done
+          echo "Reviewer loaded from base commit $BASE_SHA."
       - name: Build review prompt
         if: steps.gate.outputs.run == 'true'
         env:
+          TRUSTED_DIR: ${{ runner.temp }}/trusted
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
           HEAD_REF: ${{ github.head_ref }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: node scripts/review-prompt.mjs > "$RUNNER_TEMP/review-prompt.md"
+        run: node "$RUNNER_TEMP/trusted/scripts/review-prompt.mjs" > "$RUNNER_TEMP/review-prompt.md"
       - name: Codex review
         if: steps.gate.outputs.run == 'true'
         uses: openai/codex-action@v1
@@ -161,10 +173,13 @@ jobs:
           prompt-file: ${{ runner.temp }}/review-prompt.md
           output-file: ${{ runner.temp }}/review.md
           sandbox: read-only
+          # Run Codex in the trusted folder, so it never loads the pull request's own AGENTS.md.
+          # The diff is in the prompt.
+          working-directory: ${{ runner.temp }}/trusted
       # Posts or updates one comment, then fails the job on "Verdict: Changes requested".
       - name: Post one review comment and gate on the verdict
         if: steps.gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR: ${{ github.event.pull_request.number }}
-        run: node scripts/post-review.mjs "$RUNNER_TEMP/review.md"
+        run: node "$RUNNER_TEMP/trusted/scripts/post-review.mjs" "$RUNNER_TEMP/review.md"
