@@ -10,14 +10,22 @@ export class CostBudget {
   calls = 0;
   unknownCostCalls = 0;
 
-  constructor(readonly maxUsd: number) {
+  /** With requireCost, a call whose cost the provider does not report fails the run. */
+  constructor(
+    readonly maxUsd: number,
+    readonly options: { requireCost?: boolean } = {},
+  ) {
     if (!(maxUsd > 0)) throw new Error("A cost budget must be above 0 USD.");
   }
 
   record(result: Pick<CompletionResult, "costUsd" | "model">): void {
     this.calls += 1;
-    if (result.costUsd === undefined) this.unknownCostCalls += 1;
-    else this.spentUsd += result.costUsd;
+    if (result.costUsd === undefined) {
+      this.unknownCostCalls += 1;
+      if (this.options.requireCost) {
+        throw new BudgetExceededError(`Model ${result.model} reported no cost, so spend cannot be checked against ${this.maxUsd} USD.`);
+      }
+    } else this.spentUsd += result.costUsd;
     if (this.spentUsd > this.maxUsd) {
       throw new BudgetExceededError(
         `Model cost ${this.spentUsd.toFixed(4)} USD passed the budget of ${this.maxUsd} USD (last model: ${result.model}).`,

@@ -72,7 +72,8 @@ async function main() {
   if (golden.length === 0) write("WARNING: evals/golden has zero cases. The golden set passes until cases exist (EVALS.md).");
   if (all.length === 0) return;
 
-  const budget = new CostBudget(budgets.evalMaxCostUsd);
+  // requireCost: a call without a reported cost fails the run, so spend is always verified.
+  const budget = new CostBudget(budgets.evalMaxCostUsd, { requireCost: true });
   const rows: string[] = [];
   const scores: CaseScore[] = [];
   let failed = false;

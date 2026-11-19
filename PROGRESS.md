@@ -22,7 +22,8 @@ WCAG 2.2 AA. Screenshot UX review against Nielsen's heuristics, comments only. A
 (squash) once every required check passes. Halt workflow (workflow_run, base code only) posts to
 Linear and mentions the owner. Upgraded zod 4, openai 7, firebase-admin 14, firebase-functions 7
 (two high advisories cleared). The extraction prompt now includes the JSON Schema generated from
-Zod (it was missing). infra.yml: Firebase Auth step, Firestore location check, live app deploy
+Zod (it was missing) and asks for at most 2000 output tokens: the OpenRouter key refused the
+default 65536 with a 402 (credit limit). infra.yml: Firebase Auth step, Firestore location check, live app deploy
 off by default.
 Verified locally: `npm run check`, `npm run test:unit` (coverage 93.5%), `npm run test:e2e`
 (with axe), `npm run test:integration`, `actionlint`. Evals need the CI key.
@@ -119,6 +120,11 @@ calibrated rules (none means it would now be a comment).
 | 2026-11-19 | #5 run 6 (old reviewer from main) | Codex ran in the pull request checkout and could load its AGENTS.md. Approve passed next to a tagged blocker | would be SECURITY | Codex runs in the trusted folder. Tagged blockers always block |
 | 2026-11-19 | #5 run 7 (old reviewer from main) | Unclaimed SR-24 criteria judged missed, base docs rule, pull request can edit pr.yml | old reviewer, no tags | One time admin merge approved by Lucas. pr.yml risk logged below |
 | 2026-11-19 | #6 run 1 (calibrated) | LINEAR_API_KEY passed to pr.yml, which a pull request can edit | SECURITY | Key removed from pr.yml. Criteria come from the pull request body |
+| 2026-11-19 | #7 run 1 | UX job gave a model key and write token to pull request code | SECURITY | Split: `ux-shots` (no secrets) and ux-review.yml (base code only) |
+| 2026-11-19 | #7 run 1 | CodeQL gate read only the first 100 alerts | SECURITY | Reads every page |
+| 2026-11-19 | #7 run 1 | Auto merge cannot work for fork pull requests | CRITERION | Same repo only, on purpose: forks never auto merge in a public repo |
+| 2026-11-19 | #7 run 1 | infra trusted FIRESTORE_LOCATION, a wrong value could pass outside europe-west6 | CRITERION | infra fails unless the location is europe-west6 |
+| 2026-11-19 | #7 run 1 | Calls without a reported cost could pass the 1 USD gate | CRITERION | Unknown cost fails the run |
 
 ## Assumptions
 | Date | Assumption | Confirm with |

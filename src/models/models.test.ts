@@ -118,6 +118,11 @@ describe("cost and budget", () => {
     expect(budget.calls).toBe(2);
   });
 
+  it("fails on unknown cost when the run requires it", () => {
+    const budget = new CostBudget(1, { requireCost: true });
+    expect(() => budget.record({ model: "m" })).toThrow(BudgetExceededError);
+  });
+
   it("counts calls with unknown cost", () => {
     const budget = new CostBudget(1);
     budget.record({ model: "m" });

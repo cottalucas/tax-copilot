@@ -90,23 +90,23 @@ repo owner is mentioned on the pull request.
 | Regression and budgets | `test:unit` | Any test fails, line coverage on `src/` under `coverage-floor.json`, a function over `budgets.json` seconds |
 | Firestore rules | `test:integration` | Any rules test fails |
 | End to end and accessibility | `test:e2e` | Any Playwright test fails, any WCAG 2.2 AA violation |
-| Golden set, injection set, cost | `evals` | Under the launch threshold, any injection field changed, cost over `budgets.json` |
+| Golden set, injection set, cost | `evals` | Under the launch threshold, any injection field changed, cost over `budgets.json` or not reported |
 | Dependencies | `audit` | A high or critical advisory in production dependencies |
 | Code scanning | `codeql` | Any open error, warning, high or critical alert on the pull request |
 | Review | `review` | Codex blocks with a tagged [CRITERION], [NEVER] or [SECURITY] reason, or its output is malformed |
 | Changed files | `changes` | Path filter error |
-| UX review (comments only) | `ux-review` | Never blocks. Runs when `web/` or DESIGN.md changes |
+| UX review (comments only) | `ux-shots`, ux-review.yml | Never blocks. Runs when `web/` or DESIGN.md changes. Screenshots come from pull request code with no secrets, the model call runs base code only |
 
 | Trigger | Workflow |
 | --- | --- |
 | Push, any branch | push.yml: check, test:unit |
-| Pull request | pr.yml, codeql.yml, automerge.yml |
-| Gate failure on a pull request | halt.yml: Linear comment, GitHub mention |
+| Pull request | pr.yml, codeql.yml, automerge.yml (branches of this repo only, never forks) |
+| After pr.yml | halt.yml on failure: Linear comment, GitHub mention. ux-review.yml: screenshot review |
 | Nightly 02:00 UTC | nightly.yml: full test:e2e, full evals, form change check (placeholder) |
 | Mention @claude | claude.yml: Claude Code builder, model from BUILDER_MODEL |
 | Manual | infra.yml: Google Cloud setup. Live app deploy only when ticked |
 
-- Required on main: a pull request plus every gate except `ux-review`. Admins included. No
+- Required on main: a pull request plus every gate except the UX review. Admins included. No
   approvals. Branches need not be up to date (GitHub auto merge does not update them).
 - Coverage floor only goes up: `node scripts/coverage-floor.mjs --update` after coverage rises.
 - The reviewer judges the acceptance criteria the pull request body quotes from its Linear issue.

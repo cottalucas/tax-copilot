@@ -36,7 +36,8 @@ text, covered by unit tests.
 
 ## Cost budget
 Each run stops and fails when model cost passes `evalMaxCostUsd` in `budgets.json` (1 USD).
-OpenRouter reports cost per call. The summary prints spend and calls without a reported cost.
+OpenRouter reports cost per call. A call without a reported cost fails the run, so spend is
+always verified. Extraction asks for at most 2000 output tokens.
 
 ## Judge
 Never for numbers. An LLM judge is allowed later only for free text such as flag explanations,

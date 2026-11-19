@@ -1,0 +1,44 @@
+# Screenshot UX review (AGENTS.md > Pipeline). Comments only, never blocks.
+# Runs after pr.yml with base branch code only. It reads the screenshots pr.yml saved as an
+# artifact (untrusted data: PNG checked, size and count capped) and never runs pull request code.
+name: ux-review
+
+on:
+  workflow_run:
+    workflows: [pr]
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: write
+
+jobs:
+  ux-review:
+    name: ux-review
+    if: github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-latest
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      MODEL_PROVIDER: ${{ vars.MODEL_PROVIDER }}
+      APP_MODEL: ${{ vars.APP_MODEL }}
+      UX_REVIEW_MODEL: ${{ vars.UX_REVIEW_MODEL }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PR: ${{ github.event.workflow_run.pull_requests[0].number }}
+    steps:
+      - id: shots
+        name: Download screenshots, if this pull request changed screens
+        uses: actions/download-artifact@v8
+        continue-on-error: true
+        with:
+          name: ux-shots
+          path: ${{ runner.temp }}/ux-shots
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/checkout@v7
+        if: steps.shots.outcome == 'success'
+      - uses: ./.github/actions/setup
+        if: steps.shots.outcome == 'success'
+      - name: Review the screenshots
+        if: steps.shots.outcome == 'success'
+        run: npm run ux-review -- review "$RUNNER_TEMP/ux-shots"

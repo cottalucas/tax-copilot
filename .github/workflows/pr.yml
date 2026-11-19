@@ -1,6 +1,6 @@
 # Every pull request (AGENTS.md > Pipeline). No human QA: a pull request halts when any gate fails.
 # Required on main: changes, check, test:unit, test:integration, test:e2e, evals, audit, review,
-# and codeql (codeql.yml). ux-review comments only and is not required.
+# and codeql (codeql.yml). ux-shots and ux-review.yml comment only and are not required.
 # A missing secret or variable fails the job: keys are in, so nothing skips silently.
 name: pr
 
@@ -165,32 +165,26 @@ jobs:
           PR: ${{ github.event.pull_request.number }}
         run: node "$RUNNER_TEMP/trusted/scripts/post-review.mjs" "$RUNNER_TEMP/review.md"
 
-  # Screenshot review against Nielsen's heuristics. Only when screen files change. Never blocks.
-  ux-review:
-    name: ux-review
+  # Screenshots for the UX review. Only when screen files change. No secrets, read only token:
+  # this job runs pull request code. ux-review.yml (base code) sends them to the model.
+  ux-shots:
+    name: ux-shots
     needs: changes
     if: needs.changes.outputs.screens == 'true'
     continue-on-error: true
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
-    env:
-      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-      MODEL_PROVIDER: ${{ vars.MODEL_PROVIDER }}
-      APP_MODEL: ${{ vars.APP_MODEL }}
-      UX_REVIEW_MODEL: ${{ vars.UX_REVIEW_MODEL }}
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      PR: ${{ github.event.pull_request.number }}
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
       - run: npx playwright install --with-deps chromium
-      - name: Serve the app
+      - name: Serve the app and take screenshots
         run: |
           npm run build:web
           npx vite preview --port 4173 --strictPort &
           for _ in $(seq 1 30); do curl -sf http://localhost:4173 >/dev/null && break; sleep 1; done
-      - run: npm run ux-review
-        env:
-          BASE_URL: http://localhost:4173
+          BASE_URL=http://localhost:4173 npm run ux-review -- shots ux-shots
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ux-shots
+          path: ux-shots/*.png
+          retention-days: 3

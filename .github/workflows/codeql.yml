@@ -36,8 +36,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REF: refs/pull/${{ github.event.pull_request.number }}/merge
         run: |
-          count=$(gh api "repos/${GITHUB_REPOSITORY}/code-scanning/alerts?ref=${REF}&state=open&per_page=100" \
-            --jq '[.[] | select(.rule.severity == "error" or .rule.severity == "warning" or .rule.security_severity_level == "high" or .rule.security_severity_level == "critical")] | length')
+          # --paginate reads every page, one alert number per line.
+          count=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/code-scanning/alerts?ref=${REF}&state=open&per_page=100" \
+            --jq '.[] | select(.rule.severity == "error" or .rule.severity == "warning" or .rule.security_severity_level == "high" or .rule.security_severity_level == "critical") | .number' | wc -l | tr -d ' ')
           if [ "$count" != "0" ]; then
             echo "::error title=codeql::$count open code scanning alert(s) on this pull request. See the Security tab."
             exit 1

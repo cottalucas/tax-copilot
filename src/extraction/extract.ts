@@ -17,6 +17,8 @@ export interface ExtractOptions extends AdapterDeps {
   taxYear: number;
 }
 
+export const EXTRACTION_MAX_TOKENS = 2000;
+
 const PROMPT_PATH = fileURLToPath(new URL("../../prompts/extraction.md", import.meta.url));
 
 export function loadExtractionPrompt(): string {
@@ -53,6 +55,8 @@ export async function extractReturn(docs: DocumentText[], options: ExtractOption
       dataClass: options.dataClass,
       model: options.model,
       json: true,
+      // One return is a small JSON object. A cap keeps cost bounded (budgets.json).
+      maxTokens: EXTRACTION_MAX_TOKENS,
       messages: [
         { role: "system", content: loadExtractionPrompt() },
         {

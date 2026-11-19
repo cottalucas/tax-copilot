@@ -1,5 +1,7 @@
-# Auto merge (AGENTS.md > Pipeline). Turns on GitHub auto merge for every pull request that is
-# not a draft. GitHub merges it (squash) once every required check on main passes.
+# Auto merge (AGENTS.md > Pipeline). Turns on GitHub auto merge for every pull request from a
+# branch of this repo that is not a draft. GitHub merges it (squash) once every required check
+# passes. Fork pull requests never auto merge: the repo is public, and forks get no secrets, so
+# their evals and review fail and they stay blocked.
 name: automerge
 
 on:
@@ -13,7 +15,7 @@ permissions:
 jobs:
   automerge:
     name: automerge
-    if: github.event.pull_request.draft == false
+    if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - name: Enable auto merge
