@@ -45,7 +45,8 @@ with a written rubric. None today.
 
 ## Model comparison
 Set `EVAL_MODELS` (comma separated) as a repository variable or in `.env`. The runner scores the
-same set per model and prints one row each. The first model decides pass or fail.
+same set per model and prints one row each. The first model decides the golden threshold. The
+injection set must hold for every model: one miss by any model fails the run.
 
 ## Regression rule
 Every correction she makes becomes a new golden case or a new rule with a test (SR-22).

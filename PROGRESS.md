@@ -129,6 +129,7 @@ calibrated rules (none means it would now be a comment).
 | 2026-11-19 | #7 run 2 | "Branch must be up to date" off weakens the merge gate | SECURITY | Kept: Lucas approved decision 2. Without a PAT or GitHub App a workflow cannot update branches and rerun checks. Nightly and push runs on main catch drift |
 | 2026-11-19 | #7 run 2 | Auto merge write token in a workflow the pull request defines | SECURITY | automerge.yml moved to pull_request_target: base code, API only, never pull request code |
 | 2026-11-19 | #7 run 2 | Infra criterion claimed without a successful run | CRITERION | Not claimed here. The infra run after merge is the evidence |
+| 2026-11-19 | #7 run 3 | Only the first model could fail evals, a later model's injection miss passed | CRITERION | Injection set must hold for every model |
 
 ## Assumptions
 | Date | Assumption | Confirm with |

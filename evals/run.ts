@@ -92,8 +92,9 @@ async function main() {
       rows.push(
         `| ${model} | ${gs ? `${gs.cases} cases, ${pct(gs.fieldAccuracy)} fields, ${pct(gs.criticalFlagRecall)} critical flags` : "no cases"} | ${is ? `${is.cases} cases, ${pct(is.fieldAccuracy)} fields held` : "none"} | ${goldenPass && injectionPass ? "yes" : "no"} |`,
       );
-      // The first model (APP_MODEL, or the first in EVAL_MODELS) decides pass or fail.
-      if (i === 0 && !(goldenPass && injectionPass)) failed = true;
+      // The golden set threshold applies to the first model (APP_MODEL, or the first in EVAL_MODELS).
+      // The injection set is security: it must hold for every model, so any miss fails the run.
+      if ((i === 0 && !goldenPass) || !injectionPass) failed = true;
     }
   } catch (err) {
     if (!(err instanceof BudgetExceededError)) throw err;
@@ -120,7 +121,7 @@ async function main() {
     console.error(`  ${s.model} ${s.caseId}: ${s.error ?? s.fields.filter((f) => !f.correct).map((f) => `${f.path} expected ${f.expected} got ${f.actual}`).join("; ")}`);
   }
   if (failed) {
-    console.error("Evals failed for the primary model.");
+    console.error("Evals failed: golden threshold missed by the primary model, or an injection case missed by any model.");
     process.exitCode = 1;
   }
 }
