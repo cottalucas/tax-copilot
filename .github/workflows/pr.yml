@@ -142,14 +142,34 @@ jobs:
         if: steps.gate.outputs.run == 'true'
         with:
           fetch-depth: 0
+      # The reviewer, its rules, AGENTS.md and TASKS.md come from the base commit, so a pull request
+      # cannot change the reviewer that judges it. One bootstrap exception: no review-rules.md on base.
+      - name: Load the reviewer from the base commit
+        if: steps.gate.outputs.run == 'true'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          t="$RUNNER_TEMP/trusted"
+          mkdir -p "$t/scripts"
+          if git cat-file -e "$BASE_SHA:scripts/review-rules.md" 2>/dev/null; then
+            for f in AGENTS.md TASKS.md scripts/review-rules.md scripts/review-prompt.mjs scripts/post-review.mjs; do
+              git show "$BASE_SHA:$f" > "$t/$f"
+            done
+            echo "Reviewer loaded from base commit $BASE_SHA."
+          else
+            echo "::warning title=review bootstrap::Base has no scripts/review-rules.md yet. Using this pull request's reviewer once."
+            cp AGENTS.md TASKS.md "$t/"
+            cp scripts/review-rules.md scripts/review-prompt.mjs scripts/post-review.mjs "$t/scripts/"
+          fi
       - name: Build review prompt
         if: steps.gate.outputs.run == 'true'
         env:
+          TRUSTED_DIR: ${{ runner.temp }}/trusted
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
           HEAD_REF: ${{ github.head_ref }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: node scripts/review-prompt.mjs > "$RUNNER_TEMP/review-prompt.md"
+        run: node "$RUNNER_TEMP/trusted/scripts/review-prompt.mjs" > "$RUNNER_TEMP/review-prompt.md"
       - name: Codex review
         if: steps.gate.outputs.run == 'true'
         uses: openai/codex-action@v1
@@ -165,4 +185,4 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR: ${{ github.event.pull_request.number }}
-        run: node scripts/post-review.mjs "$RUNNER_TEMP/review.md"
+        run: node "$RUNNER_TEMP/trusted/scripts/post-review.mjs" "$RUNNER_TEMP/review.md"

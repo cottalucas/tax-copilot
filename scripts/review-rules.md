@@ -8,7 +8,8 @@ Block (Verdict: Changes requested) for exactly three reasons, nothing else:
 - NEVER: the diff breaks a rule in the "Never do" section of AGENTS.md (or a "Never" line in its
   project rules).
 - SECURITY: a security issue in the diff: a secret or client data, an injection risk, a rule that
-  opens Firestore without a test, a dependency or workflow change that widens access.
+  opens Firestore without a test, a dependency or workflow change that widens access, or any
+  change that removes, skips or weakens a gate, the review job or this file.
 
 Everything else is a comment and does not block: process and "Always do" rules, docs style,
 naming, test ideas, scope questions, missing log lines. When in doubt, comment.

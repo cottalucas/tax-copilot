@@ -59,6 +59,10 @@ Reviewer calibrated on 2026-11-19 at Lucas's request: it blocks only for an unme
 criterion, a broken Never rule or a security issue (`scripts/review-rules.md`). Each reason is
 tagged [CRITERION], [NEVER] or [SECURITY]. A request for changes without a tag is a comment.
 AGENTS.md allows a separate docs pull request when Lucas asks for it.
+The review job loads AGENTS.md, TASKS.md, `scripts/review-rules.md` and both review scripts from the base
+commit, so a pull request cannot change the reviewer that judges it. This pull request is the one
+bootstrap exception: main has no `review-rules.md` yet, so it runs its own copy once (warning in
+the log).
 
 ## Review blocks
 Every block, so the reviewer can be tuned. Category is the tag the block would get under the
@@ -71,6 +75,7 @@ calibrated rules (none means it would now be a comment).
 | 2026-11-19 | #4 run 2 | Branch name lacked SR-23 and SR-24, docs after code, rule wording | none | New branch, clarified rule (#5) |
 | 2026-11-19 | #5 run 1 | Golden set not run on every pull request (path filter) | CRITERION | Dropped the evals path filter |
 | 2026-11-19 | #5 run 2 | Docs after code, "already on main" wording, eval evidence predates change | none | Exception added, wording fixed, reviewer calibrated |
+| 2026-11-19 | #5 run 3 | Reviewer rules load from the pull request checkout, so a pull request could edit its own reviewer | SECURITY | Reviewer, rules and AGENTS.md load from the base commit |
 
 ## Assumptions
 | Date | Assumption | Confirm with |
@@ -90,6 +95,10 @@ calibrated rules (none means it would now be a comment).
 | 2026-11-18 | Hosting has no rewrite to functions yet, so preview channels deploy without functions | Agent |
 
 ## Template gaps
+- Residual risk: a pull request can still edit `.github/workflows/pr.yml` itself. The trusted
+  reviewer is told to block weakened workflows ([SECURITY]), but a pull request that deletes the
+  review job never reaches it. Follow up: move the review job to a `pull_request_target`
+  workflow that never runs pull request code.
 - Golden QA.md runs evals only when eval inputs change. Linear SR-15 asks for every pull
   request. Decide which one Golden keeps.
 - Branch protection on a private repo needs GitHub Pro. Golden SETUP.md should state the choice up
