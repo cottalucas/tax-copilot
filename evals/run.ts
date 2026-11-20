@@ -1,10 +1,13 @@
 /**
- * Eval runner (EVALS.md). Usage: npm run evals
- * - Golden set: evals/golden/*.json (anonymized real cases). Zero cases passes with a warning.
- * - Injection set: evals/injection/*.json (synthetic prompt injection cases). Every field must hold.
- * - A case with "predicted" is scored offline, no model call.
- * - Otherwise extracts through src/models with EXTRACT_MODEL, or each model in EVAL_MODELS.
- * - Fails below the launch threshold, on any injection miss, or when cost passes budgets.json.
+ * Eval runner (EVALS.md).
+ *   npm run evals        offline, on every pull request: validates every case, scores recorded
+ *                        outputs (evals/recorded, golden "predicted") with schema, scoring and rules.
+ *                        Never calls a model.
+ *   npm run evals:live   live, main only: calls EXTRACT_MODEL through src/models for at most
+ *                        budgets.json liveEvalMaxCalls cases, within liveEvalMaxCostUsd, and
+ *                        writes new recordings to evals/runs/recorded.
+ * Fails below the launch threshold, on any injection field changed, on a malformed case, on an
+ * empty injection set, or when the live budget is passed.
  */
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -13,53 +16,16 @@ import budgets from "../budgets.json" with { type: "json" };
 import { runRules } from "../rules/index.js";
 import { extractReturn } from "../src/extraction/extract.js";
 import { BudgetExceededError, CostBudget, getModelConfig } from "../src/models/index.js";
-import { parseExtractedReturn, type ExtractedReturn } from "../src/schema/extraction.js";
-import { flatten, passes, scoreFields, scoreFlags, summarize, type Summary } from "./lib/score.js";
+import { parseExtractedReturn } from "../src/schema/extraction.js";
+import { CaseFile, Recording } from "./lib/case-schema.js";
+import { flatten, passes, scoreFields, scoreFlags, summarize } from "./lib/score.js";
 import type { CaseScore, GoldenCase } from "./lib/types.js";
 
 const root = fileURLToPath(new URL(".", import.meta.url));
 const config = JSON.parse(readFileSync(join(root, "config.json"), "utf8")) as {
   launchThreshold: { fieldAccuracy: number; criticalFlagRecall: number };
 };
-
-function loadDir(dir: string, kind: "golden" | "injection"): GoldenCase[] {
-  const path = join(root, dir);
-  if (!existsSync(path)) return [];
-  return readdirSync(path)
-    .filter((f) => f.endsWith(".json"))
-    .sort()
-    // The folder decides the kind, never the fixture: an injection case cannot relabel itself.
-    .map((f) => ({ ...(JSON.parse(readFileSync(join(path, f), "utf8")) as GoldenCase), kind }));
-}
-
-function modelsToRun(cases: GoldenCase[]): string[] {
-  // Injection cases always call the models, so offline mode only applies to golden cases.
-  if (!cases.some((c) => c.predicted === undefined || c.kind === "injection")) return ["offline"];
-  const list = (process.env.EVAL_MODELS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-  return list.length > 0 ? list : [getModelConfig("extract").model];
-}
-
-async function scoreCase(c: GoldenCase, model: string, budget: CostBudget): Promise<CaseScore> {
-  let extraction: ExtractedReturn;
-  try {
-    if (c.predicted !== undefined && c.kind !== "injection") {
-      const parsed = parseExtractedReturn(c.predicted);
-      if (!parsed.success) throw new Error("predicted output fails the schema");
-      extraction = parsed.data;
-    } else {
-      extraction = await extractReturn(c.documents, { dataClass: "anonymized", model, clientId: c.id, taxYear: c.taxYear, budget });
-    }
-  } catch (err) {
-    if (err instanceof BudgetExceededError) throw err;
-    const fields = Object.entries(c.expected.fields).map(([path, expected]) => ({ path, expected, actual: undefined, correct: false }));
-    return { caseId: c.id, model, fields, fieldAccuracy: 0, flagRecall: 0, criticalFlagRecall: 0, missedFlags: c.expected.flags, error: (err as Error).message };
-  }
-  const fields = scoreFields(c.expected.fields, flatten(extraction));
-  const { flags } = runRules({ current: extraction, previous: c.previous });
-  const correct = fields.filter((f) => f.correct).length;
-  return { caseId: c.id, model, fields, fieldAccuracy: fields.length === 0 ? 1 : correct / fields.length, ...scoreFlags(c.expected.flags, flags) };
-}
-
+const live = process.argv.includes("--live");
 const pct = (x: number) => `${(x * 100).toFixed(1)}%`;
 
 function write(md: string) {
@@ -67,73 +33,144 @@ function write(md: string) {
   if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, md + "\n");
 }
 
+/** Loads a folder of cases. The folder sets the kind: a case cannot relabel itself. */
+export function loadDir(dir: string, kind: "golden" | "injection"): { cases: GoldenCase[]; invalid: string[] } {
+  const path = join(root, dir);
+  const cases: GoldenCase[] = [];
+  const invalid: string[] = [];
+  if (!existsSync(path)) return { cases, invalid };
+  for (const f of readdirSync(path).filter((x) => x.endsWith(".json")).sort()) {
+    const parsed = CaseFile.safeParse(JSON.parse(readFileSync(join(path, f), "utf8")));
+    if (parsed.success) cases.push({ ...(parsed.data as GoldenCase), kind });
+    else invalid.push(`${dir}/${f}: ${parsed.error.issues.map((i) => i.path.join(".")).join(", ")}`);
+  }
+  return { cases, invalid };
+}
+
+function recordedOutput(c: GoldenCase): unknown {
+  if (c.kind === "golden" && c.predicted !== undefined) return c.predicted;
+  const file = join(root, "recorded", `${c.id}.json`);
+  if (!existsSync(file)) return undefined;
+  const rec = Recording.safeParse(JSON.parse(readFileSync(file, "utf8")));
+  if (!rec.success) throw new Error(`evals/recorded/${c.id}.json is malformed`);
+  return rec.data.output;
+}
+
+function score(c: GoldenCase, output: unknown, model: string): CaseScore {
+  const parsed = parseExtractedReturn(output);
+  if (!parsed.success) {
+    const fields = Object.entries(c.expected.fields).map(([path, expected]) => ({ path, expected, actual: undefined, correct: false }));
+    return { caseId: c.id, model, fields, fieldAccuracy: 0, flagRecall: 0, criticalFlagRecall: 0, missedFlags: c.expected.flags, error: "output fails the schema" };
+  }
+  const fields = scoreFields(c.expected.fields, flatten(parsed.data));
+  const { flags } = runRules({ current: parsed.data, previous: c.previous as never });
+  return { caseId: c.id, model, fields, fieldAccuracy: fields.length ? fields.filter((f) => f.correct).length / fields.length : 1, ...scoreFlags(c.expected.flags, flags) };
+}
+
+/** Live runs pick golden cases first, then hand written injection cases, then the rest. */
+export function pickLive(cases: GoldenCase[], max: number): GoldenCase[] {
+  const rank = (c: GoldenCase) => (c.kind === "golden" ? 0 : c.id.startsWith("inj-") ? 1 : 2);
+  return [...cases].sort((a, b) => rank(a) - rank(b) || a.id.localeCompare(b.id)).slice(0, max);
+}
+
 async function main() {
   const golden = loadDir("golden", "golden");
   const injection = loadDir("injection", "injection");
-  const all = [...golden, ...injection];
-  if (golden.length === 0) write("WARNING: evals/golden has zero cases. The golden set passes until cases exist (EVALS.md).");
-  // The injection set is a required gate: an empty or missing suite fails the run.
-  if (injection.length === 0) {
-    write("## Evals\n\nFAILED: evals/injection has no cases. The prompt injection set must run on every pull request.");
+  const invalid = [...golden.invalid, ...injection.invalid];
+  if (invalid.length) {
+    write(`## Evals\n\nFAILED: malformed cases:\n${invalid.map((x) => `- ${x}`).join("\n")}`);
     process.exitCode = 1;
     return;
   }
-
-  // requireCost: a call without a reported cost fails the run, so spend is always verified.
-  const budget = new CostBudget(budgets.evalMaxCostUsd, { requireCost: true });
-  const rows: string[] = [];
+  if (injection.cases.length === 0) {
+    write("## Evals\n\nFAILED: evals/injection has no cases.");
+    process.exitCode = 1;
+    return;
+  }
+  if (golden.cases.length === 0) write("WARNING: evals/golden has zero cases. The golden set passes until cases exist (EVALS.md).");
+  const all = [...golden.cases, ...injection.cases];
   const scores: CaseScore[] = [];
-  let failed = false;
+  let calls = 0;
+  let costUsd = 0;
+  let unscored = 0;
 
-  try {
-    for (const [i, model] of modelsToRun(all).entries()) {
-      const g: CaseScore[] = [];
-      const inj: CaseScore[] = [];
-      for (const c of golden) g.push(await scoreCase(c, model, budget));
-      for (const c of injection) inj.push(await scoreCase(c, model, budget));
-      scores.push(...g, ...inj);
-      const gs: Summary | undefined = g.length ? summarize(model, g) : undefined;
-      const is: Summary | undefined = inj.length ? summarize(model, inj) : undefined;
-      const goldenPass = !gs || passes(gs, config.launchThreshold);
-      const injectionPass = !is || (is.fieldAccuracy === 1 && is.errors === 0);
-      rows.push(
-        `| ${model} | ${gs ? `${gs.cases} cases, ${pct(gs.fieldAccuracy)} fields, ${pct(gs.criticalFlagRecall)} critical flags` : "no cases"} | ${is ? `${is.cases} cases, ${pct(is.fieldAccuracy)} fields held` : "none"} | ${goldenPass && injectionPass ? "yes" : "no"} |`,
-      );
-      // The golden set threshold applies to the first model (EXTRACT_MODEL, or the first in EVAL_MODELS).
-      // The injection set is security: it must hold for every model, so any miss fails the run.
-      if ((i === 0 && !goldenPass) || !injectionPass) failed = true;
+  if (!live) {
+    for (const c of all) {
+      const output = recordedOutput(c);
+      if (output === undefined) unscored += 1;
+      else scores.push(score(c, output, "recorded"));
     }
-  } catch (err) {
-    if (!(err instanceof BudgetExceededError)) throw err;
-    write(`## Evals\n\nFAILED: ${err.message}`);
-    process.exitCode = 1;
-    return;
+  } else {
+    if (process.env.GITHUB_ACTIONS && process.env.GITHUB_REF !== "refs/heads/main") {
+      write("## Evals\n\nFAILED: live evals run only on main.");
+      process.exitCode = 1;
+      return;
+    }
+    const model = getModelConfig("extract").model;
+    const budget = new CostBudget(budgets.liveEvalMaxCostUsd, { requireCost: true, maxCalls: budgets.liveEvalMaxCalls });
+    mkdirSync(join(root, "runs", "recorded"), { recursive: true });
+    try {
+      for (const c of pickLive(all, budgets.liveEvalMaxCalls)) {
+        let output: unknown;
+        try {
+          output = await extractReturn(c.documents, { dataClass: "anonymized", clientId: c.id, taxYear: c.taxYear, budget });
+        } catch (err) {
+          if (err instanceof BudgetExceededError) throw err;
+          output = { error: (err as Error).message };
+        }
+        writeFileSync(join(root, "runs", "recorded", `${c.id}.json`), JSON.stringify({ model, recordedAt: new Date().toISOString(), output }, null, 2) + "\n");
+        scores.push(score(c, output, model));
+      }
+    } catch (err) {
+      if (!(err instanceof BudgetExceededError)) throw err;
+      write(`## Evals (live)\n\nFAILED: ${err.message}`);
+      process.exitCode = 1;
+      return;
+    } finally {
+      calls = budget.calls;
+      costUsd = budget.spentUsd;
+    }
+    unscored = all.length - scores.length;
   }
 
+  const g = scores.filter((s) => golden.cases.some((c) => c.id === s.caseId));
+  const inj = scores.filter((s) => injection.cases.some((c) => c.id === s.caseId));
+  const gs = g.length ? summarize("golden", g) : undefined;
+  const is = inj.length ? summarize("injection", inj) : undefined;
+  const goldenPass = !gs || passes(gs, config.launchThreshold);
+  const injectionPass = !is || (is.fieldAccuracy === 1 && is.errors === 0);
+  const summary = {
+    mode: live ? "live" : "offline",
+    cases: all.length,
+    scored: scores.length,
+    unscored,
+    calls,
+    costUsd: Number(costUsd.toFixed(6)),
+    golden: gs ? { cases: gs.cases, fieldAccuracy: gs.fieldAccuracy, criticalFlagRecall: gs.criticalFlagRecall } : null,
+    injection: is ? { cases: is.cases, fieldsHeld: is.fieldAccuracy } : null,
+    pass: goldenPass && injectionPass,
+  };
   mkdirSync(join(root, "runs"), { recursive: true });
-  writeFileSync(join(root, "runs", "latest.json"), JSON.stringify({ at: new Date().toISOString(), costUsd: budget.spentUsd, scores }, null, 2));
+  writeFileSync(join(root, "runs", "summary.json"), JSON.stringify({ ...summary, scores }, null, 2));
   write(
     [
-      "## Evals",
+      `## Evals (${summary.mode})`,
       "",
-      `Threshold: field accuracy ${pct(config.launchThreshold.fieldAccuracy)}, critical flag recall ${pct(config.launchThreshold.criticalFlagRecall)}, injection 100%.`,
-      `Cost: ${budget.spentUsd.toFixed(4)} USD of ${budgets.evalMaxCostUsd} USD budget, ${budget.calls} calls (${budget.unknownCostCalls} without a reported cost).`,
-      "",
-      "| Model | Golden set | Injection set | Pass |",
-      "| --- | --- | --- | --- |",
-      ...rows,
+      `Cases: ${summary.cases}, scored: ${summary.scored}, not yet recorded: ${summary.unscored}.`,
+      live ? `Model calls: ${calls} of ${budgets.liveEvalMaxCalls}. Cost: ${costUsd.toFixed(4)} USD of ${budgets.liveEvalMaxCostUsd} USD.` : "Model calls: 0 (offline).",
+      `Golden: ${gs ? `${pct(gs.fieldAccuracy)} fields, ${pct(gs.criticalFlagRecall)} critical flags` : "no scored cases"}. Injection: ${is ? `${pct(is.fieldAccuracy)} fields held over ${is.cases} cases` : "no scored cases"}.`,
+      `Result: ${summary.pass ? "pass" : "FAIL"}.`,
     ].join("\n"),
   );
   for (const s of scores.filter((x) => x.error || x.fields.some((f) => !f.correct))) {
-    console.error(`  ${s.model} ${s.caseId}: ${s.error ?? s.fields.filter((f) => !f.correct).map((f) => `${f.path} expected ${f.expected} got ${f.actual}`).join("; ")}`);
+    console.error(`  ${s.caseId}: ${s.error ?? s.fields.filter((f) => !f.correct).map((f) => `${f.path} expected ${f.expected} got ${f.actual}`).join("; ")}`);
   }
-  if (failed) {
-    console.error("Evals failed: golden threshold missed by the primary model, or an injection case missed by any model.");
-    process.exitCode = 1;
-  }
+  if (!summary.pass) process.exitCode = 1;
 }
 
-main().catch((err) => {
-  console.error(err instanceof Error ? err.message : err);
-  process.exitCode = 1;
-});
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch((err) => {
+    console.error(err instanceof Error ? err.message : err);
+    process.exitCode = 1;
+  });
+}

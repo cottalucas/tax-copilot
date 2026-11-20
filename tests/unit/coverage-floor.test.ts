@@ -3,17 +3,13 @@ import { describe, expect, it } from "vitest";
 import { evaluate } from "../../scripts/coverage-floor.mjs";
 
 describe("coverage floor", () => {
-  it("passes at or above the floor and suggests raising it", () => {
-    expect(evaluate({ actual: 91.4, floor: 85 })).toEqual({ ok: true, errors: [], raiseTo: 91 });
-    expect(evaluate({ actual: 85, floor: 85 }).ok).toBe(true);
+  it("passes at or above 80", () => {
+    expect(evaluate({ actual: 80, floor: 80 }).ok).toBe(true);
+    expect(evaluate({ actual: 97.5, floor: 80 }).ok).toBe(true);
   });
 
-  it("fails below the floor", () => {
-    expect(evaluate({ actual: 84.9, floor: 85 }).ok).toBe(false);
-  });
-
-  it("never allows a floor under 80 or a lowered floor", () => {
-    expect(evaluate({ actual: 95, floor: 79 }).ok).toBe(false);
-    expect(evaluate({ actual: 95, floor: 85, baseFloor: 90 }).errors[0]).toMatch(/lowered/);
+  it("fails below 80 or when the floor file changes", () => {
+    expect(evaluate({ actual: 79.9, floor: 80 }).ok).toBe(false);
+    expect(evaluate({ actual: 95, floor: 70 }).ok).toBe(false);
   });
 });

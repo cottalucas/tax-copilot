@@ -1,6 +1,7 @@
 # Manual infra setup. Actions > infra > Run workflow.
 # Keyless: Workload Identity Federation, no key file (ARCHITECTURE.md > Keyless deploy identity).
-# Setup only by default: APIs, Firestore check, rules and indexes, Firebase Auth.
+# Setup only by default: APIs (incl. Drive), Firestore check, rules and indexes, Firebase Auth.
+# Main only: it signs in as github-deployer.
 # Live app deploy (hosting, functions) runs only when "deploy_app" is ticked.
 # FIRESTORE_LOCATION can never change once the database exists. The job fails on a mismatch.
 name: infra
@@ -24,6 +25,8 @@ concurrency:
 jobs:
   infra:
     name: infra
+    # Signs in as github-deployer: main only.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     env:
       PROJECT: ${{ vars.FIREBASE_PROJECT_ID }}
@@ -58,7 +61,7 @@ jobs:
         run: |
           gcloud services enable --project "$PROJECT" \
             firestore.googleapis.com firebase.googleapis.com firebaserules.googleapis.com \
-            firebasehosting.googleapis.com identitytoolkit.googleapis.com
+            firebasehosting.googleapis.com identitytoolkit.googleapis.com drive.googleapis.com
       - name: Firestore in the expected location
         run: |
           loc=$(gcloud firestore databases describe --database="(default)" --project "$PROJECT" --format="value(locationId)" 2>/dev/null || true)
@@ -87,7 +90,13 @@ jobs:
           fi
           curl -sf "${auth[@]}" "$api/admin/v2/projects/$PROJECT/config" \
             | python3 -c "import json,sys; d=json.load(sys.stdin); print('Auth config:', d['name'])"
-          echo "### Firebase Auth: on. Google sign-in provider is switched on by Lucas in the console." >> "$GITHUB_STEP_SUMMARY"
+          google=$(curl -s -o /dev/null -w "%{http_code}" "${auth[@]}" "$api/admin/v2/projects/$PROJECT/defaultSupportedIdpConfigs/google.com")
+          if [ "$google" = "200" ]; then
+            echo "### Firebase Auth: on. Google sign-in: on." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::warning title=google sign-in::Google sign-in is off. It needs an OAuth client from the consent screen (Lucas)."
+            echo "### Firebase Auth: on. Google sign-in: off, waits for the OAuth consent screen (Lucas)." >> "$GITHUB_STEP_SUMMARY"
+          fi
       - name: Enable app APIs (live deploy)
         if: inputs.deploy_app
         run: |

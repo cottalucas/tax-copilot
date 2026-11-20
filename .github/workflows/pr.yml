@@ -1,9 +1,8 @@
 # Every pull request (AGENTS.md > Pipeline). No human QA: a pull request halts when any gate fails.
-# Required on main: changes, check, test:unit, test:integration, test:e2e, evals, audit, review.
-# evals runs its steps only when eval inputs change, and reports green otherwise.
-# Code scanning: CodeQL default setup plus a ruleset (no workflow here). ux-shots and
-# ux-review.yml comment only and are not required.
-# A missing secret or variable fails the job: keys are in, so nothing skips silently.
+# Required on main: check, test:unit, test:integration, test:e2e, evals, audit, review.
+# Code scanning: CodeQL default setup plus a ruleset (no workflow here).
+# Pull requests never sign in to Google and never call a product model.
+
 name: pr
 
 on:
@@ -17,34 +16,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  changes:
-    name: changes
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: read
-    outputs:
-      screens: ${{ steps.filter.outputs.screens }}
-      evals: ${{ steps.filter.outputs.evals }}
-    steps:
-      - uses: actions/checkout@v7
-      - id: filter
-        uses: dorny/paths-filter@v4
-        with:
-          filters: |
-            screens:
-              - 'web/**'
-              - 'DESIGN.md'
-            evals:
-              - 'prompts/**'
-              - 'src/schema/**'
-              - 'src/extraction/**'
-              - 'src/models/**'
-              - 'rules/**'
-              - 'evals/**'
-              - 'config/model-prices.json'
-              - 'budgets.json'
-
   check:
     name: check
     runs-on: ubuntu-latest
@@ -53,15 +24,13 @@ jobs:
       - uses: ./.github/actions/setup
       - run: npm run check
 
-  # Full unit suite on every pull request, with the coverage floor (coverage-floor.json) and the
-  # Cloud Function duration budget (budgets.json).
+  # Full unit suite on every pull request, with the 80% coverage floor and the Cloud Function
+  # duration budget (budgets.json).
   unit:
     name: test:unit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - name: Fetch the base branch for the coverage floor check
-        run: git fetch --depth=1 origin "$GITHUB_BASE_REF"
       - uses: ./.github/actions/setup
       - run: npm run test:unit
 
@@ -87,53 +56,16 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
 
-  # Golden set and prompt injection set when prompts, schema, rules, src/models or evals change
-  # (nightly runs the full set). Default model: Vertex Gemini in the EU, keyless login as
-  # github-deployer for now (a Vertex only identity is logged hardening). Fails above budgets.json.
-  # The job always runs and reports, so the branch rule can require it.
+  # Offline evals on every pull request: validates every case and scores recorded outputs with
+  # the schema, scoring and rules. No Google login, no secrets, no model calls. Live evals run by
+  # hand on main (live-evals.yml).
   evals:
     name: evals
-    needs: changes
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
-    env:
-      EXTRACT_PROVIDER: ${{ vars.EXTRACT_PROVIDER }}
-      EXTRACT_MODEL: ${{ vars.EXTRACT_MODEL }}
-      EVAL_MODELS: ${{ vars.EVAL_MODELS }}
-      VERTEX_PROJECT_ID: ${{ vars.VERTEX_PROJECT_ID }}
-      VERTEX_REGION: ${{ vars.VERTEX_REGION }}
-      WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER }}
     steps:
-      - id: gate
-        name: Decide and check variables
-        run: |
-          if [ "${{ needs.changes.outputs.evals }}" != "true" ]; then
-            echo "::notice title=evals skipped::No prompt, schema, rules, src/models or eval change. Nightly runs the full set."
-            echo "run=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          missing=""
-          for v in EXTRACT_MODEL VERTEX_PROJECT_ID VERTEX_REGION WIF_PROVIDER; do
-            [ -z "${!v}" ] && missing="$missing $v"
-          done
-          if [ -n "$missing" ]; then
-            echo "::error title=evals blocked::Missing variables:$missing."
-            exit 1
-          fi
-          echo "run=true" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v7
-        if: steps.gate.outputs.run == 'true'
       - uses: ./.github/actions/setup
-        if: steps.gate.outputs.run == 'true'
-      - uses: google-github-actions/auth@v3
-        if: steps.gate.outputs.run == 'true'
-        with:
-          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
-          service_account: ${{ vars.GCP_DEPLOY_SA }}
-      - if: steps.gate.outputs.run == 'true'
-        run: npm run evals
+      - run: npm run evals
 
   # Dependency audit: production dependencies, high and critical fail the pull request.
   audit:
@@ -203,27 +135,3 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR: ${{ github.event.pull_request.number }}
         run: node "$RUNNER_TEMP/trusted/scripts/post-review.mjs" "$RUNNER_TEMP/review.md"
-
-  # Screenshots for the UX review. Only when screen files change. No secrets, read only token:
-  # this job runs pull request code. ux-review.yml (base code) sends them to the model.
-  ux-shots:
-    name: ux-shots
-    needs: changes
-    if: needs.changes.outputs.screens == 'true'
-    continue-on-error: true
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup
-      - run: npx playwright install --with-deps chromium
-      - name: Serve the app and take screenshots
-        run: |
-          npm run build:web
-          npx vite preview --port 4173 --strictPort &
-          for _ in $(seq 1 30); do curl -sf http://localhost:4173 >/dev/null && break; sleep 1; done
-          BASE_URL=http://localhost:4173 npm run ux-review -- shots ux-shots
-      - uses: actions/upload-artifact@v7
-        with:
-          name: ux-shots
-          path: ux-shots/*.png
-          retention-days: 3

@@ -1,7 +1,7 @@
 # PROGRESS.md
 
 ## Current focus
-SR-24: scaffolding layer (lean docs, gates on every pull request, skills, infra).
+SR-25 and the foundation run: cleanup, offline pull request evals, live evals on main, deploy.
 
 ## Next up
 1. SR-24: gates, auto merge, proof pull requests, infra.
@@ -10,6 +10,17 @@ SR-24: scaffolding layer (lean docs, gates on every pull request, skills, infra)
 4. Move the review job to `pull_request_target` (read the diff only, never run pull request code).
 
 ## Log
+
+### 2026-11-20 Foundation cleanup (SR-25)
+Done: two kinds of AI at the top of AGENTS.md. Product AI: `src/models` keeps the provider
+interface with Vertex only and one role (extract); openrouter, anthropic and openai providers,
+the CHECK role and EVAL_MODELS are gone. Pull request evals run offline (case validation,
+recorded outputs scored with schema, scoring and rules), never sign in to Google. Live evals:
+live-evals.yml, manual, main only, at most 10 calls and 0.25 USD (`budgets.json`), recordings as
+an artifact. Nightly no longer runs evals. infra.yml is main only and enables the Drive API.
+Coverage floor fixed at 80%. UX review workflow removed, axe check kept. Session starter: plans
+in Lucas's prompts are approved. `changes` job removed (no path filters left on pull requests).
+Already done, checked once: SR-24 Done in Linear, secret scanning and push protection on.
 
 ### 2026-11-20 Model setup, cheap (Part 1)
 Done: `src/models` has four providers (vertex default, anthropic, openai, openrouter), picked per
@@ -151,14 +162,17 @@ calibrated rules (none means it would now be a comment).
 | 2026-11-19 | #7 run 3 | Only the first model could fail evals, a later model's injection miss passed | CRITERION | Injection set must hold for every model |
 | 2026-11-19 | #7 run 4 | A missing injection folder passed as an empty suite | CRITERION | Empty injection set fails the run |
 | 2026-11-19 | #7 run 5 | Injection cases could pass from saved outputs without a model call | CRITERION | Injection cases always run live |
-| 2026-11-20 | #7 run 6 | Evals give pull request code github-deployer rights | SECURITY | Open: Lucas chose the deployer for now. Needs his decision |
-| 2026-11-20 | #7 run 6 | Evals skip when no eval input changed | CRITERION | Lucas's instruction (2026-11-20). Explained in the body |
+| 2026-11-20 | #7 run 6 | Evals give pull request code github-deployer rights | SECURITY | Resolved 2026-11-20: pull requests never sign in to Google, live evals run on main only |
+| 2026-11-20 | #7 run 6 | Evals skip when no eval input changed | CRITERION | Resolved: offline evals run on every pull request, live evals by hand |
 | 2026-11-20 | #7 run 6 | A fixture could relabel its kind and skip the live run | CRITERION | The folder sets the kind |
 | 2026-11-19 | #7 run 4 | codeql.yml held security-events write inside a pull request defined workflow | SECURITY | CodeQL default setup (extended queries) run by GitHub, plus ruleset "Code scanning blocks merges". codeql.yml deleted |
 
 ## Assumptions
 | Date | Assumption | Confirm with |
 | --- | --- | --- |
+| 2026-11-20 | SR-25's "adapter keeps the openrouter provider, unused" is replaced by Lucas's later instruction to remove it | Lucas |
+| 2026-11-20 | Recorded outputs for offline scoring come from the first live run (step 9) and land in the follow-up pull request | Lucas |
+| 2026-11-20 | Live evals pick 10 of 18 cases: hand written injection first, then BIPIA in order | Lucas |
 | 2026-11-20 | CHECK role covers the pull request reviewer and the UX review (decision 2) | Lucas, approved |
 | 2026-11-20 | `gemini-3.1-flash-lite` on the EU multi-region `eu` is the default: 2.5 models return 404 for this project, west1, west4 and west6 serve no usable Flash Lite (replaces decision 1) | Lucas |
 | 2026-11-18 | golden-template and tax-copilot did not exist. Created both as private repos under cottalucas. tax-copilot made public 2026-11-19 on Lucas's request | Lucas, confirmed |

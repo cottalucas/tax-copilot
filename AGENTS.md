@@ -1,33 +1,41 @@
 # AGENTS.md
 
-Rules for every coding agent in this repo (Claude Code, Codex, Cursor, others). CLAUDE.md points
-here. Backlog: Linear project Tax Copilot. Product: PRD.md. System: ARCHITECTURE.md.
+Rules for every coding agent in this repo. CLAUDE.md points here. Backlog: Linear project Tax
+Copilot. Product: PRD.md. System: ARCHITECTURE.md.
+
+## Two kinds of AI
+- **Build AI** writes and reviews this repo. Claude Code builds (BUILDER_MODEL, claude.yml).
+  Codex reviews every pull request (REVIEWER_MODEL, pr.yml). Keys: ANTHROPIC_API_KEY,
+  OPENAI_API_KEY. Build AI never runs inside the product.
+- **Product AI** is what the app calls. Only through `src/models`. Vertex AI only, EU multi-region
+  endpoint `eu`, one role: EXTRACT_PROVIDER=vertex, EXTRACT_MODEL=gemini-3.1-flash-lite.
+- A model switch module that covers both layers is a Template gap, fixed later.
 
 ## Commands
 | Stage | Command | Notes |
 | --- | --- | --- |
 | install | `npm ci` | Node 22 (`.nvmrc`) |
-| check | `npm run check` | TypeScript, ESLint, secret guard |
-| test:unit | `npm run test:unit` | Vitest with coverage floor, network mocked |
+| check | `npm run check` | TypeScript, ESLint, secret guard, DESIGN.md lint |
+| test:unit | `npm run test:unit` | Vitest, 80% coverage floor on `src/`, network mocked |
 | test:integration | `npm run test:integration` | Firestore emulator, needs Java 11+ |
-| test:e2e | `npm run test:e2e` | Playwright. First run: `npx playwright install chromium` |
-| evals | `npm run evals` | Golden and injection sets on EXTRACT_* (Vertex, keyless Google login) |
-| ux-review | `npm run ux-review` | Screenshot review. Needs a running app at BASE_URL |
+| test:e2e | `npm run test:e2e` | Playwright with axe. First run: `npx playwright install chromium` |
+| evals | `npm run evals` | Offline: validates cases, scores recorded outputs. No model calls |
+| evals:live | `npm run evals:live` | Live, main only (live-evals.yml). At most 10 calls, cost capped |
 | build | `npm run build` | Web to `dist/`, functions to `lib/` |
-| review | CI only | Codex, model from REVIEWER_MODEL. Must say "Verdict: Approve" |
+| review | CI only | Codex. Blocks only on a tagged criterion, Never rule or security reason |
 
 ## Session starter
-Read AGENTS.md, PRD.md, PROGRESS.md and the Linear issue for the task. Propose the plan: which
-issues, in what order, which acceptance criteria you will check. Wait for approval before writing
-code.
+Read AGENTS.md, PRD.md, PROGRESS.md and the Linear issue for the task. When Lucas's prompt holds a
+plan, that plan is approved: start without waiting. Otherwise propose a plan (issues, order,
+acceptance criteria to check) and wait for approval.
 
 ## Read this file for this kind of task
 | Task | Read |
 | --- | --- |
 | Any task | AGENTS.md, PRD.md, PROGRESS.md, the Linear issue |
 | Data, Firestore, functions, deploy, rollback | ARCHITECTURE.md |
-| Any model call, prompt, `src/models`, model prices | ARCHITECTURE.md > Models, EVALS.md, `config/model-prices.json` |
-| Schema, extraction, rules, golden cases | EVALS.md, ARCHITECTURE.md > Data model |
+| Product AI: model call, prompt, `src/models`, prices | ARCHITECTURE.md > Models, EVALS.md, `config/model-prices.json` |
+| Schema, extraction, rules, eval cases | EVALS.md, ARCHITECTURE.md > Data model |
 | Any screen or UI copy | DESIGN.md, skill `nielsen-heuristics-audit` |
 | Any text a person reads (copy, docs, pull requests) | skill `stop-slop` |
 | Pipeline, workflows, gates, budgets | AGENTS.md > Pipeline, `budgets.json` |
@@ -38,24 +46,25 @@ Skills live in `.agents/skills/` (see its README). Load a skill only when the ta
 ## Always do
 - One plan per session. A plan may cover several related issues.
 - Stop at the first failed acceptance check. Report what failed and why. Do not work around it.
-- Put the Linear id (SR-n) in the branch name and the pull request title.
+- Put the Linear id (SR-n) in the branch name and the pull request title. Quote the issue's
+  acceptance criteria in the pull request body and say which ones it covers.
 - Small pull requests. Docs change in the same pull request as the code they describe.
 - Docs state what the code does today, never what it will do.
 - Exception: when Lucas asks for a separate docs pull request, docs may follow the code. The
   pull request body says so.
-- When the review blocks, add a row to PROGRESS.md > Review blocks before fixing it.
 - Write business rules as code in `rules/`, one test per rule.
-- Send every model call through `src/models`. Models from variables, keys from secrets.
+- Send every product AI call through `src/models`. Models from variables, keys from secrets.
 - Add a Firestore rules test with every allow rule.
 - Load `stop-slop` before writing copy, docs, commits or pull request text.
 - End each task with a Log entry in PROGRESS.md, in the same pull request.
+- When the review blocks, add a row to PROGRESS.md > Review blocks before fixing it.
 - When running unattended, log every guess in PROGRESS.md under Assumptions and continue.
 
 ## Ask first
 - Scope changes, or when Linear and a doc disagree.
-- A new dependency on a paid service, a new region, or a new Google Cloud API.
+- A new dependency on a paid service, a new region, a new model or a new Google Cloud API.
 - Any change to `firestore.rules` that allows a read or write.
-- Changing a launch threshold or a budget, or lowering the coverage floor.
+- Changing a launch threshold, a budget or the coverage floor.
 - Deleting work you did not write.
 - The same failure twice.
 
@@ -66,8 +75,8 @@ Skills live in `.agents/skills/` (see its README). Load a skill only when the ta
 - Never store client government credentials.
 - Never submit without her final review.
 - Never send real client data outside the EU or to any dev tool. Golden cases are anonymized.
-- Never send real client data to OpenRouter. Client data goes only to Vertex AI in an EU region.
-  `src/models` enforces this with `dataClass`.
+- Never call a product model outside `src/models`, or any provider but Vertex on an EU endpoint.
+- Never sign in to Google, or call a product model, from a pull request workflow.
 - Never use an LLM judge for numbers.
 - Never put a model name in code or workflows, or a secret value anywhere in the repo.
 - Never change the locked stack: Firebase Hosting and Auth, Cloud Functions in europe-west6,
@@ -78,6 +87,9 @@ Skills live in `.agents/skills/` (see its README). Load a skill only when the ta
 - Every acceptance criterion of the Linear issue passes, checked by a test or a visible check.
 - Every gate below passes, including the review.
 - PROGRESS.md updated. No secret or client data in the diff.
+- After a merge that changes `prompts/`, `src/schema/`, `src/extraction/`, `rules/` or
+  `src/models/`: run live-evals once from main (Actions > live-evals > Run workflow) and log calls,
+  cost and result in PROGRESS.md. Commit the new recordings from its artifact to `evals/recorded/`.
 
 ## Pipeline
 No human QA. Every pull request runs every gate. When all pass, the pull request merges itself
@@ -87,42 +99,36 @@ repo owner is mentioned on the pull request.
 | Gate | Job | Fails when |
 | --- | --- | --- |
 | Types, lint, secrets, DESIGN.md | `check` | Any error, a secret shaped value, a DESIGN.md lint error |
-| Regression and budgets | `test:unit` | Any test fails, line coverage on `src/` under `coverage-floor.json`, a function over `budgets.json` seconds |
+| Regression and budgets | `test:unit` | Any test fails, line coverage on `src/` under 80%, a function over `budgets.json` seconds |
 | Firestore rules | `test:integration` | Any rules test fails |
 | End to end and accessibility | `test:e2e` | Any Playwright test fails, any WCAG 2.2 AA violation |
-| Golden set, injection set, cost | `evals` | Runs when prompts, schema, rules, `src/models` or evals change (nightly: full). Fails under the launch threshold, on an empty injection set, any injection field changed, cost over `budgets.json` or not reported |
+| Offline evals | `evals` | A malformed case, an empty injection set, a recorded output under the threshold or with an injection field changed |
 | Dependencies | `audit` | A high or critical advisory in production dependencies |
-| Code scanning | CodeQL default setup + ruleset | Any error or warning alert, or a high or critical security alert (GitHub ruleset, outside the repo's workflows) |
+| Code scanning | CodeQL default setup + ruleset | Any error or warning alert, or a high or critical security alert |
 | Review | `review` | Codex blocks with a tagged [CRITERION], [NEVER] or [SECURITY] reason, or its output is malformed |
-| Changed files | `changes` | Path filter error |
-| UX review (comments only) | `ux-shots`, ux-review.yml | Never blocks. Runs when `web/` or DESIGN.md changes. Screenshots come from pull request code with no secrets, the model call runs base code only |
 
 | Trigger | Workflow |
 | --- | --- |
 | Push, any branch | push.yml: check, test:unit |
 | Pull request | pr.yml, CodeQL default setup. automerge.yml (pull_request_target, API only, branches of this repo only) |
-| After pr.yml | halt.yml on failure: Linear comment, GitHub mention. ux-review.yml: screenshot review |
-| Nightly 02:00 UTC | nightly.yml: full test:e2e, full evals, form change check (placeholder) |
-| Mention @claude | claude.yml: Claude Code builder, model from BUILDER_MODEL |
-| Manual | infra.yml: Google Cloud setup. Live app deploy only when ticked |
+| After pr.yml fails | halt.yml: Linear comment, GitHub mention |
+| Nightly 02:00 UTC | nightly.yml: full test:e2e, form change check (placeholder) |
+| Mention @claude | claude.yml: Claude Code builder (build AI) |
+| Manual, main only | live-evals.yml: live evals on Vertex. infra.yml: Google Cloud setup and deploy |
 
-- Required on main: a pull request plus every gate except the UX review. Admins included. No
-  approvals. Branches need not be up to date (GitHub auto merge does not update them).
-- Coverage floor only goes up: `node scripts/coverage-floor.mjs --update` after coverage rises.
-- The reviewer judges the acceptance criteria the pull request body quotes from its Linear issue.
-  pr.yml gets no Linear key: a pull request can edit pr.yml. Reading Linear moves to the
-  `pull_request_target` review job, which never runs pull request code.
-- The reviewer blocks only for an unmet claimed criterion, a broken Never rule or a security
-  issue (`scripts/review-rules.md`). Everything else is a comment. It loads from the base commit
-  and runs in a trusted folder, so a pull request cannot change its own reviewer.
+- Required on main: a pull request plus every gate above. Admins included. No approvals.
+  Branches need not be up to date (GitHub auto merge does not update them).
+- Only infra.yml and live-evals.yml sign in to Google, as github-deployer, and only on main.
+- The reviewer loads from the base commit and runs in a trusted folder, so a pull request cannot
+  change its own reviewer. It judges the criteria the pull request body quotes. Rules:
+  `scripts/review-rules.md`.
 
 ## Secrets and variables
 Names only. A human sets secret values. Agents never see them.
-- Secrets: ANTHROPIC_API_KEY, OPENAI_API_KEY, OPENROUTER_API_KEY, LINEAR_API_KEY.
-- Model roles: EXTRACT_PROVIDER, EXTRACT_MODEL, CHECK_PROVIDER, CHECK_MODEL, EVAL_MODELS
-  (optional), VERTEX_PROJECT_ID, VERTEX_REGION. Pipeline: BUILDER_MODEL, REVIEWER_MODEL.
-- Infra: FIREBASE_PROJECT_ID, FIRESTORE_LOCATION, GCP_WIF_PROVIDER, GCP_DEPLOY_SA (also used by
-  evals for now; a Vertex only identity is logged hardening).
+- Secrets: ANTHROPIC_API_KEY, OPENAI_API_KEY (build AI), LINEAR_API_KEY.
+- Build AI: BUILDER_MODEL, REVIEWER_MODEL.
+- Product AI: EXTRACT_PROVIDER, EXTRACT_MODEL, VERTEX_PROJECT_ID, VERTEX_REGION.
+- Infra: FIREBASE_PROJECT_ID, FIRESTORE_LOCATION, GCP_WIF_PROVIDER, GCP_DEPLOY_SA.
 
 ## Conflict order
 Linear wins on scope. Never do wins on data. ARCHITECTURE.md wins on technical shape. The latest

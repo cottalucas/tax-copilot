@@ -22,7 +22,7 @@
     "build:functions": "tsc -p tsconfig.build.json",
     "dev": "vite",
     "check:design": "design.md lint DESIGN.md > /dev/null",
-    "ux-review": "tsx scripts/ux-review.ts"
+    "evals:live": "tsx evals/run.ts --live"
   },
   "dependencies": {
     "firebase-admin": "^14.5.1",

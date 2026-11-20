@@ -15,7 +15,7 @@ Locked unless marked open.
 | Portal | Web app on Firebase Hosting, Firebase Auth | `web/` (Vite, TypeScript) |
 | Engine | Cloud Functions v2, europe-west6 (Zurich) | `src/functions/` |
 | Extraction | Model call through the adapter, fixed JSON schema, Zod validated | `src/extraction/`, `src/schema/`, `prompts/` |
-| Models | One adapter, four providers, chosen per role by variables. Default Vertex Gemini in the EU | `src/models/` |
+| Product AI | One adapter, Vertex Gemini on the EU endpoint only | `src/models/` |
 | Rules | Plain code with tests, not prompts | `rules/` |
 | Storage | Firestore: client status, flags, corrections only. No documents | `firestore.rules` |
 | Files | Stay in her Google Drive, read through the Drive API | TODO SR-17 |
@@ -49,34 +49,29 @@ Draft, confirmed in SR-16 and SR-17.
 | Client data file | Her Drive (TODO SR-18) | Her, the fill step |
 | Status, flags, corrections | Firestore `(default)`, europe-west6 | Her only |
 | Government credentials | Nowhere. She types them per session | Nobody |
-| Golden cases | `evals/golden/`, anonymized. None while the repo is public (SR-23) | Pipeline, dev models |
+| Golden cases | `evals/golden/`, anonymized. None while the repo is public (SR-23) | Pipeline, live evals on Vertex `eu` |
 
 Functions run in europe-west6. Client data reaches models only through Vertex AI in a `europe-*`
 region until SR-18 decides residency. Other providers see anonymized or synthetic data only.
 
 ## Models
-- Adapter: `src/models/index.ts`, `complete(request)`. ESLint blocks `openai`,
-  `@anthropic-ai/sdk` and `@google-cloud/vertexai` imports anywhere else.
-- Providers: `vertex` (default), `anthropic`, `openai`, `openrouter`. Each role picks one with
-  variables, so switching is a variable change only:
-  - extract role: EXTRACT_PROVIDER, EXTRACT_MODEL (extraction, evals).
-  - check role: CHECK_PROVIDER, CHECK_MODEL (pull request review, UX review).
-- Defaults set 2026-11-20: EXTRACT `vertex` + `gemini-3.1-flash-lite`, VERTEX_REGION `eu` (the EU
+Two kinds of AI (AGENTS.md). Build AI (Claude Code, Codex) never runs in the product. Product AI:
+- Adapter: `src/models/index.ts`, `complete(request)`. The only way the product calls a model.
+  ESLint blocks `openai`, `@anthropic-ai/sdk` and `@google-cloud/vertexai` imports elsewhere.
+- Provider: `vertex` only, behind the `ModelProvider` interface. One role, extract:
+  EXTRACT_PROVIDER `vertex`, EXTRACT_MODEL `gemini-3.1-flash-lite`, VERTEX_REGION `eu` (EU
   multi-region endpoint `aiplatform.eu.rep.googleapis.com`), VERTEX_PROJECT_ID `tax-co-pilot`.
-  CHECK `openai` + `gpt-6.2-sol` (decision 3, a stronger gate).
 - Why `eu`: probed 2026-11-20, this project gets 404 for every Gemini 2.5 model in europe-west1,
   europe-west4 and global, and 3.x models serve only on global and `eu`. europe-west6 serves none.
   `gemini-3.1-flash-lite` is the cheapest that answers in the EU. The adapter refuses global.
-- Vertex uses keyless Google login: Application Default Credentials locally, Workload Identity
-  as `github-deployer` in CI for now. Later hardening: a Vertex only identity for pull request
-  jobs, and the deployer limited to runs on main (PROGRESS.md > Template gaps).
-- Cost: OpenRouter reports it, the others are priced from `config/model-prices.json`. Prompt
-  caching: Vertex and OpenAI cache stable prefixes on their own, Anthropic gets `cache_control`
-  on the system prompt. Cached tokens are counted at the cached price.
-- Real client data: today only `vertex` in a `europe-*` region may receive it (`dataClass:
-  "client"`). The final residency choice for real client data is made at SR-18.
-- No orchestration framework. LangChain only when a feature needs multi step orchestration.
-- Only pass the parameters a request sets. Some models reject sampling parameters.
+- Login: keyless. Application Default Credentials locally, Workload Identity as github-deployer
+  in CI, from main only (live-evals.yml, infra.yml). Pull request workflows never sign in.
+- Cost: priced from `config/model-prices.json` (non-global price). Vertex caches stable prompt
+  prefixes on its own; cached tokens are priced as cached.
+- Real client data: today only `vertex` on an EU endpoint may receive it (`dataClass: "client"`).
+  The final residency choice for real client data is made at SR-18.
+- A switch module covering build AI and product AI is a Template gap, fixed later.
+- No orchestration framework. Only pass the parameters a request sets.
 
 ## Security
 - Auth: Firebase Auth, one user (her). Google sign-in provider switched on by Lucas in the console.
@@ -92,7 +87,8 @@ region until SR-18 decides residency. Other providers see anonymized or syntheti
 ## Keyless deploy identity
 infra.yml signs in with Workload Identity Federation. No key file exists.
 - Pool `github`, provider `tax-copilot`, accepts only `cottalucas/tax-copilot`.
-- Service account `github-deployer@tax-co-pilot.iam.gserviceaccount.com`. Roles: firebase.admin,
+- Used only by infra.yml and live-evals.yml, both guarded to run on main.
+- Service account `github-deployer@tax-co-pilot.iam.gserviceaccount.com`. Roles: aiplatform.user, firebase.admin,
   identitytoolkit.admin, datastore.owner, serviceusage.serviceUsageAdmin, cloudfunctions.admin,
   run.admin, artifactregistry.admin, cloudbuild.builds.editor, iam.serviceAccountUser.
 - Created by Lucas on 2026-11-19. Variables GCP_WIF_PROVIDER and GCP_DEPLOY_SA point to it.

@@ -6,13 +6,13 @@ export interface ModelConfig {
   model: string;
 }
 
-export const PROVIDERS: readonly ProviderName[] = ["vertex", "anthropic", "openai", "openrouter"];
+export const PROVIDERS: readonly ProviderName[] = ["vertex"];
 export const DEFAULT_PROVIDER: ProviderName = "vertex";
 
 /**
- * Reads provider and model for a role from variables: EXTRACT_PROVIDER and EXTRACT_MODEL, or
- * CHECK_PROVIDER and CHECK_MODEL. Provider defaults to vertex. The model always comes from a
- * variable: never a model name in code (AGENTS.md). Switching is a variable change only.
+ * Reads provider and model for a role from variables: EXTRACT_PROVIDER and EXTRACT_MODEL.
+ * Provider defaults to vertex, the only product AI provider. The model always comes from a
+ * variable: never a model name in code (AGENTS.md).
  */
 export function getModelConfig(role: ModelRole = "extract", env: NodeJS.ProcessEnv = process.env): ModelConfig {
   const prefix = role.toUpperCase();
