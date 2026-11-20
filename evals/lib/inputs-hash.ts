@@ -1,22 +1,32 @@
 import { createHash } from "node:crypto";
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { lstatSync, readdirSync, readFileSync } from "node:fs";
+import { join, relative, resolve, sep } from "node:path";
 
 /** Files whose change can change model output. A recording is valid only for this exact set. */
 export const MODEL_INPUTS = ["prompts", "src/extraction", "src/models", "src/schema"];
 
-function files(path: string): string[] {
-  if (statSync(path).isFile()) return [path];
-  return readdirSync(path)
-    .flatMap((f) => files(join(path, f)))
-    .filter((f) => !f.endsWith(".test.ts"));
+/**
+ * Lists regular files under path. Rejects symlinks and anything outside root: the trusted live
+ * eval job hashes pull request files on a host that holds a Google token.
+ */
+export function safeFiles(root: string, path: string): string[] {
+  const abs = resolve(path);
+  const top = resolve(root);
+  if (abs !== top && !abs.startsWith(top + sep)) throw new Error(`Path outside the checkout: ${path}`);
+  const st = lstatSync(abs);
+  if (st.isSymbolicLink()) throw new Error(`Symlink not allowed: ${relative(top, abs)}`);
+  if (st.isFile()) return [abs];
+  if (!st.isDirectory()) return [];
+  return readdirSync(abs).flatMap((f) => safeFiles(root, join(abs, f)));
 }
 
 /** sha256 over the model input files, path and content, in a stable order. */
 export function modelInputsHash(root = "."): string {
   const hash = createHash("sha256");
-  for (const f of MODEL_INPUTS.flatMap((p) => files(join(root, p))).sort()) {
-    hash.update(relative(root, f)).update("\0").update(readFileSync(f)).update("\0");
+  const top = resolve(root);
+  const list = MODEL_INPUTS.flatMap((p) => safeFiles(top, join(top, p))).filter((f) => !f.endsWith(".test.ts"));
+  for (const f of list.sort()) {
+    hash.update(relative(top, f)).update("\0").update(readFileSync(f)).update("\0");
   }
   return hash.digest("hex");
 }

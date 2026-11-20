@@ -6,11 +6,11 @@
  * log, inputsHash of the pull request's model inputs) for the pull request to commit.
  * Usage: tsx evals/verify-proxy.ts <proxy.jsonl> <pr root> <recordings out dir>
  */
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import budgets from "../budgets.json" with { type: "json" };
 import { CaseFile } from "./lib/case-schema.js";
-import { modelInputsHash } from "./lib/inputs-hash.js";
+import { modelInputsHash, safeFiles } from "./lib/inputs-hash.js";
 import { flatten, scoreFields } from "./lib/score.js";
 
 type Exchange = { request: { contents?: { parts?: { text?: string }[] }[] }; status: number; response: { candidates?: { content?: { parts?: { text?: string }[] } }[] } };
@@ -21,8 +21,10 @@ export function loadCases(evalsDir: string): Case[] {
   for (const kind of ["golden", "injection"] as const) {
     const dir = join(evalsDir, kind);
     if (!existsSync(dir)) continue;
-    for (const f of readdirSync(dir).filter((x) => x.endsWith(".json"))) {
-      const parsed = CaseFile.safeParse(JSON.parse(readFileSync(join(dir, f), "utf8")));
+    // safeFiles rejects symlinks and paths outside the pull request checkout.
+    for (const file of safeFiles(evalsDir, dir).filter((x) => x.endsWith(".json"))) {
+      const f = file.slice(file.lastIndexOf("/") + 1);
+      const parsed = CaseFile.safeParse(JSON.parse(readFileSync(file, "utf8")));
       if (!parsed.success) throw new Error(`${kind}/${f} is malformed`);
       out.push({ id: parsed.data.id, kind, fields: parsed.data.expected.fields });
     }
