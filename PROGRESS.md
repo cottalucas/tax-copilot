@@ -29,7 +29,8 @@ Google login and prices calls from `config/model-prices.json`. Prompt caching co
 providers (Anthropic `cache_control`). Evals use EXTRACT_* (default Vertex
 `gemini-3.1-flash-lite`, location `eu`), run only when eval inputs change and nightly, and sign in
 as `github-deployer` (Lucas's call: no separate identity yet). Injection set: 15 BIPIA attacks (MIT) plus 3 hand written. No OpenRouter in
-any workflow. Coverage 98.75%, floor raised to 98%.
+any workflow. Coverage 98.75%, floor raised to 98%. (Superseded the same day by the foundation
+cleanup: Vertex only, pull requests never sign in, floor fixed at 80%.)
 Failed first: a local eval run returned 404 on `gemini-2.5-flash-lite` in europe-west4. Probing
 showed every 2.5 model is closed to this project (europe-west1, europe-west4, global), while 3.x
 Flash Lite serves on global and the EU multi-region `eu`. Switched to `gemini-3.1-flash-lite` on
@@ -169,6 +170,9 @@ calibrated rules (none means it would now be a comment).
 | 2026-11-20 | #7 run 7 | Nightly full evals removed, live runs capped at 10 of 18 cases | SECURITY | Accepted by Lucas's plan (cost). Template gap: rotate cases across runs |
 | 2026-11-20 | #7 run 7 | Deployer identity for live evals, main guard only in workflow YAML | SECURITY | Accepted by Lucas's plan. Template gap: Vertex only identity, branch bound in Google Cloud |
 | 2026-11-20 | #7 run 7 | Stale EVAL_MODELS line, stale provider line in ARCHITECTURE.md | CRITERION | Fixed |
+| 2026-11-20 | #7 run 8 | Offline evals cannot catch prompt or adapter regressions before merge | SECURITY | Accepted by Lucas's plan. Needs his decision to clear the gate |
+| 2026-11-20 | #7 run 8 | Deployer trust policy restricts by repository, not branch | SECURITY | Accepted by Lucas's plan. Needs his decision to clear the gate |
+| 2026-11-20 | #7 run 8 | Old PROGRESS lines read as current policy (deployer in pull request evals, OPENROUTER key) | CRITERION | Marked superseded |
 | 2026-11-19 | #7 run 4 | codeql.yml held security-events write inside a pull request defined workflow | SECURITY | CodeQL default setup (extended queries) run by GitHub, plus ruleset "Code scanning blocks merges". codeql.yml deleted |
 
 ## Assumptions
@@ -195,9 +199,9 @@ calibrated rules (none means it would now be a comment).
 
 ## Template gaps
 - Live evals cover 10 of 18 cases per run. Rotate cases across runs so every case runs live.
-- Later hardening: a separate Vertex only identity for pull request jobs (evals, UX review), and
-  github-deployer bound to runs on main only. Today evals sign in as github-deployer, so pull
-  request code can act with deploy rights (Lucas's call, 2026-11-20).
+- Later hardening: a Vertex only identity for live evals, and github-deployer bound to main in
+  Google Cloud (today the trust policy restricts by repository; the main guard sits in the
+  workflow YAML). Pull requests no longer sign in to Google at all (2026-11-20).
 - Golden MODELS guidance should probe which models a new project can call per region: catalogs
   list models a project cannot use.
 - Staging environment: none yet. Add a staging Firebase project before the first real client.
@@ -206,7 +210,7 @@ calibrated rules (none means it would now be a comment).
 - GitHub auto merge cannot update branches on the free plan (no merge queue), so "branch must be
   up to date" is off. A GitHub App token could update branches and rerun checks. Golden should
   ship that, or say so.
-- Any secret in a `pull_request` workflow (OPENAI_API_KEY, OPENROUTER_API_KEY today) can be read
+- Any secret in a `pull_request` workflow (OPENAI_API_KEY for the review today) can be read
   by a same repo pull request that edits the workflow. Only accounts with write access can do
   that, but agents have it. Follow up with the `pull_request_target` review job (diff only, never
   pull request code) and keep model keys out of pull request workflows where possible.
