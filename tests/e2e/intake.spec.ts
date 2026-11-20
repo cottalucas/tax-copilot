@@ -17,6 +17,9 @@ test("SR-17: create a client, files go to her Drive only, status Documents in", 
   let uploads = 0;
   await page.route("https://www.googleapis.com/upload/drive/v3/files**", async (route) => {
     uploads += 1;
+    const type = (await route.request().headerValue("content-type")) ?? "";
+    // Drive rejects anything but multipart/related on this endpoint: so does the mock.
+    if (!type.startsWith("multipart/related; boundary=")) return route.fulfill({ status: 400, json: { error: "bad content type" } });
     drive.push({ url: route.request().url(), auth: await route.request().headerValue("authorization"), body: route.request().postData() ?? "" });
     await route.fulfill({ json: { id: `file${uploads}` } });
   });
@@ -64,6 +67,10 @@ test("SR-17: name and files are required, non PDFs are rejected", async ({ page 
   await page.getByLabel("Client name").fill("Ana Example");
   await page.getByLabel("Choose PDFs").setInputFiles([{ name: "photo.png", mimeType: "image/png", buffer: Buffer.from("png") }]);
   await expect(page.getByRole("alert")).toContainText("photo.png: only PDF files.");
+  await page.getByLabel("Choose PDFs").setInputFiles([{ name: "renamed.pdf", mimeType: "application/pdf", buffer: Buffer.from("not really a pdf") }]);
+  await page.getByRole("button", { name: "Create client" }).click();
+  await expect(page.getByRole("alert")).toContainText("renamed.pdf: not a PDF file.");
+  await page.getByLabel("Choose PDFs").setInputFiles([]);
   await page.getByRole("button", { name: "Create client" }).click();
   await expect(page.getByRole("alert")).toContainText("Add at least one PDF.");
 });

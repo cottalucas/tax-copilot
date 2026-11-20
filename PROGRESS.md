@@ -203,6 +203,9 @@ Every block, so the reviewer can be tuned. Category is the tag the block would g
 calibrated rules (none means it would now be a comment).
 | Date | Pull request | Reason given | Category | Action |
 | --- | --- | --- | --- | --- |
+| 2026-11-20 | #11 run 1 | Drive upload sent multipart/form-data, the mock hid it | CRITERION | multipart/related body built exactly; the mock rejects other content types |
+| 2026-11-20 | #11 run 1 | Drive token could come from a different Google account | CRITERION | reauthenticateWithPopup: Firebase rejects another account (auth/user-mismatch) |
+| 2026-11-20 | #11 run 1 | A file named .pdf with another declared type passed | CRITERION | Declared type must be PDF, and the first bytes must be %PDF- |
 | 2026-11-20 | #10 run 1 | Rules tests lost the signed out write and flags write checks | SECURITY | Both assertions restored |
 | 2026-11-20 | #10 run 2 | New Firestore rule not deployed by infra | CRITERION | Already deployed: infra.yml always runs "Deploy Firestore rules and indexes"; infra runs from main after merge |
 | 2026-11-19 | #2 run 1 | Skip link outside SR-15 scope, TASKS.md not updated | none | Removed the skip link |

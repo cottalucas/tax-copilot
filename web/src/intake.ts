@@ -25,7 +25,8 @@ export function checkFiles<T extends FileLike>(files: T[]): { accepted: T[]; rej
   const accepted: T[] = [];
   const rejected: string[] = [];
   for (const f of files) {
-    const pdf = f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf");
+    // A declared type must be PDF; only a file with no type falls back to the .pdf name.
+    const pdf = f.type === "application/pdf" || (f.type === "" && f.name.toLowerCase().endsWith(".pdf"));
     if (!pdf) rejected.push(`${f.name}: only PDF files.`);
     else if (f.size > MAX_FILE_BYTES) rejected.push(`${f.name}: larger than 25 MB.`);
     else if (accepted.length >= MAX_FILES) rejected.push(`${f.name}: at most ${MAX_FILES} files at once.`);
@@ -37,4 +38,10 @@ export function checkFiles<T extends FileLike>(files: T[]): { accepted: T[]; rej
 /** Folder name in her Drive: "Tax Copilot - <client> - <year>". Drive allows most characters; strip slashes. */
 export function folderName(client: string, year: number): string {
   return `Tax Copilot - ${client.replace(/[\\/]/g, "-")} - ${year}`;
+}
+
+/** True when the file starts with the PDF signature "%PDF-". Checked before any upload. */
+export async function hasPdfHeader(file: Blob): Promise<boolean> {
+  const head = new Uint8Array(await file.slice(0, 5).arrayBuffer());
+  return String.fromCharCode(...head) === "%PDF-";
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { checkFiles, folderName, MAX_FILES, validateName } from "../../web/src/intake.js";
+import { checkFiles, folderName, hasPdfHeader, MAX_FILES, validateName } from "../../web/src/intake.js";
+import { multipartRelated } from "../../web/src/drive.js";
 
 describe("intake", () => {
   it("cleans the client name and rejects empty or long names", () => {
@@ -14,6 +15,17 @@ describe("intake", () => {
     expect(accepted.map((f) => f.name)).toEqual(["a.pdf", "D.PDF"]);
     expect(rejected).toEqual(["b.png: only PDF files.", "c.pdf: larger than 25 MB."]);
     expect(checkFiles(Array.from({ length: MAX_FILES + 1 }, (_, i) => pdf(`${i}.pdf`))).rejected).toHaveLength(1);
+    expect(checkFiles([{ name: "fake.pdf", type: "image/png", size: 10 }]).rejected).toEqual(["fake.pdf: only PDF files."]);
+  });
+
+  it("checks the PDF signature before upload", async () => {
+    expect(await hasPdfHeader(new Blob(["%PDF-1.7 rest"]))).toBe(true);
+    expect(await hasPdfHeader(new Blob(["\x89PNG data"]))).toBe(false);
+  });
+
+  it("builds Drive's multipart/related body: metadata part, then the file part", async () => {
+    const body = await multipartRelated({ name: "a.pdf", parents: ["f1"] }, new Blob(["%PDF-x"]), "application/pdf", "B").text();
+    expect(body).toBe('--B\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n{"name":"a.pdf","parents":["f1"]}\r\n--B\r\nContent-Type: application/pdf\r\n\r\n%PDF-x\r\n--B--');
   });
 
   it("names the Drive folder after the client and year, without slashes", () => {

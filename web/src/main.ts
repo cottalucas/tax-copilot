@@ -1,9 +1,9 @@
 // Login and home queue (SR-16). Screens and states from DESIGN.md.
-import { GoogleAuthProvider, onAuthStateChanged, signInWithCredential, signInWithPopup, signOut, type User } from "firebase/auth";
+import { GoogleAuthProvider, onAuthStateChanged, reauthenticateWithPopup, signInWithCredential, signInWithPopup, signOut, type User } from "firebase/auth";
 import { addDoc, collection, getDocs, query, serverTimestamp, where } from "firebase/firestore";
 import { createFolder, DRIVE_SCOPE, uploadFile } from "./drive.js";
 import { auth, db } from "./firebase.js";
-import { checkFiles, folderName, validateName } from "./intake.js";
+import { checkFiles, folderName, hasPdfHeader, validateName } from "./intake.js";
 import { groupQueue, toQueueClient, type QueueClient } from "./queue.js";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
@@ -99,7 +99,9 @@ async function driveToken(user: User): Promise<string> {
   const provider = new GoogleAuthProvider();
   provider.addScope(DRIVE_SCOPE);
   if (user.email) provider.setCustomParameters({ login_hint: user.email });
-  const result = await signInWithPopup(auth, provider);
+  // Re-authenticate the signed in user: Firebase rejects a different Google account
+  // (auth/user-mismatch), so files can only go to her own Drive.
+  const result = await reauthenticateWithPopup(user, provider);
   const token = GoogleAuthProvider.credentialFromResult(result)?.accessToken;
   if (!token) throw new Error("Drive access needed.");
   return token;
@@ -154,6 +156,9 @@ function renderIntake(user: User) {
     const checked = validateName(name.value);
     if (checked.error || !checked.name) return void errors.replaceChildren(el("p", {}, checked.error ?? "Enter a client name."));
     if (files.length === 0) return void errors.replaceChildren(el("p", {}, "Add at least one PDF."));
+    const notPdf: string[] = [];
+    for (const f of files) if (!(await hasPdfHeader(f))) notPdf.push(`${f.name}: not a PDF file.`);
+    if (notPdf.length) return void errors.replaceChildren(...notPdf.map((m) => el("p", {}, m)));
     errors.replaceChildren();
     submit.setAttribute("disabled", "");
     try {
@@ -180,7 +185,8 @@ function renderIntake(user: User) {
       });
       await loadQueue(user);
     } catch (err) {
-      const msg = (err as Error).message || "Something went wrong.";
+      const code = (err as { code?: string }).code;
+      const msg = code === "auth/user-mismatch" ? "Use the same Google account you signed in with." : (err as Error).message || "Something went wrong.";
       status.textContent = uploaded.size ? `${uploaded.size} of ${files.length} files are in your Drive.` : "";
       errors.replaceChildren(el("p", {}, `${msg} Try again: files already in your Drive are not uploaded twice.`));
       submit.removeAttribute("disabled");
