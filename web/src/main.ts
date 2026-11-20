@@ -162,20 +162,27 @@ function renderIntake(user: User) {
     const checked = validateName(name.value);
     if (checked.error || !checked.name) return void errors.replaceChildren(el("p", {}, checked.error ?? "Enter a client name."));
     if (files.length === 0) return void errors.replaceChildren(el("p", {}, "Add at least one PDF."));
-    const notPdf: string[] = [];
-    for (const f of files) if (!(await hasPdfHeader(f))) notPdf.push(`${f.name}: not a PDF file.`);
-    if (notPdf.length) return void errors.replaceChildren(...notPdf.map((m) => el("p", {}, m)));
-    errors.replaceChildren();
-    submit.setAttribute("disabled", "");
+    // Lock first, then check and upload one fixed snapshot of the selection.
     busy = true;
     input.setAttribute("disabled", "");
+    submit.setAttribute("disabled", "");
+    const selection = [...files];
+    const notPdf: string[] = [];
+    for (const f of selection) if (!(await hasPdfHeader(f))) notPdf.push(`${f.name}: not a PDF file.`);
+    if (notPdf.length) {
+      busy = false;
+      input.removeAttribute("disabled");
+      submit.removeAttribute("disabled");
+      return void errors.replaceChildren(...notPdf.map((m) => el("p", {}, m)));
+    }
+    errors.replaceChildren();
     try {
       status.textContent = "Connecting to your Google Drive";
       const token = await driveToken(user);
       folderId ??= await createFolder(token, folderName(checked.name, new Date().getFullYear()));
-      for (const [i, f] of files.entries()) {
+      for (const [i, f] of selection.entries()) {
         if (uploaded.has(i)) continue;
-        status.textContent = `Uploading ${i + 1} of ${files.length} to your Drive`;
+        status.textContent = `Uploading ${i + 1} of ${selection.length} to your Drive`;
         await uploadFile(token, folderId, f);
         uploaded.add(i);
       }
@@ -186,14 +193,14 @@ function renderIntake(user: User) {
         status: "documents_in",
         flagCount: 0,
         driveFolderId: folderId,
-        fileCount: files.length,
+        fileCount: selection.length,
         createdAt: serverTimestamp(),
       });
       await loadQueue(user);
     } catch (err) {
       const code = (err as { code?: string }).code;
       const msg = code === "auth/user-mismatch" ? "Use the same Google account you signed in with." : (err as Error).message || "Something went wrong.";
-      status.textContent = uploaded.size ? `${uploaded.size} of ${files.length} files are in your Drive.` : "";
+      status.textContent = uploaded.size ? `${uploaded.size} of ${selection.length} files are in your Drive.` : "";
       errors.replaceChildren(el("p", {}, `${msg} Try again: files already in your Drive are not uploaded twice.`));
       submit.removeAttribute("disabled");
       submit.textContent = "Try again";
