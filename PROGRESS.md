@@ -248,6 +248,10 @@ calibrated rules (none means it would now be a comment).
 | 2026-11-20 | #9 run 1 | A direct dispatch could skip the reservation and the cap | CRITERION | chain-build re-checks the Linear reservation, open pull requests and the daily cap |
 | 2026-11-20 | #9 run 1 | Merged issues waited behind the gate; partial work could open a pull request | CRITERION | Reconcile runs first; the builder must report done, else needs-lucas and no pull request |
 | 2026-11-20 | #9 run 1 | Canceled blockers counted as done | CRITERION | Only completed blockers count |
+| 2026-11-20 | #9 run 2 | Dispatch payload could change the title and text the builder and reviewer see | SECURITY | Title and text read from Linear for the reserved issue |
+| 2026-11-20 | #9 run 2 | Hold step could write to Linear without a confirmed reservation | SECURITY | Hold runs only after the reservation check passed |
+| 2026-11-20 | #9 run 2 | Pick could reserve without the chain label | CRITERION | Pick fails when the label is missing |
+| 2026-11-20 | #9 run 2 | An old merge could close a reopened issue | CRITERION | A merge counts only after the issue last started |
 | 2026-11-19 | #7 run 4 | codeql.yml held security-events write inside a pull request defined workflow | SECURITY | CodeQL default setup (extended queries) run by GitHub, plus ruleset "Code scanning blocks merges". codeql.yml deleted |
 
 ## Assumptions

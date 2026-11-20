@@ -36,8 +36,8 @@ jobs:
           node-version-file: .nvmrc
       - name: Move merged chained issues to Done
         run: |
-          MERGED_TITLES=$(gh pr list -R "$GITHUB_REPOSITORY" --state merged --label chain --limit 30 --json title --jq '.[].title')
-          export MERGED_TITLES
+          MERGED_PRS=$(gh pr list -R "$GITHUB_REPOSITORY" --state merged --label chain --limit 30 --json title,mergedAt)
+          export MERGED_PRS
           node scripts/chain-next.mjs reconcile
       - id: gate
         name: Stop when something is in flight or the daily cap is reached

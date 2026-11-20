@@ -2,7 +2,7 @@
 // Build chain (AGENTS.md > Build chain). Runs main's code with the Linear key.
 //   node scripts/chain-next.mjs reconcile        moves chained issues with a merged pull request to Done
 //   node scripts/chain-next.mjs pick             reserves the next issue (In Progress + chain label), prints it
-//   node scripts/chain-next.mjs check SR-n       exits 0 only if SR-n is reserved by the chain
+//   node scripts/chain-next.mjs check SR-n       prints SR-n's title and text from Linear if the chain reserved it, else exits 1
 //   node scripts/chain-next.mjs hold SR-n "why"  labels SR-n needs-lucas and comments why
 // Only issues created by Lucas (OWNER_ID) are picked, so only his text steers the builder.
 import { LINEAR_API } from "./review-prompt.mjs";
@@ -39,8 +39,14 @@ export function pickNext(issues) {
   return ready[0];
 }
 
-export function mergedIds(titles) {
-  return new Set(titles.map((t) => /^(SR-\d+):/.exec(t)?.[1]).filter(Boolean));
+/** Ids whose chain pull request merged after the issue last started (a reopened issue needs a new merge). */
+export function mergedSince(merged, issues) {
+  const done = new Set();
+  for (const i of issues) {
+    const started = Date.parse(i.startedAt ?? "") || 0;
+    if (merged.some((m) => m.title.startsWith(`${i.identifier}:`) && Date.parse(m.mergedAt) > started)) done.add(i.identifier);
+  }
+  return done;
 }
 
 async function linear(query, variables) {
@@ -57,7 +63,7 @@ async function linear(query, variables) {
 async function load() {
   const data = await linear(
     `query($id: String!) { project(id: $id) { issues(first: 100) { nodes {
-       id identifier title description state { type } team { id } creator { id }
+       id identifier title description startedAt state { type } team { id } creator { id }
        labels { nodes { name } }
        inverseRelations { nodes { type issue { state { type } } } }
      } } } }`,
@@ -69,6 +75,7 @@ async function load() {
     title: n.title,
     description: n.description ?? "",
     stateType: n.state.type,
+    startedAt: n.startedAt,
     teamId: n.team.id,
     creatorId: n.creator?.id,
     labels: n.labels.nodes.map((l) => l.name),
@@ -92,7 +99,7 @@ async function main() {
   const chained = issues.filter((i) => i.stateType === "started" && i.labels.includes(CHAIN_LABEL));
 
   if (cmd === "reconcile") {
-    const merged = mergedIds((process.env.MERGED_TITLES ?? "").split("\n"));
+    const merged = mergedSince(JSON.parse(process.env.MERGED_PRS || "[]"), chained);
     for (const i of chained.filter((x) => merged.has(x.identifier))) {
       await update(i.id, { stateId: state(team, "completed", "Done").id });
       console.error(`${i.identifier} moved to Done.`);
@@ -100,10 +107,13 @@ async function main() {
     return;
   }
   if (cmd === "check") {
-    if (!chained.some((i) => i.identifier === id)) {
+    const reserved = chained.find((i) => i.identifier === id);
+    if (!reserved || (reserved.creatorId ?? OWNER_ID) !== OWNER_ID) {
       console.error(`${id} is not reserved by the chain.`);
       process.exitCode = 1;
+      return;
     }
+    process.stdout.write(JSON.stringify({ identifier: reserved.identifier, title: reserved.title, description: reserved.description }));
     return;
   }
   if (cmd === "hold") {
@@ -119,7 +129,8 @@ async function main() {
     const next = pickNext(issues);
     if (!next) return;
     const chain = label(team, CHAIN_LABEL);
-    await update(next.id, { stateId: state(team, "started", "In Progress").id, ...(chain ? { addedLabelIds: [chain.id] } : {}) });
+    if (!chain) throw new Error(`Linear label "${CHAIN_LABEL}" is missing. Nothing reserved.`);
+    await update(next.id, { stateId: state(team, "started", "In Progress").id, addedLabelIds: [chain.id] });
     process.stdout.write(JSON.stringify({ identifier: next.identifier, title: next.title, description: next.description }));
     return;
   }
