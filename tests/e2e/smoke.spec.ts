@@ -12,6 +12,15 @@ test("signed out: the login screen", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Sign in with Google" })).toBeVisible();
 });
 
+test("the sign in button opens Google's sign in popup", async ({ page }) => {
+  await page.goto("/");
+  const popupPromise = page.waitForEvent("popup");
+  await page.getByRole("button", { name: "Sign in with Google" }).click();
+  const popup = await popupPromise;
+  expect(popup.url()).toContain("providerId=google.com");
+  await popup.close();
+});
+
 test("SR-16: login, empty queue, then clients grouped by status with flagged first", async ({ page }) => {
   await page.goto("/");
   await signInWithGoogle(page);

@@ -29,3 +29,11 @@ test("empty and filled queue have no WCAG 2.2 AA violations", async ({ page }) =
   await expect(page.locator("section.group")).toHaveCount(1);
   await expectNoViolations(page);
 });
+
+test("new client form has no WCAG 2.2 AA violations", async ({ page }) => {
+  await page.goto("/");
+  await signInWithGoogle(page);
+  await page.getByRole("button", { name: "New client" }).click();
+  await expect(page.getByRole("heading", { name: "New client" })).toBeVisible();
+  await expectNoViolations(page);
+});

@@ -1,10 +1,20 @@
 // Login and home queue (SR-16). Screens and states from DESIGN.md.
-import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut, type User } from "firebase/auth";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { GoogleAuthProvider, onAuthStateChanged, signInWithCredential, signInWithPopup, signOut, type User } from "firebase/auth";
+import { addDoc, collection, getDocs, query, serverTimestamp, where } from "firebase/firestore";
+import { createFolder, DRIVE_SCOPE, uploadFile } from "./drive.js";
 import { auth, db } from "./firebase.js";
+import { checkFiles, folderName, validateName } from "./intake.js";
 import { groupQueue, toQueueClient, type QueueClient } from "./queue.js";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
+
+// Emulator test builds only (VITE_USE_EMULATORS, replaced at build time, so production bundles drop
+// this): sign in through the Auth emulator without Google's popup, and use a test Drive token.
+const testMode = import.meta.env.VITE_USE_EMULATORS === "true";
+if (testMode) {
+  (window as unknown as { __tcSignIn: (email: string) => Promise<unknown> }).__tcSignIn = (email) =>
+    signInWithCredential(auth, GoogleAuthProvider.credential(JSON.stringify({ sub: email, email, email_verified: true })));
+}
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string, string> = {}, text?: string) {
   const node = document.createElement(tag);
@@ -69,15 +79,122 @@ function renderError(main: HTMLElement, user: User) {
   main.replaceChildren(s);
 }
 
-function renderEmpty(main: HTMLElement) {
+function newClientButton(user: User) {
+  const b = el("button", { type: "button" }, "New client");
+  b.addEventListener("click", () => renderIntake(user));
+  return b;
+}
+
+function renderEmpty(main: HTMLElement, user: User) {
   const s = el("section", { class: "empty", "aria-label": "Client queue" });
   s.append(el("h2", {}, "No clients yet"));
   s.append(el("p", {}, "Clients you add show up here, flagged ones first."));
+  s.append(newClientButton(user));
   main.replaceChildren(s);
 }
 
-function renderQueue(main: HTMLElement, clients: QueueClient[]) {
+/** A Google OAuth token for Drive (drive.file: only files this app creates), from her own account. */
+async function driveToken(user: User): Promise<string> {
+  if (testMode) return "emulator-drive-token";
+  const provider = new GoogleAuthProvider();
+  provider.addScope(DRIVE_SCOPE);
+  if (user.email) provider.setCustomParameters({ login_hint: user.email });
+  const result = await signInWithPopup(auth, provider);
+  const token = GoogleAuthProvider.credentialFromResult(result)?.accessToken;
+  if (!token) throw new Error("Drive access needed.");
+  return token;
+}
+
+/** New client and intake (SR-17): files go straight to a new folder in her Drive, nothing else stores them. */
+function renderIntake(user: User) {
+  const main = renderQueueShell(user);
+  const form = el("form", { class: "panel intake", "aria-labelledby": "intake-title", novalidate: "" });
+  form.append(el("h2", { id: "intake-title" }, "New client"));
+  const nameLabel = el("label", { for: "client-name" }, "Client name");
+  const name = el("input", { id: "client-name", name: "client-name", type: "text", maxlength: "80", autocomplete: "off" }) as HTMLInputElement;
+  const drop = el("div", { class: "drop", id: "drop" });
+  drop.append(el("p", {}, "Drop the client's PDFs here, or choose them."));
+  const fileLabel = el("label", { for: "client-files" }, "Choose PDFs");
+  const input = el("input", { id: "client-files", type: "file", multiple: "", accept: "application/pdf,.pdf" }) as HTMLInputElement;
+  drop.append(fileLabel, input);
+  const list = el("ul", { class: "files", "aria-live": "polite" });
+  const status = el("p", { class: "muted", role: "status" });
+  const errors = el("div", { role: "alert", class: "error" });
+  const submit = el("button", { type: "submit" }, "Create client");
+  const cancel = el("button", { type: "button", class: "secondary" }, "Cancel");
+  cancel.addEventListener("click", () => void loadQueue(user));
+  const actions = el("div", { class: "actions" });
+  actions.append(submit, cancel);
+  form.append(nameLabel, name, drop, list, status, errors, actions);
+  main.replaceChildren(form);
+
+  let files: File[] = [];
+  let folderId: string | undefined;
+  const uploaded = new Set<string>();
+  const showFiles = (picked: File[]) => {
+    const { accepted, rejected } = checkFiles(picked);
+    files = accepted;
+    list.replaceChildren(...accepted.map((f) => el("li", {}, f.name)));
+    errors.replaceChildren(...rejected.map((r) => el("p", {}, r)));
+  };
+  input.addEventListener("change", () => showFiles([...(input.files ?? [])]));
+  drop.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    drop.classList.add("over");
+  });
+  drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+  drop.addEventListener("drop", (e) => {
+    e.preventDefault();
+    drop.classList.remove("over");
+    showFiles([...(e.dataTransfer?.files ?? [])]);
+  });
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const checked = validateName(name.value);
+    if (checked.error || !checked.name) return void errors.replaceChildren(el("p", {}, checked.error ?? "Enter a client name."));
+    if (files.length === 0) return void errors.replaceChildren(el("p", {}, "Add at least one PDF."));
+    errors.replaceChildren();
+    submit.setAttribute("disabled", "");
+    try {
+      status.textContent = "Connecting to your Google Drive";
+      const token = await driveToken(user);
+      folderId ??= await createFolder(token, folderName(checked.name, new Date().getFullYear()));
+      let n = 0;
+      for (const f of files) {
+        n += 1;
+        if (uploaded.has(f.name)) continue;
+        status.textContent = `Uploading ${n} of ${files.length} to your Drive`;
+        await uploadFile(token, folderId, f);
+        uploaded.add(f.name);
+      }
+      status.textContent = "Saving the client";
+      await addDoc(collection(db, "clients"), {
+        ownerUid: user.uid,
+        displayName: checked.name,
+        status: "documents_in",
+        flagCount: 0,
+        driveFolderId: folderId,
+        fileCount: files.length,
+        createdAt: serverTimestamp(),
+      });
+      await loadQueue(user);
+    } catch (err) {
+      const msg = (err as Error).message || "Something went wrong.";
+      status.textContent = uploaded.size ? `${uploaded.size} of ${files.length} files are in your Drive.` : "";
+      errors.replaceChildren(el("p", {}, `${msg} Try again: files already in your Drive are not uploaded twice.`));
+      submit.removeAttribute("disabled");
+      submit.textContent = "Try again";
+    }
+  });
+  name.focus();
+}
+
+function renderQueue(main: HTMLElement, clients: QueueClient[], user: User) {
   const wrap = el("section", { "aria-label": "Client queue" });
+  const bar = el("div", { class: "actions" });
+  bar.append(newClientButton(user));
+  wrap.append(bar);
   for (const group of groupQueue(clients)) {
     const g = el("section", { class: "group", "aria-labelledby": `g-${group.status}` });
     g.append(el("h2", { id: `g-${group.status}` }, `${group.label} (${group.clients.length})`));
@@ -109,8 +226,8 @@ async function loadQueue(user: User) {
   try {
     const snap = await getDocs(query(collection(db, "clients"), where("ownerUid", "==", user.uid)));
     const clients = snap.docs.map((d) => toQueueClient(d.id, d.data())).filter((c): c is QueueClient => !!c);
-    if (clients.length === 0) renderEmpty(main);
-    else renderQueue(main, clients);
+    if (clients.length === 0) renderEmpty(main, user);
+    else renderQueue(main, clients, user);
   } catch {
     renderError(main, user);
   }

@@ -11,6 +11,20 @@ Foundation done. Next: SR-16 (login and home queue) once Lucas sets up Google si
 
 ## Log
 
+### 2026-11-20 SR-17 New return and intake
+Done: "New client" on the queue opens a form: client name and PDFs (drop or choose; PDF only, at
+most 25 MB each, 30 files). On submit the browser gets her Google token with scope `drive.file`,
+creates a folder "Tax Copilot - <client> - <year>" in her Drive and uploads the PDFs there; retry
+never uploads a file twice. Only then Firestore gets the client record (status Documents in, no
+flags, Drive folder id, file count), and the queue shows it under Documents in. No file or file
+content is stored anywhere but her Drive. Rules: create only her own client with exactly those
+fields. Picking an existing Drive folder needs the Google Picker (an API key from Lucas):
+follow up. Tests: intake rules (unit), 7 rules tests, end to end with Drive mocked at the network
+(files only to Drive, with her token, into the new folder, no other host), axe on the form.
+E2E now signs in through an emulator only hook (dropped from production builds, checked); the
+emulator's Google popup was too flaky to drive. A separate test checks the real button opens
+Google's popup. 32 of 32 passed over 4 repeats.
+
 ### 2026-11-20 SR-16 Login and home queue
 Done: Google sign-in through Firebase Auth (popup) with signed out, signing in and failure
 states; the home queue groups her clients by status in working order (Needs review, Documents in,
@@ -272,6 +286,7 @@ calibrated rules (none means it would now be a comment).
 | 2026-11-18 | Hosting has no rewrite to functions yet, so preview channels deploy without functions | Agent |
 
 ## Template gaps
+- E2E against the Firebase Auth emulator: sign in with a test build hook, not the emulator popup.
 - Vertex only identity for evals: done here (github-evals). Copy the per workflow federation
   (job_workflow_ref) and the trusted proxy harness back to Golden.
 - Model availability probe per region before choosing a model (catalogs list models a project
