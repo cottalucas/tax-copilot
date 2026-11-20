@@ -1,7 +1,7 @@
 # PROGRESS.md
 
 ## Current focus
-SR-25 and the foundation run: cleanup, offline pull request evals, live evals on main, deploy.
+Foundation done. Next: SR-16 (login and home queue) once Lucas sets up Google sign-in.
 
 ## Next up
 1. SR-24: gates, auto merge, proof pull requests, infra.
@@ -10,6 +10,21 @@ SR-25 and the foundation run: cleanup, offline pull request evals, live evals on
 4. Move the review job to `pull_request_target` (read the diff only, never run pull request code).
 
 ## Log
+
+### 2026-11-20 Foundation done: #7 merged, deployed from main
+- #7 merged after one bootstrap merge done by Lucas: `review` and `evals:live` came off the
+  required list for that merge only and went straight back (confirmed: 8 required checks, admins
+  included). Reason: #7 adds the trusted live gate, which cannot certify #7 itself. The first
+  attempts failed on the code scanning ruleset (4 unpinned actions, a file write in the proxy),
+  both fixed before the merge.
+- infra.yml from main with deploy on: APIs incl. Drive, Firestore `(default)` in europe-west6,
+  rules and indexes, Firebase Auth initialized, hosting and functions deployed, health check
+  passed. Live: https://tax-co-pilot.web.app, health `{"ok":true,"region":"europe-west6"}`.
+- Rollback checked against the real release list: one release (`d60667113d964925`).
+- Google sign-in provider is off: needs Lucas's OAuth consent screen.
+- Live model spend today: about 0.06 USD (recordings and checks), all Vertex eu.
+- This pull request is the first through the new pipeline: its evals:live status comes from the
+  trusted harness, and it merges itself.
 
 ### 2026-11-20 Recordings and federation by workflow
 Recorded real outputs for all 18 cases from a laptop run (Lucas's Google login, Vertex `eu`):
@@ -242,6 +257,14 @@ calibrated rules (none means it would now be a comment).
 | 2026-11-18 | Hosting has no rewrite to functions yet, so preview channels deploy without functions | Agent |
 
 ## Template gaps
+- Vertex only identity for evals: done here (github-evals). Copy the per workflow federation
+  (job_workflow_ref) and the trusted proxy harness back to Golden.
+- Model availability probe per region before choosing a model (catalogs list models a project
+  cannot call).
+- A model switch module covering build AI and product AI.
+- Staging Firebase project and scheduled Firestore backups before the first real client.
+- Golden must ship with the calibrated reviewer and the trusted live harness, so no project needs
+  a bootstrap merge.
 - Golden MODELS guidance should probe which models a new project can call per region: catalogs
   list models a project cannot use.
 - Staging environment: none yet. Add a staging Firebase project before the first real client.
