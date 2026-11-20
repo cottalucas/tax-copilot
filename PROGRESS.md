@@ -18,7 +18,9 @@ every injection case and score them through the pull request's own schema, scori
 code, so model code changes are checked before merge without any identity. The trusted harness
 checks the fetched commit equals the event's head. Google federation is bound per workflow file
 on main (`job_workflow_ref`): github-evals only for live-evals-pr, nightly and live-evals,
-github-deployer only for infra (Lucas's command block).
+github-deployer only for infra (Lucas's command block, run 2026-11-20; the github-evals Vertex
+role needed a second try because the account was not visible yet). The project already had a
+10 CHF monthly budget ("Firebase Project tax-co-pilot").
 
 ### 2026-11-20 Review blocks cleared the right way (engineering lead)
 The earlier instruction "pull request evals offline only, deployer on main" left two real gaps,
