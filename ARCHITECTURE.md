@@ -51,8 +51,8 @@ Draft, confirmed in SR-16 and SR-17.
 | Government credentials | Nowhere. She types them per session | Nobody |
 | Golden cases | `evals/golden/`, anonymized. None while the repo is public (SR-23) | Pipeline, live evals on Vertex `eu` |
 
-Functions run in europe-west6. Client data reaches models only through Vertex AI in a `europe-*`
-region until SR-18 decides residency. Other providers see anonymized or synthetic data only.
+Functions run in europe-west6. Product AI is Vertex only, on the EU multi-region endpoint `eu`.
+Until SR-18 decides residency, no real client data is sent to any model.
 
 ## Models
 Two kinds of AI (AGENTS.md). Build AI (Claude Code, Codex) never runs in the product. Product AI:

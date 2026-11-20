@@ -165,6 +165,10 @@ calibrated rules (none means it would now be a comment).
 | 2026-11-20 | #7 run 6 | Evals give pull request code github-deployer rights | SECURITY | Resolved 2026-11-20: pull requests never sign in to Google, live evals run on main only |
 | 2026-11-20 | #7 run 6 | Evals skip when no eval input changed | CRITERION | Resolved: offline evals run on every pull request, live evals by hand |
 | 2026-11-20 | #7 run 6 | A fixture could relabel its kind and skip the live run | CRITERION | The folder sets the kind |
+| 2026-11-20 | #7 run 7 | Offline evals pass with zero recordings | SECURITY | Accepted by Lucas's plan: recordings come from the first live run on main |
+| 2026-11-20 | #7 run 7 | Nightly full evals removed, live runs capped at 10 of 18 cases | SECURITY | Accepted by Lucas's plan (cost). Template gap: rotate cases across runs |
+| 2026-11-20 | #7 run 7 | Deployer identity for live evals, main guard only in workflow YAML | SECURITY | Accepted by Lucas's plan. Template gap: Vertex only identity, branch bound in Google Cloud |
+| 2026-11-20 | #7 run 7 | Stale EVAL_MODELS line, stale provider line in ARCHITECTURE.md | CRITERION | Fixed |
 | 2026-11-19 | #7 run 4 | codeql.yml held security-events write inside a pull request defined workflow | SECURITY | CodeQL default setup (extended queries) run by GitHub, plus ruleset "Code scanning blocks merges". codeql.yml deleted |
 
 ## Assumptions
@@ -190,6 +194,7 @@ calibrated rules (none means it would now be a comment).
 | 2026-11-18 | Hosting has no rewrite to functions yet, so preview channels deploy without functions | Agent |
 
 ## Template gaps
+- Live evals cover 10 of 18 cases per run. Rotate cases across runs so every case runs live.
 - Later hardening: a separate Vertex only identity for pull request jobs (evals, UX review), and
   github-deployer bound to runs on main only. Today evals sign in as github-deployer, so pull
   request code can act with deploy rights (Lucas's call, 2026-11-20).
