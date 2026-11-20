@@ -104,7 +104,7 @@ repo owner is mentioned on the pull request.
 | Firestore rules | `test:integration` | Any rules test fails |
 | End to end and accessibility | `test:e2e` | Any Playwright test fails, any WCAG 2.2 AA violation |
 | Offline evals | `evals` | A malformed case, an empty injection set, a recorded output under the threshold or with an injection field changed |
-| Live evals | `evals:live` status (live-evals-pr.yml) | When model inputs change: under the threshold, an injection field changed, over 10 calls or 0.25 USD. Pull request code, no credentials, trusted proxy |
+| Live evals | `evals:live` status (live-evals-pr.yml) | Every pull request: under the threshold, an injection field changed, over 10 calls or 0.25 USD. Pull request code, no credentials, trusted proxy |
 | Dependencies | `audit` | A high or critical advisory in production dependencies |
 | Code scanning | CodeQL default setup + ruleset | Any error or warning alert, or a high or critical security alert |
 | Review | `review` | Codex blocks with a tagged [CRITERION], [NEVER] or [SECURITY] reason, or its output is malformed |

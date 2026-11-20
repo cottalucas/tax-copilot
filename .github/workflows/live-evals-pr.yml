@@ -51,13 +51,8 @@ jobs:
           # changed by pull request code; "pr" is never mounted, so the verifier reads it as is.
           git worktree add --detach "$RUNNER_TEMP/pr" "$HEAD_SHA"
           git worktree add --detach "$RUNNER_TEMP/pr-run" "$HEAD_SHA"
-          model=$(git diff --name-only "$BASE_SHA"...FETCH_HEAD | grep -E '^(prompts/|src/schema/|src/extraction/|src/models/|rules/|evals/|config/model-prices\.json|budgets\.json|package(-lock)?\.json)' || true)
-          if [ -z "$model" ]; then echo "run=false" >> "$GITHUB_OUTPUT"; else echo "run=true" >> "$GITHUB_OUTPUT"; fi
-      - name: Report skipped
-        if: success() && steps.pr.outputs.run == 'false'
-        run: |
-          gh api "repos/${GITHUB_REPOSITORY}/statuses/${HEAD_SHA}" -f state=success -f context=evals:live \
-            -f description="No model inputs changed. Skipped."
+          # Live evals run on every pull request: about 0.01 USD each, inside the 10 CHF budget.
+          echo "run=true" >> "$GITHUB_OUTPUT"
       - uses: ./.github/actions/setup
         if: steps.pr.outputs.run == 'true'
       - uses: google-github-actions/auth@v3

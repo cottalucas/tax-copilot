@@ -35,7 +35,7 @@ budget commands run by Lucas.
 ### 2026-11-20 Foundation cleanup (SR-25)
 Done: two kinds of AI at the top of AGENTS.md. Product AI: `src/models` keeps the provider
 interface with Vertex only and one role (extract); openrouter, anthropic and openai providers,
-the CHECK role and EVAL_MODELS are gone. Pull request evals run offline (case validation,
+the CHECK role and the old EVAL_MODELS variable (obsolete, deleted) are gone. Pull request evals run offline (case validation,
 recorded outputs scored with schema, scoring and rules), never sign in to Google. Live evals:
 live-evals.yml, manual, main only, at most 10 calls and 0.25 USD (`budgets.json`), recordings as
 an artifact. Nightly no longer runs evals. (Superseded later the same day: trusted pull request
@@ -49,7 +49,7 @@ Done: `src/models` has four providers (vertex default, anthropic, openai, openro
 role by EXTRACT_* and CHECK_* variables. Vertex calls the EU multi-region endpoint with keyless
 Google login and prices calls from `config/model-prices.json`. Prompt caching counted for all
 providers (Anthropic `cache_control`). Evals use EXTRACT_* (default Vertex
-`gemini-3.1-flash-lite`, location `eu`; EVAL_MODELS since removed), run only when eval inputs change and nightly, and sign in
+`gemini-3.1-flash-lite`, location `eu`; the EVAL_MODELS variable is obsolete and deleted), run only when eval inputs change and nightly, and sign in
 as `github-deployer` (Lucas's call: no separate identity yet). Injection set: 15 BIPIA attacks (MIT) plus 3 hand written. No OpenRouter in
 any workflow. Coverage 98.75%, floor raised to 98%. (Superseded the same day by the foundation
 cleanup: Vertex only, pull requests never sign in, floor fixed at 80%.)
@@ -212,6 +212,8 @@ calibrated rules (none means it would now be a comment).
 | 2026-11-20 | #7 run 13 | Committed recordings cannot prove Vertex made them, live check not required | SECURITY | Bootstrap: #7 cannot trigger the trusted workflow before merge. Lucas attests its evals:live status (recordings from this exact model code, hash checked) and the check becomes required. The agent may not post it |
 | 2026-11-20 | #7 run 13 | Hashing followed symlinks on the trusted host | SECURITY | Symlinks and paths outside the checkout rejected, in hashing and in the verifier |
 | 2026-11-20 | #7 run 14 | Parent folder symlinks passed, and the container could rewrite the tree the verifier reads | SECURITY | Real paths checked for every component. The container gets its own checkout; the verifier reads an unmounted one |
+| 2026-11-20 | #7 run 15 | evals:live could pass without a model call on pull requests that change no model input | SECURITY | Live evals now run on every pull request (about 0.01 USD each, about 1 USD a month at 100 pull requests, inside 10 CHF) |
+| 2026-11-20 | #7 run 15 | Old PROGRESS lines named EVAL_MODELS | CRITERION | Marked obsolete |
 | 2026-11-19 | #7 run 4 | codeql.yml held security-events write inside a pull request defined workflow | SECURITY | CodeQL default setup (extended queries) run by GitHub, plus ruleset "Code scanning blocks merges". codeql.yml deleted |
 
 ## Assumptions
@@ -233,7 +235,7 @@ calibrated rules (none means it would now be a comment).
 | 2026-11-18 | Web portal uses Vite with plain TypeScript, no UI framework yet. Framework choice left to SR-16 | Lucas |
 | 2026-11-18 | Functions source is the repo root (single package), so functions can import `src/` and `rules/` | Agent |
 | 2026-11-18 | Installed openjdk@21 and actionlint with Homebrew on this laptop to run the emulator and lint workflows | Lucas |
-| 2026-11-18 | Added repo variables beyond the brief: FIREBASE_PROJECT_ID, FIRESTORE_LOCATION, optional EVAL_MODELS | Lucas |
+| 2026-11-18 | Added repo variables beyond the brief: FIREBASE_PROJECT_ID, FIRESTORE_LOCATION, optional EVAL_MODELS (obsolete, deleted 2026-11-20) | Lucas |
 | 2026-11-18 | Hosting has no rewrite to functions yet, so preview channels deploy without functions | Agent |
 
 ## Template gaps
