@@ -21,6 +21,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Forks never get the Vertex proxy (public repo). Their pull requests fail closed with a clear
+  # status; a maintainer re-opens the change from a branch of this repo to run live evals.
+  fork:
+    name: evals:live (fork)
+    if: github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          gh api "repos/${GITHUB_REPOSITORY}/statuses/${HEAD_SHA}" -f state=failure -f context=evals:live \
+            -f description="Fork pull requests cannot run live evals. Re-open from a branch of this repo."
+
   live:
     name: evals:live (trusted)
     if: github.event.pull_request.head.repo.full_name == github.repository
