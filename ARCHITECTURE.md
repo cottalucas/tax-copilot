@@ -29,7 +29,7 @@ background job, never behind a Hosting rewrite.
 | Environment | Firebase project | Use |
 | --- | --- | --- |
 | Local | `demo-tax-copilot` (emulators only, `.firebaserc`) | Tests, development. No real services |
-| Live | `tax-co-pilot` (variable FIREBASE_PROJECT_ID) | Her real use. Deploys are manual |
+| Live | `tax-co-pilot` (variable FIREBASE_PROJECT_ID), https://tax-co-pilot.web.app | Her real use. Deploys are manual (infra.yml, main only) |
 | Staging | none | Template gap. Add before the first real client |
 
 ## Data model
@@ -115,8 +115,11 @@ Live deploys are manual. Actions > infra > Run workflow.
 ## Rollback
 Decide to roll back when the health check fails, sign in breaks, or she reports wrong values.
 - Hosting: Firebase console > Hosting > Release history > Rollback on the last good release. Or
-  `npx firebase hosting:clone tax-co-pilot:<VERSION_ID> tax-co-pilot:live` with the version id
-  from that list.
+  list releases with `curl -H "Authorization: Bearer $(gcloud auth print-access-token)"
+  https://firebasehosting.googleapis.com/v1beta1/sites/tax-co-pilot/channels/live/releases` and run
+  `npx firebase hosting:clone tax-co-pilot:<VERSION_ID> tax-co-pilot:live` with the version id of
+  the last good release. Checked 2026-11-20 against the real list: one release so far
+  (version `d60667113d964925`), so the first rollback becomes possible after the next deploy.
 - Functions: `git checkout <last good commit> && npm ci && npx firebase deploy --only functions
   --project tax-co-pilot`.
 - Firestore rules: same as functions with `--only firestore:rules`.

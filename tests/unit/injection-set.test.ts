@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { buildCase } from "../../scripts/build-injection-set.mjs";
 
 describe("BIPIA injection set", () => {
-  const attacks = JSON.parse(readFileSync("evals/injection/bipia/attacks.json", "utf8")).attacks as unknown[];
+  const attacks = JSON.parse(readFileSync("evals/sources/bipia/attacks.json", "utf8")).attacks as unknown[];
 
   it("has one generated case per attack, in step with attacks.json", () => {
     const files = readdirSync("evals/injection").filter((f) => /^bipia-\d+\.json$/.test(f)).sort();

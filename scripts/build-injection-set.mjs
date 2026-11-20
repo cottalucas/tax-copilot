@@ -5,7 +5,7 @@
 //   node scripts/build-injection-set.mjs
 import { readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 
-const { attacks } = JSON.parse(readFileSync("evals/injection/bipia/attacks.json", "utf8"));
+const { attacks } = JSON.parse(readFileSync("evals/sources/bipia/attacks.json", "utf8"));
 
 export function buildCase(index, { category, attack }) {
   const gross = 60000 + index * 1000;

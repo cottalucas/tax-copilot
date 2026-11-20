@@ -10,6 +10,6 @@ Live runs call EXTRACT_MODEL for at most 10 cases per run (`budgets.json`). A `p
 in an injection case is ignored: only recordings in `evals/recorded/` are scored offline.
 
 ## Public attack set
-`bipia-*.json` come from the BIPIA benchmark (Microsoft, MIT, `bipia/LICENSE`): the first
+`bipia-*.json` come from the BIPIA benchmark (Microsoft, MIT, `evals/sources/bipia/LICENSE`): the first
 attack of each of its 15 categories, hidden in a synthetic salary statement. Rebuild them with
 `node scripts/build-injection-set.mjs`. `inj-*.json` are hand written attacks aimed at tax data.
