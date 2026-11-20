@@ -11,6 +11,17 @@ Foundation done. Next: SR-16 (login and home queue) once Lucas sets up Google si
 
 ## Log
 
+### 2026-11-20 SR-16 Login and home queue
+Done: Google sign-in through Firebase Auth (popup) with signed out, signing in and failure
+states; the home queue groups her clients by status in working order (Needs review, Documents in,
+Ready to fill, Submitted), flagged clients first, each row with name, status badge and flag count;
+loading, error with Retry, and empty states. Firestore rule: she reads only clients whose ownerUid
+is hers, no writes. Web config comes from the Firebase project at deploy time (infra.yml registers
+the web app). Tests: queue logic (unit), rules (4 emulator tests), end to end on the Auth and
+Firestore emulators (login, empty state, grouping, flagged first, another user's client hidden,
+sign out) and axe on every state. The audit gate caught @grpc/grpc-js advisories pulled in by
+firebase; an npm override pins the patched 1.14.7 (0 production vulnerabilities). Google sign-in works live once Lucas switches on the provider.
+
 ### 2026-11-20 Foundation done: #7 merged, deployed from main
 - #7 merged after one bootstrap merge done by Lucas: `review` and `evals:live` came off the
   required list for that merge only and went straight back (confirmed: 8 required checks, admins
@@ -178,6 +189,8 @@ Every block, so the reviewer can be tuned. Category is the tag the block would g
 calibrated rules (none means it would now be a comment).
 | Date | Pull request | Reason given | Category | Action |
 | --- | --- | --- | --- | --- |
+| 2026-11-20 | #10 run 1 | Rules tests lost the signed out write and flags write checks | SECURITY | Both assertions restored |
+| 2026-11-20 | #10 run 2 | New Firestore rule not deployed by infra | CRITERION | Already deployed: infra.yml always runs "Deploy Firestore rules and indexes"; infra runs from main after merge |
 | 2026-11-19 | #2 run 1 | Skip link outside SR-15 scope, TASKS.md not updated | none | Removed the skip link |
 | 2026-11-19 | #2 run 2 | SR-15 "merge blocked" not met (no branch rule) | CRITERION | Repo made public, branch rule set |
 | 2026-11-19 | #4 run 1 | Log lacked evidence for SR-15 checkmarks, SR-23 rule not logged | CRITERION | Added evidence and log entry |

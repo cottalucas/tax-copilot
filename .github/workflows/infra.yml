@@ -102,6 +102,16 @@ jobs:
         run: |
           gcloud services enable --project "$PROJECT" cloudfunctions.googleapis.com cloudbuild.googleapis.com \
             artifactregistry.googleapis.com run.googleapis.com eventarc.googleapis.com
+      # The web app's public config (not a secret) is written at deploy time, never committed.
+      - name: Register the web app and write its public config
+        if: inputs.deploy_app
+        run: |
+          id=$(npx firebase apps:list WEB --project "$PROJECT" --json | jq -r '.result[0].appId // empty')
+          if [ -z "$id" ]; then
+            id=$(npx firebase apps:create WEB tax-copilot-web --project "$PROJECT" --json | jq -r '.result.appId')
+          fi
+          npx firebase apps:sdkconfig WEB "$id" --project "$PROJECT" --json | jq -r '.result.sdkConfig |
+            "VITE_FIREBASE_API_KEY=\(.apiKey)\nVITE_FIREBASE_AUTH_DOMAIN=\(.authDomain)\nVITE_FIREBASE_PROJECT_ID=\(.projectId)\nVITE_FIREBASE_APP_ID=\(.appId)"' > web/.env.production.local
       - name: Deploy hosting and functions (live)
         if: inputs.deploy_app
         run: npx firebase deploy --only hosting,functions --project "$PROJECT" --non-interactive --force

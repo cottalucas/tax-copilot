@@ -33,10 +33,11 @@ background job, never behind a Hosting rewrite.
 | Staging | none | Template gap. Add before the first real client |
 
 ## Data model
-Draft, confirmed in SR-16 and SR-17.
-- `clients/{clientId}`: displayName (her label, not the legal name), taxYear, status
-  (`documents_in`, `needs_review`, `ready_to_fill`, `submitted`), driveFolderId, flagCount,
-  updatedAt.
+`clients` confirmed in SR-16 (reads); writes come with SR-17.
+- `clients/{clientId}`: ownerUid (her Firebase Auth uid), displayName (her label, not the legal
+  name), status (`documents_in`, `needs_review`, `ready_to_fill`, `submitted`), flagCount, and
+  later taxYear, driveFolderId, updatedAt. Rule: she reads only documents where ownerUid is her
+  uid; queries must filter on ownerUid. No client writes yet.
 - `clients/{clientId}/flags/{flagId}`: ruleId, severity, field, reason, resolved.
 - `clients/{clientId}/corrections/{id}`: field, before, after, at. Feeds new golden cases.
 - Extracted values are not stored in Firestore. TODO: the client data file lives in her Drive
@@ -76,7 +77,8 @@ Two kinds of AI (AGENTS.md). Build AI (Claude Code, Codex) never runs in the pro
 - No orchestration framework. Only pass the parameters a request sets.
 
 ## Security
-- Auth: Firebase Auth, one user (her). Google sign-in provider switched on by Lucas in the console.
+- Auth: Firebase Auth with Google sign-in (popup), one user (her). The Google provider is switched
+  on by Lucas in the console. Tests sign in through the Auth emulator's Google popup.
 - Firestore rules deny everything. Each allow rule ships with a test in
   `tests/integration/firestore.rules.test.ts`, including "another user cannot read".
 - Threats: prompt injection inside client PDFs (the prompt treats documents as data, output is
