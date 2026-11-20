@@ -1,0 +1,81 @@
+# Build chain, build step (AGENTS.md > Build chain). Started by chain.yml with one Linear issue.
+# Claude Code (build AI, BUILDER_MODEL) implements it under AGENTS.md and pushes a branch. The pull
+# request is opened with the Claude GitHub App token, so every gate runs on it.
+# Acts only on cottalucas/tax-copilot.
+name: chain-build
+
+on:
+  repository_dispatch:
+    types: [chain-build]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write
+
+concurrency:
+  group: chain-build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: chain-build
+    if: github.repository == 'cottalucas/tax-copilot'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      ISSUE_ID: ${{ github.event.client_payload.identifier }}
+      ISSUE_TITLE: ${{ github.event.client_payload.title }}
+      ISSUE_BODY: ${{ github.event.client_payload.description }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: ./.github/actions/setup
+      - run: npx playwright install --with-deps chromium
+      - id: claude
+        uses: anthropics/claude-code-action@c84e279f859e2591391e95bd309286eb111c345f # v1.0.284
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          branch_prefix: chain/
+          prompt: |
+            You are the builder for cottalucas/tax-copilot. Act only on this repository.
+            Implement Linear issue ${{ github.event.client_payload.identifier }}: ${{ github.event.client_payload.title }}
+
+            Issue description and acceptance criteria:
+            ${{ github.event.client_payload.description }}
+
+            Read AGENTS.md first and follow it: session starter (this plan is approved), always do,
+            never do, definition of done. Read the files its table names for this kind of task.
+            Run npm run check, npm run test:unit, npm run test:integration, npm run test:e2e and
+            npm run evals before you finish, and fix what fails. Update PROGRESS.md with a Log entry.
+            Commit and push your work to the branch. Do not open a pull request: the workflow does.
+            Stop and explain in your final message if an acceptance criterion needs Lucas.
+          claude_args: >-
+            --model ${{ vars.BUILDER_MODEL }} --max-turns 80
+            --allowedTools "Bash(npm ci),Bash(npm run check),Bash(npm run test:unit),Bash(npm run test:integration),Bash(npm run test:e2e),Bash(npm run evals),Bash(npm run build),Bash(npm install:*),Bash(git status),Bash(git diff:*),Bash(git log:*),Edit,Write,Read,Glob,Grep"
+      - name: Open the pull request with the Claude App token
+        env:
+          GH_TOKEN: ${{ steps.claude.outputs.github_token }}
+          BRANCH: ${{ steps.claude.outputs.branch_name }}
+        run: |
+          if [ -z "$BRANCH" ] || [ "$(git ls-remote --heads origin "$BRANCH" | wc -l)" = "0" ]; then
+            echo "::error title=chain-build::No branch was pushed for ${ISSUE_ID}. The issue stays in progress, so the chain stops."
+            exit 1
+          fi
+          {
+            echo "Built by the chain for ${ISSUE_ID}: ${ISSUE_TITLE}"
+            echo
+            echo "Acceptance criteria quoted from Linear ${ISSUE_ID} (all covered by this pull request unless the log says otherwise):"
+            echo
+            echo "${ISSUE_BODY}"
+            echo
+            echo "🤖 Generated with [Claude Code](https://claude.com/claude-code)"
+          } > "$RUNNER_TEMP/body.md"
+          gh label create chain -R "$GITHUB_REPOSITORY" --color 5e6ad2 --description "Opened by the build chain" 2>/dev/null || true
+          gh pr create -R "$GITHUB_REPOSITORY" --base main --head "$BRANCH" --title "${ISSUE_ID}: ${ISSUE_TITLE}" --body-file "$RUNNER_TEMP/body.md" --label chain

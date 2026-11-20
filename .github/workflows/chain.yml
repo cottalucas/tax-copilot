@@ -1,0 +1,56 @@
+# Build chain (AGENTS.md > Build chain). Hourly or by hand. Main's code only.
+# Starts the next Linear issue (project Tax Copilot) when nothing is in flight: no open pull
+# request, no chained issue in progress, fewer than 3 chained pull requests in the last 24 hours.
+# Skips issues labelled needs-lucas and issues whose blockers are not done.
+# Acts only on cottalucas/tax-copilot.
+name: chain
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: chain
+  cancel-in-progress: false
+
+jobs:
+  pick:
+    name: chain
+    if: github.repository == 'cottalucas/tax-copilot'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - id: gate
+        name: Stop when something is in flight or the daily cap is reached
+        run: |
+          open=$(gh pr list -R "$GITHUB_REPOSITORY" --state open --json number --jq length)
+          since=$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)
+          today=$(gh pr list -R "$GITHUB_REPOSITORY" --state all --label chain --search "created:>=$since" --json number --jq length)
+          echo "open=$open chained_24h=$today"
+          if [ "$open" != "0" ]; then echo "::notice title=chain::A pull request is open. Waiting."; echo "go=false" >> "$GITHUB_OUTPUT"; exit 0; fi
+          if [ "$today" -ge 3 ]; then echo "::notice title=chain::Daily cap of 3 chained pull requests reached."; echo "go=false" >> "$GITHUB_OUTPUT"; exit 0; fi
+          echo "go=true" >> "$GITHUB_OUTPUT"
+      - id: next
+        name: Pick the next Linear issue
+        if: steps.gate.outputs.go == 'true'
+        run: |
+          MERGED_TITLES=$(gh pr list -R "$GITHUB_REPOSITORY" --state merged --label chain --limit 20 --json title --jq '.[].title')
+          export MERGED_TITLES
+          node scripts/chain-next.mjs > "$RUNNER_TEMP/next.json"
+          if [ -s "$RUNNER_TEMP/next.json" ]; then echo "found=true" >> "$GITHUB_OUTPUT"; cat "$RUNNER_TEMP/next.json" | head -c 200; echo; else echo "::notice title=chain::Nothing ready. Waiting for Lucas or blockers."; fi
+      - name: Start the build
+        if: steps.next.outputs.found == 'true'
+        run: |
+          jq -n --slurpfile p "$RUNNER_TEMP/next.json" '{event_type: "chain-build", client_payload: $p[0]}' \
+            | gh api "repos/${GITHUB_REPOSITORY}/dispatches" --input -

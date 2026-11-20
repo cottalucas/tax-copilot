@@ -69,6 +69,7 @@ Skills live in `.agents/skills/` (see its README). Load a skill only when the ta
 - The same failure twice.
 
 ## Never do
+- Never act on any repository other than `cottalucas/tax-copilot` (strict rule, Lucas).
 - Never commit golden cases, client data or real tax rules while the repo is public (Linear
   SR-23). The repo must be private before any of them lands. GitHub Pro keeps branch rules then.
 - Never store client documents outside her Google Drive.
@@ -116,6 +117,7 @@ repo owner is mentioned on the pull request.
 | After pr.yml fails | halt.yml: Linear comment, GitHub mention |
 | Nightly 02:00 UTC | nightly.yml: full test:e2e, live evals with rotation, form change check (placeholder) |
 | Mention @claude | claude.yml: Claude Code builder (build AI) |
+| Hourly, or by hand | chain.yml and chain-build.yml: the build chain (AGENTS.md > Build chain) |
 | Manual | live-evals.yml: live evals on Vertex (github-evals). infra.yml, main only: Google Cloud setup and deploy (github-deployer) |
 
 - Required on main: a pull request plus every gate above. Admins included. No approvals.
@@ -125,6 +127,14 @@ repo owner is mentioned on the pull request.
 - The reviewer loads from the base commit and runs in a trusted folder, so a pull request cannot
   change its own reviewer. It judges the criteria the pull request body quotes. Rules:
   `scripts/review-rules.md`.
+
+## Build chain
+- chain.yml (hourly or by hand) starts the next Linear issue when nothing is in flight: no open
+  pull request, no `chain` issue In Progress, under 3 chained pull requests in 24 hours. It skips
+  `needs-lucas` issues and issues with open blockers.
+- chain-build.yml runs Claude Code on it and opens the pull request with the Claude GitHub App
+  token, so every gate runs. After the merge the issue moves to Done and the next one starts. A
+  failed build or a blocked pull request stops the chain until fixed.
 
 ## Secrets and variables
 Names only. A human sets secret values. Agents never see them.

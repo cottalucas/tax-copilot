@@ -20,7 +20,7 @@ Tasks live in Linear, project Tax Copilot.
 | `web/` | Portal (Vite, TypeScript) |
 | `tests/` | Unit helpers, Firestore rules tests, Playwright smoke |
 | `.agents/skills/` | Skills any agent can load: `stop-slop`, `nielsen-heuristics-audit` |
-| `.github/workflows/` | push, pr, automerge, halt, nightly, claude (build AI), live-evals and infra (main only) |
+| `.github/workflows/` | push, pr, automerge, halt, nightly, live-evals-pr, claude and chain (build AI), live-evals and infra (main only) |
 
 ## Commands
 ```bash

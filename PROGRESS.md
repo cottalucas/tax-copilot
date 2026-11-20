@@ -1,7 +1,7 @@
 # PROGRESS.md
 
 ## Current focus
-Foundation done. Next: SR-16 (login and home queue) once Lucas sets up Google sign-in.
+Build chain (SR-26), then SR-16 as the first chained issue.
 
 ## Next up
 1. SR-24: gates, auto merge, proof pull requests, infra.
@@ -10,6 +10,15 @@ Foundation done. Next: SR-16 (login and home queue) once Lucas sets up Google si
 4. Move the review job to `pull_request_target` (read the diff only, never run pull request code).
 
 ## Log
+
+### 2026-11-20 Build chain (SR-26)
+Done: chain.yml picks the next Linear issue (journey order, blockers done, no `needs-lucas`,
+one at a time, at most 3 chained pull requests in 24 hours) and starts chain-build.yml, which
+runs Claude Code on it and opens the pull request with the Claude GitHub App token (installed by
+Lucas 2026-11-20), so the gates run. Linear: SR-16 to SR-22 now block each other in order;
+SR-18, SR-19 and SR-21 carry `needs-lucas` (private repo and sample return, canton decision,
+submit owner and data import). Strict rule from Lucas in AGENTS.md: act only on
+cottalucas/tax-copilot.
 
 ### 2026-11-20 Foundation done: #7 merged, deployed from main
 - #7 merged after one bootstrap merge done by Lucas: `review` and `evals:live` came off the
