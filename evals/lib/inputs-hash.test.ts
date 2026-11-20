@@ -26,4 +26,13 @@ describe("model inputs hash", () => {
     expect(() => modelInputsHash(root)).toThrow(/Symlink not allowed/);
     expect(() => safeFiles(root, "/etc")).toThrow(/outside the checkout/);
   });
+
+  it("rejects a symlinked parent folder", () => {
+    const root = mkdtempSync(join(tmpdir(), "inputs-"));
+    const outside = mkdtempSync(join(tmpdir(), "outside-"));
+    mkdirSync(join(outside, "models"), { recursive: true });
+    writeFileSync(join(outside, "models/x.ts"), "x");
+    symlinkSync(outside, join(root, "src"));
+    expect(() => safeFiles(root, join(root, "src/models"))).toThrow(/Symlink/);
+  });
 });

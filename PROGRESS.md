@@ -211,6 +211,7 @@ calibrated rules (none means it would now be a comment).
 | 2026-11-20 | #7 run 12 | No evidence that `changes` was retired and admins are blocked | CRITERION | Branch protection and ruleset state quoted in the body |
 | 2026-11-20 | #7 run 13 | Committed recordings cannot prove Vertex made them, live check not required | SECURITY | Bootstrap: #7 cannot trigger the trusted workflow before merge. Lucas attests its evals:live status (recordings from this exact model code, hash checked) and the check becomes required. The agent may not post it |
 | 2026-11-20 | #7 run 13 | Hashing followed symlinks on the trusted host | SECURITY | Symlinks and paths outside the checkout rejected, in hashing and in the verifier |
+| 2026-11-20 | #7 run 14 | Parent folder symlinks passed, and the container could rewrite the tree the verifier reads | SECURITY | Real paths checked for every component. The container gets its own checkout; the verifier reads an unmounted one |
 | 2026-11-19 | #7 run 4 | codeql.yml held security-events write inside a pull request defined workflow | SECURITY | CodeQL default setup (extended queries) run by GitHub, plus ruleset "Code scanning blocks merges". codeql.yml deleted |
 
 ## Assumptions
