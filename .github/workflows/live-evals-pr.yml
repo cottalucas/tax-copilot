@@ -64,7 +64,7 @@ jobs:
       - uses: google-github-actions/auth@v3
         if: steps.data.outputs.run == 'true'
         with:
-          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          workload_identity_provider: ${{ vars.GCP_WIF_EVALS_PROVIDER }}
           service_account: ${{ vars.GCP_EVALS_SA }}
       - id: run
         if: steps.data.outputs.run == 'true'

@@ -131,7 +131,8 @@ Names only. A human sets secret values. Agents never see them.
 - Secrets: ANTHROPIC_API_KEY, OPENAI_API_KEY (build AI), LINEAR_API_KEY.
 - Build AI: BUILDER_MODEL, REVIEWER_MODEL.
 - Product AI: EXTRACT_PROVIDER, EXTRACT_MODEL, VERTEX_PROJECT_ID, VERTEX_REGION.
-- Infra: FIREBASE_PROJECT_ID, FIRESTORE_LOCATION, GCP_WIF_PROVIDER, GCP_DEPLOY_SA, GCP_EVALS_SA.
+- Infra: FIREBASE_PROJECT_ID, FIRESTORE_LOCATION, GCP_WIF_PROVIDER and GCP_DEPLOY_SA (infra.yml),
+  GCP_WIF_EVALS_PROVIDER and GCP_EVALS_SA (live evals).
 
 ## Conflict order
 Linear wins on scope. Never do wins on data. ARCHITECTURE.md wins on technical shape. The latest
