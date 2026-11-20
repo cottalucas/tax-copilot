@@ -216,6 +216,7 @@ calibrated rules (none means it would now be a comment).
 | 2026-11-20 | #7 run 15 | Old PROGRESS lines named EVAL_MODELS | CRITERION | Marked obsolete |
 | 2026-11-20 | #7 run 16 | Fork pull requests had no workflow to post evals:live | SECURITY | Forks get an explicit failure status: re-open from a branch |
 | 2026-11-20 | #7 run 16 | #7's own live result is attested, not computed by the trusted workflow | SECURITY | Bootstrap: the gate #7 adds cannot certify #7. Needs Lucas's one decision |
+| 2026-11-20 | #7 CodeQL | Unpinned third party actions (4), proxy wrote network data to a file | code scanning ruleset | Actions pinned to commit hashes. The proxy writes exchanges to stdout; the trusted workflow saves them |
 | 2026-11-19 | #7 run 4 | codeql.yml held security-events write inside a pull request defined workflow | SECURITY | CodeQL default setup (extended queries) run by GitHub, plus ruleset "Code scanning blocks merges". codeql.yml deleted |
 
 ## Assumptions

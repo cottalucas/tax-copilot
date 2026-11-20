@@ -10,12 +10,13 @@ afterEach(() => close?.());
 
 async function start(maxCalls = 2, upstreamBody: unknown = { usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 5 } }) {
   const fetchImpl = vi.fn(async () => new Response(JSON.stringify(upstreamBody), { status: 200 }));
-  const { server, state } = createProxy({ ...cfg, upstream: "https://up", getToken: async () => "secret-token", fetchImpl, maxCalls, maxUsd: 1 });
+  const exchanges: unknown[] = [];
+  const { server, state } = createProxy({ ...cfg, upstream: "https://up", getToken: async () => "secret-token", fetchImpl, maxCalls, maxUsd: 1, onExchange: (e: unknown) => exchanges.push(e) });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   close = () => server.close();
   const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   const post = (p: string, body: unknown) => fetch(url + p, { method: "POST", body: JSON.stringify(body) });
-  return { post, fetchImpl, state };
+  return { post, fetchImpl, state, exchanges };
 }
 
 describe("vertex proxy", () => {
@@ -26,9 +27,10 @@ describe("vertex proxy", () => {
   });
 
   it("adds the token upstream, never to the caller, and caps calls", async () => {
-    const { post, fetchImpl } = await start(1);
+    const { post, fetchImpl, exchanges } = await start(1);
     const ok = await post(path, { generationConfig: { maxOutputTokens: 100 } });
     expect(ok.status).toBe(200);
+    expect(exchanges).toHaveLength(1);
     expect(JSON.stringify(await ok.json())).not.toContain("secret-token");
     const call = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
     expect(call[0]).toBe(`https://up${path}`);
