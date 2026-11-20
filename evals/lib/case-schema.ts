@@ -16,5 +16,7 @@ export const CaseFile = z.object({
 export const Recording = z.object({
   model: z.string().min(1),
   recordedAt: z.string().min(1),
+  /** modelInputsHash() of the code and prompt that produced the output. */
+  inputsHash: z.string().length(64),
   output: z.unknown(),
 });

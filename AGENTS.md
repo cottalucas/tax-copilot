@@ -88,9 +88,9 @@ Skills live in `.agents/skills/` (see its README). Load a skill only when the ta
 - Every acceptance criterion of the Linear issue passes, checked by a test or a visible check.
 - Every gate below passes, including the review.
 - PROGRESS.md updated. No secret or client data in the diff.
-- After a merge that changes `prompts/`, `src/schema/`, `src/extraction/`, `rules/` or
-  `src/models/`: run live-evals once from main (Actions > live-evals > Run workflow), log calls,
-  cost and result in PROGRESS.md, and commit the recordings from its artifact to `evals/recorded/`.
+- A pull request that changes `prompts/`, `src/schema/`, `src/extraction/` or `src/models/` commits
+  new recordings from its live-evals-pr `trusted-recordings` artifact to `evals/recorded/` (the
+  offline gate fails on stale ones), and logs calls, cost and result in PROGRESS.md.
 
 ## Pipeline
 No human QA. Every pull request runs every gate. When all pass, the pull request merges itself

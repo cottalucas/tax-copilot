@@ -206,6 +206,9 @@ calibrated rules (none means it would now be a comment).
 | 2026-11-20 | #7 run 11 | Adapter code changes not live tested before merge | SECURITY | Pull request code now runs live in a credential free container behind a trusted, capped Vertex proxy |
 | 2026-11-20 | #7 run 11 | evals:live required only after merge | CRITERION | Not claimed in this pull request (bootstrap: pull_request_target runs main's workflow) |
 | 2026-11-20 | #7 run 11 | EVALS.md lacked the build AI and product AI terms | CRITERION | Added |
+| 2026-11-20 | #7 run 12 | Offline evals could pass a prompt or adapter change on old recordings | SECURITY | Recordings carry a hash of the model inputs; a mismatch fails offline |
+| 2026-11-20 | #7 run 12 | Harness trusted the pull request's eval exit code | SECURITY | Main's code scores the real exchanges the proxy logged, and writes the trusted recordings |
+| 2026-11-20 | #7 run 12 | No evidence that `changes` was retired and admins are blocked | CRITERION | Branch protection and ruleset state quoted in the body |
 | 2026-11-19 | #7 run 4 | codeql.yml held security-events write inside a pull request defined workflow | SECURITY | CodeQL default setup (extended queries) run by GitHub, plus ruleset "Code scanning blocks merges". codeql.yml deleted |
 
 ## Assumptions

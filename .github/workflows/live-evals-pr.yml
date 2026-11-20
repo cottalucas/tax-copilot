@@ -3,7 +3,8 @@
 # extraction, adapter, rules) inside a container with no credentials. It reaches Vertex only
 # through the trusted proxy (scripts/vertex-proxy.mjs), which holds the token and allows one
 # model and EU location, at most budgets.json liveEvalMaxCalls calls and liveEvalMaxCostUsd.
-# Posts the "evals:live" status on the pull request head commit.
+# Main's code then scores the real exchanges the proxy logged (evals/verify-proxy.ts) and posts
+# the "evals:live" status on the pull request head commit. The pull request's exit code is ignored.
 name: live-evals-pr
 
 on:
@@ -64,18 +65,29 @@ jobs:
       - name: Start the trusted Vertex proxy
         if: steps.pr.outputs.run == 'true'
         run: |
-          node scripts/vertex-proxy.mjs 8787 > "$RUNNER_TEMP/proxy.log" 2>&1 &
+          PROXY_LOG="$RUNNER_TEMP/proxy.jsonl" node scripts/vertex-proxy.mjs 8787 > "$RUNNER_TEMP/proxy.log" 2>&1 &
           for _ in $(seq 1 20); do grep -q "Vertex proxy ready" "$RUNNER_TEMP/proxy.log" && break; sleep 1; done
           grep -q "Vertex proxy ready" "$RUNNER_TEMP/proxy.log"
-      - id: run
-        name: Run the pull request's live evals in a container without credentials
+      - name: Run the pull request's live evals in a container without credentials
         if: steps.pr.outputs.run == 'true'
+        continue-on-error: true
         run: |
           docker run --rm --add-host=host.docker.internal:host-gateway \
             -v "$RUNNER_TEMP/pr:/app" -w /app \
             -e EXTRACT_PROVIDER -e EXTRACT_MODEL -e VERTEX_PROJECT_ID -e VERTEX_REGION \
             -e VERTEX_PROXY_URL=http://host.docker.internal:8787 \
             node:22-bookworm-slim sh -c "npm ci --ignore-scripts --no-audit --no-fund && npm run evals:live"
+      # The pull request's exit code is not trusted. Main's code scores the real exchanges.
+      - id: run
+        name: Verify the real model outputs the proxy saw
+        if: steps.pr.outputs.run == 'true'
+        run: npx tsx evals/verify-proxy.ts "$RUNNER_TEMP/proxy.jsonl" "$RUNNER_TEMP/pr" "$RUNNER_TEMP/recorded"
+      - uses: actions/upload-artifact@v7
+        if: always() && steps.pr.outputs.run == 'true'
+        with:
+          name: trusted-recordings
+          path: ${{ runner.temp }}/recorded/
+          retention-days: 14
       - name: Report result
         if: always() && steps.pr.outputs.run == 'true'
         env:

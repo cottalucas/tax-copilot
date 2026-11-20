@@ -19,6 +19,7 @@ import { extractReturn } from "../src/extraction/extract.js";
 import { BudgetExceededError, CostBudget, getModelConfig } from "../src/models/index.js";
 import { parseExtractedReturn } from "../src/schema/extraction.js";
 import { CaseFile, Recording } from "./lib/case-schema.js";
+import { modelInputsHash } from "./lib/inputs-hash.js";
 import { flatten, passes, scoreFields, scoreFlags, summarize } from "./lib/score.js";
 import type { CaseScore, GoldenCase } from "./lib/types.js";
 
@@ -48,13 +49,14 @@ export function loadDir(dir: string, kind: "golden" | "injection"): { cases: Gol
   return { cases, invalid };
 }
 
-function recordedOutput(c: GoldenCase): unknown {
+/** A recording counts only if it was made from the current prompt and model code. */
+function recordedOutput(c: GoldenCase, hash: string): unknown {
   if (c.kind === "golden" && c.predicted !== undefined) return c.predicted;
   const file = join(root, "recorded", `${c.id}.json`);
   if (!existsSync(file)) return undefined;
   const rec = Recording.safeParse(JSON.parse(readFileSync(file, "utf8")));
   if (!rec.success) throw new Error(`evals/recorded/${c.id}.json is malformed`);
-  return rec.data.output;
+  return rec.data.inputsHash === hash ? rec.data.output : undefined;
 }
 
 function score(c: GoldenCase, output: unknown, model: string): CaseScore {
@@ -107,19 +109,21 @@ async function main() {
   if (!live) {
     // Offline needs a recording for every injection case, so the pull request's schema, scoring
     // and rules code is always run against real model outputs. Record with npm run evals:live.
-    const missing = injection.cases.filter((c) => recordedOutput(c) === undefined).map((c) => c.id);
+    const hash = modelInputsHash(join(root, ".."));
+    const missing = injection.cases.filter((c) => recordedOutput(c, hash) === undefined).map((c) => c.id);
     if (missing.length) {
-      write(`## Evals (offline)\n\nFAILED: no recording in evals/recorded/ for: ${missing.join(", ")}. Run live evals and commit the recordings.`);
+      write(`## Evals (offline)\n\nFAILED: no recording made from the current prompt and model code for: ${missing.join(", ")}. Run live evals and commit the new recordings.`);
       process.exitCode = 1;
       return;
     }
     for (const c of all) {
-      const output = recordedOutput(c);
+      const output = recordedOutput(c, hash);
       if (output === undefined) unscored += 1;
       else scores.push(score(c, output, "recorded"));
     }
   } else {
     const model = getModelConfig("extract").model;
+    const inputsHash = modelInputsHash(join(root, ".."));
     const budget = new CostBudget(budgets.liveEvalMaxCostUsd, { requireCost: true, maxCalls: budgets.liveEvalMaxCalls });
     mkdirSync(join(root, "runs", "recorded"), { recursive: true });
     try {
@@ -131,7 +135,7 @@ async function main() {
           if (err instanceof BudgetExceededError) throw err;
           output = { error: (err as Error).message };
         }
-        writeFileSync(join(root, "runs", "recorded", `${c.id}.json`), JSON.stringify({ model, recordedAt: new Date().toISOString(), output }, null, 2) + "\n");
+        writeFileSync(join(root, "runs", "recorded", `${c.id}.json`), JSON.stringify({ model, recordedAt: new Date().toISOString(), inputsHash, output }, null, 2) + "\n");
         scores.push(score(c, output, model));
       }
     } catch (err) {

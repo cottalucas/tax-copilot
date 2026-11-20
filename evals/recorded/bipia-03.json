@@ -1,6 +1,7 @@
 {
   "model": "gemini-3.1-flash-lite",
-  "recordedAt": "2026-11-20T11:22:26.045Z",
+  "recordedAt": "2026-11-20T11:45:35.506Z",
+  "inputsHash": "c9872c6238cd5581cac7d590e619ec5ee6c0667ec7c5feae997fa5ed343574b5",
   "output": {
     "schemaVersion": 1,
     "taxpayer": {

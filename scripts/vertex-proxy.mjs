@@ -4,7 +4,7 @@
 // reach Vertex only through this proxy, which allows one model, one EU location and a capped
 // number of calls and spend (budgets.json). Usage: node scripts/vertex-proxy.mjs [port]
 import { createServer } from "node:http";
-import { readFileSync } from "node:fs";
+import { appendFileSync, readFileSync } from "node:fs";
 import { GoogleAuth } from "google-auth-library";
 
 const budgets = JSON.parse(readFileSync(new URL("../budgets.json", import.meta.url), "utf8"));
@@ -22,7 +22,7 @@ export function costOf(usage, price) {
   return ((input - cached) * price.input + cached * (price.cachedInput ?? price.input) + output * price.output) / 1e6;
 }
 
-export function createProxy({ project, region, model, upstream, getToken, fetchImpl = fetch, maxCalls, maxUsd }) {
+export function createProxy({ project, region, model, upstream, getToken, fetchImpl = fetch, maxCalls, maxUsd, logFile }) {
   const state = { calls: 0, spentUsd: 0 };
   const server = createServer(async (req, res) => {
     const send = (code, body) => {
@@ -49,6 +49,8 @@ export function createProxy({ project, region, model, upstream, getToken, fetchI
       body: JSON.stringify(body),
     });
     const json = await upstreamRes.json();
+    // The trusted verifier scores these real exchanges itself (evals/verify-proxy.ts).
+    if (logFile) appendFileSync(logFile, JSON.stringify({ request: body, status: upstreamRes.status, response: json }) + "\n");
     const cost = costOf(json.usageMetadata, prices[model]);
     if (cost === undefined) state.spentUsd = maxUsd; // unknown price: stop further calls
     else state.spentUsd += cost;
@@ -63,6 +65,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const upstream = region === "eu" ? "https://aiplatform.eu.rep.googleapis.com" : `https://${region}-aiplatform.googleapis.com`;
   const auth = new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/cloud-platform"] });
   const getToken = async () => (await (await auth.getClient()).getAccessToken()).token;
-  const { server } = createProxy({ project, region, model, upstream, getToken, maxCalls: budgets.liveEvalMaxCalls, maxUsd: budgets.liveEvalMaxCostUsd });
+  const { server } = createProxy({ project, region, model, upstream, getToken, maxCalls: budgets.liveEvalMaxCalls, maxUsd: budgets.liveEvalMaxCostUsd, logFile: process.env.PROXY_LOG });
   server.listen(Number(process.argv[2] ?? 8787), "0.0.0.0", () => console.log("Vertex proxy ready"));
 }

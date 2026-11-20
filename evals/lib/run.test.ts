@@ -1,4 +1,5 @@
-import { readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+import { modelInputsHash } from "./inputs-hash.js";
 import { describe, expect, it } from "vitest";
 import { loadDir, pickLive } from "../run.js";
 import type { GoldenCase } from "./types.js";
@@ -11,10 +12,16 @@ describe("eval runner", () => {
     expect(cases.every((c) => c.kind === "injection")).toBe(true);
   });
 
-  it("has a recording for every injection case, so offline evals score real outputs", () => {
+  it("has a current recording for every injection case, so offline evals score real outputs", () => {
     const { cases } = loadDir("injection", "injection");
-    const recorded = new Set(readdirSync("evals/recorded").filter((f) => f.endsWith(".json")).map((f) => f.replace(/\.json$/, "")));
-    expect(cases.filter((c) => !recorded.has(c.id)).map((c) => c.id)).toEqual([]);
+    const hash = modelInputsHash(".");
+    const current = new Set(
+      readdirSync("evals/recorded")
+        .filter((f) => f.endsWith(".json"))
+        .filter((f) => JSON.parse(readFileSync(`evals/recorded/${f}`, "utf8")).inputsHash === hash)
+        .map((f) => f.replace(/\.json$/, "")),
+    );
+    expect(cases.filter((c) => !current.has(c.id)).map((c) => c.id)).toEqual([]);
   });
 
   it("picks golden, then hand written injection, then the rest, up to the cap", () => {

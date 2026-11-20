@@ -49,9 +49,11 @@ All of this is product AI (AGENTS.md > Two kinds of AI): calls go through `src/m
 `eu` only. Build AI (Claude Code, Codex) is never evaluated here.
 
 - Offline (`npm run evals`, every pull request): validates every case file, requires a recording
-  in `evals/recorded/` for every injection case, and scores the recordings (and golden
-  `predicted`) through the pull request's schema, scoring and rules code. No Google login, no
-  model call.
+  in `evals/recorded/` for every injection case made from the current prompt and model code (its
+  `inputsHash` must match a hash of `prompts/`, `src/extraction/`, `src/models/`, `src/schema/`),
+  and scores the recordings through the pull request's schema, scoring and rules code. No Google
+  login, no model call. A pull request that changes model inputs fails offline until it commits
+  new recordings: take them from the `trusted-recordings` artifact of its live-evals-pr run.
 - Live (`npm run evals:live`): calls EXTRACT_MODEL (Vertex `gemini-3.1-flash-lite`, `eu`) for at
   most 10 cases: golden first, then a rotating window of injection cases. On pull requests that
   change model inputs, the pull request's own code runs in a container with no credentials and
