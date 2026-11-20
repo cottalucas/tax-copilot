@@ -5,9 +5,23 @@ rules_version = '2';
 // Each allow rule has a test in tests/integration/firestore.rules.test.ts.
 service cloud.firestore {
   match /databases/{database}/documents {
-    // SR-16: she reads her own clients. Queries must filter on ownerUid. No writes yet (SR-17).
+    // SR-16: she reads her own clients. Queries must filter on ownerUid.
+    // SR-17: she creates a client after its files are in her Drive. Only these fields, status
+    // Documents in, no flags. No updates or deletes yet.
     match /clients/{clientId} {
       allow read: if request.auth != null && resource.data.ownerUid == request.auth.uid;
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(['ownerUid', 'displayName', 'status', 'flagCount', 'driveFolderId', 'fileCount', 'createdAt'])
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() > 0 && request.resource.data.displayName.size() <= 80
+        && request.resource.data.status == 'documents_in'
+        && request.resource.data.flagCount == 0
+        && request.resource.data.driveFolderId is string
+        && request.resource.data.driveFolderId.size() > 0 && request.resource.data.driveFolderId.size() <= 200
+        && request.resource.data.fileCount is int
+        && request.resource.data.fileCount > 0 && request.resource.data.fileCount <= 30
+        && request.resource.data.createdAt == request.time;
     }
     match /{document=**} {
       allow read, write: if false;

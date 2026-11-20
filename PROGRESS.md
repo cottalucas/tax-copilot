@@ -11,6 +11,20 @@ Foundation done. Next: SR-16 (login and home queue) once Lucas sets up Google si
 
 ## Log
 
+### 2026-11-20 SR-17 New return and intake
+Done: "New client" on the queue opens a form: client name and PDFs (drop or choose; PDF only, at
+most 25 MB each, 30 files). On submit the browser gets her Google token with scope `drive.file`,
+creates a folder "Tax Copilot - <client> - <year>" in her Drive and uploads the PDFs there; retry
+never uploads a file twice. Only then Firestore gets the client record (status Documents in, no
+flags, Drive folder id, file count), and the queue shows it under Documents in. No file or file
+content is stored anywhere but her Drive. Rules: create only her own client with exactly those
+fields. Picking an existing Drive folder needs the Google Picker (an API key from Lucas):
+follow up. Tests: intake rules (unit), 7 rules tests, end to end with Drive mocked at the network
+(files only to Drive, with her token, into the new folder, no other host), axe on the form.
+E2E now signs in through an emulator only hook (dropped from production builds, checked); the
+emulator's Google popup was too flaky to drive. A separate test signs in end to end through the real button and
+the emulator's Google popup.
+
 ### 2026-11-20 SR-16 Login and home queue
 Done: Google sign-in through Firebase Auth (popup) with signed out, signing in and failure
 states; the home queue groups her clients by status in working order (Needs review, Documents in,
@@ -189,6 +203,15 @@ Every block, so the reviewer can be tuned. Category is the tag the block would g
 calibrated rules (none means it would now be a comment).
 | Date | Pull request | Reason given | Category | Action |
 | --- | --- | --- | --- | --- |
+| 2026-11-20 | #11 run 6 | Marker check is not a full PDF parse | CRITERION | Lead call: intake screens files, extraction (SR-18) parses them. Pull request body reworded to claim exactly that |
+| 2026-11-20 | #11 run 5 | Only the first five bytes were checked | CRITERION | Header %PDF- and the %%EOF end marker; full parsing stays with extraction (SR-18) |
+| 2026-11-20 | #11 run 4 | A drop during the PDF check could swap in unchecked files | CRITERION | Lock first, then check and upload one fixed snapshot |
+| 2026-11-20 | #11 run 3 | A drop during upload could replace the selection mid upload | CRITERION | Selection locked while uploading |
+| 2026-11-20 | #11 run 2 | Uploads tracked by file name, same names collide | CRITERION | Tracked by position, reset on a new selection |
+| 2026-11-20 | #11 run 2 | No test completes sign in through the real button | SECURITY | Popup test signs in end to end (3 full runs green; cold start timeout 25 s) |
+| 2026-11-20 | #11 run 1 | Drive upload sent multipart/form-data, the mock hid it | CRITERION | multipart/related body built exactly; the mock rejects other content types |
+| 2026-11-20 | #11 run 1 | Drive token could come from a different Google account | CRITERION | reauthenticateWithPopup: Firebase rejects another account (auth/user-mismatch) |
+| 2026-11-20 | #11 run 1 | A file named .pdf with another declared type passed | CRITERION | Declared type must be PDF, and the first bytes must be %PDF- |
 | 2026-11-20 | #10 run 1 | Rules tests lost the signed out write and flags write checks | SECURITY | Both assertions restored |
 | 2026-11-20 | #10 run 2 | New Firestore rule not deployed by infra | CRITERION | Already deployed: infra.yml always runs "Deploy Firestore rules and indexes"; infra runs from main after merge |
 | 2026-11-19 | #2 run 1 | Skip link outside SR-15 scope, TASKS.md not updated | none | Removed the skip link |
@@ -272,6 +295,7 @@ calibrated rules (none means it would now be a comment).
 | 2026-11-18 | Hosting has no rewrite to functions yet, so preview channels deploy without functions | Agent |
 
 ## Template gaps
+- E2E against the Firebase Auth emulator: sign in with a test build hook, not the emulator popup.
 - Vertex only identity for evals: done here (github-evals). Copy the per workflow federation
   (job_workflow_ref) and the trusted proxy harness back to Golden.
 - Model availability probe per region before choosing a model (catalogs list models a project

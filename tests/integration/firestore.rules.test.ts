@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { assertFails, assertSucceeds, initializeTestEnvironment, type RulesTestEnvironment } from "@firebase/rules-unit-testing";
-import { collection, doc, getDoc, getDocs, query, setDoc, where } from "firebase/firestore";
+import { collection, deleteDoc, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where } from "firebase/firestore";
 import { afterAll, beforeAll, beforeEach, describe, it } from "vitest";
 
 // Runs against the Firestore emulator: npm run test:integration
@@ -42,8 +42,33 @@ describe("firestore.rules: clients (SR-16)", () => {
     await assertFails(getDoc(doc(anon, "clients/c1")));
     await assertFails(setDoc(doc(anon, "clients/c1"), { status: "documents_in" }));
     const db = env.authenticatedContext("preparer").firestore();
-    await assertFails(setDoc(doc(db, "clients/c1"), { ownerUid: "preparer", displayName: "X", status: "submitted" }));
-    await assertFails(setDoc(doc(db, "clients/c3"), { ownerUid: "preparer", displayName: "Y", status: "documents_in" }));
+    await assertFails(updateDoc(doc(db, "clients/c1"), { status: "submitted" }));
+    await assertFails(deleteDoc(doc(db, "clients/c1")));
+  });
+});
+
+describe("firestore.rules: creating a client (SR-17)", () => {
+  const valid = () => ({ ownerUid: "preparer", displayName: "Client C", status: "documents_in", flagCount: 0, driveFolderId: "folder123", fileCount: 3, createdAt: serverTimestamp() });
+
+  it("lets her create her own client in Documents in, after the files are in Drive", async () => {
+    const db = env.authenticatedContext("preparer").firestore();
+    await assertSucceeds(setDoc(doc(db, "clients/c3"), valid()));
+  });
+
+  it("rejects clients for someone else, other statuses, flags, extra fields or no Drive folder", async () => {
+    const db = env.authenticatedContext("preparer").firestore();
+    await assertFails(setDoc(doc(db, "clients/c4"), { ...valid(), ownerUid: "someone-else" }));
+    await assertFails(setDoc(doc(db, "clients/c4"), { ...valid(), status: "ready_to_fill" }));
+    await assertFails(setDoc(doc(db, "clients/c4"), { ...valid(), flagCount: 1 }));
+    await assertFails(setDoc(doc(db, "clients/c4"), { ...valid(), documentText: "copied pdf text" }));
+    await assertFails(setDoc(doc(db, "clients/c4"), { ...valid(), driveFolderId: "" }));
+    await assertFails(setDoc(doc(db, "clients/c4"), { ...valid(), fileCount: 0 }));
+    await assertFails(setDoc(doc(db, "clients/c4"), { ...valid(), displayName: "" }));
+  });
+
+  it("denies signed out creates", async () => {
+    const anon = env.unauthenticatedContext().firestore();
+    await assertFails(setDoc(doc(anon, "clients/c5"), valid()));
   });
 });
 

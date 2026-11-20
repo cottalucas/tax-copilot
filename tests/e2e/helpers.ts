@@ -11,18 +11,10 @@ export async function resetEmulators() {
   await fetch(`${FIRESTORE}/emulator/v1/projects/${PROJECT}/databases/(default)/documents`, { method: "DELETE" });
 }
 
-/** Signs in through the Auth emulator's Google popup. */
+/** Signs in through the Auth emulator with a Google identity (test builds only, no popup). */
 export async function signInWithGoogle(page: Page, email = "preparer@example.com") {
-  const popupPromise = page.waitForEvent("popup");
-  await page.getByRole("button", { name: "Sign in with Google" }).click();
-  const popup = await popupPromise;
-  await popup.waitForLoadState("domcontentloaded");
-  const emailInput = popup.locator("#email-input");
-  // With existing accounts the emulator lists them first; the form sits behind "Add new account".
-  if (!(await emailInput.isVisible())) await popup.locator("button.mdc-button--outlined").first().click();
-  await emailInput.fill(email);
-  await popup.locator("#display-name-input").fill("Preparer");
-  await popup.locator("#sign-in").click();
+  await page.waitForFunction(() => "__tcSignIn" in window);
+  await page.evaluate((e) => (window as unknown as { __tcSignIn: (x: string) => Promise<unknown> }).__tcSignIn(e), email);
 }
 
 /** The uid of the only signed up user in the Auth emulator. */
@@ -46,4 +38,11 @@ export async function seedClient(id: string, fields: { ownerUid: string; display
       },
     }),
   });
+}
+
+/** Reads a client document from the Firestore emulator, bypassing rules. */
+export async function readClients(): Promise<Record<string, unknown>[]> {
+  const res = await fetch(`${FIRESTORE}/v1/projects/${PROJECT}/databases/(default)/documents/clients`, { headers: OWNER });
+  const json = (await res.json()) as { documents?: { fields: Record<string, Record<string, unknown>> }[] };
+  return (json.documents ?? []).map((d) => Object.fromEntries(Object.entries(d.fields).map(([k, v]) => [k, Object.values(v)[0]])));
 }

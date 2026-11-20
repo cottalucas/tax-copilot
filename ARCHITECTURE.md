@@ -18,7 +18,7 @@ Locked unless marked open.
 | Product AI | One adapter, Vertex Gemini on the EU endpoint only | `src/models/` |
 | Rules | Plain code with tests, not prompts | `rules/` |
 | Storage | Firestore: client status, flags, corrections only. No documents | `firestore.rules` |
-| Files | Stay in her Google Drive, read through the Drive API | TODO SR-17 |
+| Files | Stay in her Google Drive. Uploaded from her browser with her own OAuth token (scope `drive.file`) into a new folder per client | `web/src/drive.ts` |
 | Filling | Claude in Chrome with one saved shortcut holding the form field map | TODO SR-21 |
 | Pipeline | GitHub Actions | `.github/workflows/`, AGENTS.md > Pipeline |
 
@@ -33,11 +33,12 @@ background job, never behind a Hosting rewrite.
 | Staging | none | Template gap. Add before the first real client |
 
 ## Data model
-`clients` confirmed in SR-16 (reads); writes come with SR-17.
+`clients` confirmed in SR-16 (reads) and SR-17 (create).
 - `clients/{clientId}`: ownerUid (her Firebase Auth uid), displayName (her label, not the legal
-  name), status (`documents_in`, `needs_review`, `ready_to_fill`, `submitted`), flagCount, and
-  later taxYear, driveFolderId, updatedAt. Rule: she reads only documents where ownerUid is her
-  uid; queries must filter on ownerUid. No client writes yet.
+  name), status (`documents_in`, `needs_review`, `ready_to_fill`, `submitted`), flagCount,
+  driveFolderId, fileCount, createdAt. Rules: she reads only documents where ownerUid is her uid
+  (queries filter on it); she creates a client only with exactly these fields, status
+  `documents_in` and no flags. No updates or deletes yet.
 - `clients/{clientId}/flags/{flagId}`: ruleId, severity, field, reason, resolved.
 - `clients/{clientId}/corrections/{id}`: field, before, after, at. Feeds new golden cases.
 - Extracted values are not stored in Firestore. TODO: the client data file lives in her Drive
