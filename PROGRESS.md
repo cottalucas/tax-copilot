@@ -23,8 +23,10 @@ Foundation done. Next: SR-16 (login and home queue) once Lucas sets up Google si
 - Rollback checked against the real release list: one release (`d60667113d964925`).
 - Google sign-in provider is off: needs Lucas's OAuth consent screen.
 - Live model spend today: about 0.06 USD (recordings and checks), all Vertex eu.
-- This pull request is the first through the new pipeline: its evals:live status comes from the
-  trusted harness, and it merges itself.
+- This pull request is the first through the new pipeline. Its first trusted live run worked end
+  to end (pull request code in the container, 10 Vertex calls through the proxy, 0.0094 USD, all
+  cases held), then the verifier read `evals/injection/bipia/attacks.json` as a case. The BIPIA
+  source moved to `evals/sources/bipia/`, and the verifier now reads only top level case files.
 
 ### 2026-11-20 Recordings and federation by workflow
 Recorded real outputs for all 18 cases from a laptop run (Lucas's Google login, Vertex `eu`):

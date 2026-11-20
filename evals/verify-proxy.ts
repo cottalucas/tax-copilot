@@ -7,7 +7,7 @@
  * Usage: tsx evals/verify-proxy.ts <proxy.jsonl> <pr root> <recordings out dir>
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import budgets from "../budgets.json" with { type: "json" };
 import { CaseFile } from "./lib/case-schema.js";
 import { modelInputsHash, safeFiles } from "./lib/inputs-hash.js";
@@ -22,7 +22,8 @@ export function loadCases(evalsDir: string): Case[] {
     const dir = join(evalsDir, kind);
     if (!existsSync(dir)) continue;
     // safeFiles rejects symlinks and paths outside the pull request checkout.
-    for (const file of safeFiles(evalsDir, dir).filter((x) => x.endsWith(".json"))) {
+    // Only the case files directly in the folder, as the runner loads them (no subfolders).
+    for (const file of safeFiles(evalsDir, dir).filter((x) => x.endsWith(".json") && x.slice(0, x.lastIndexOf("/")) === resolve(dir))) {
       const f = file.slice(file.lastIndexOf("/") + 1);
       const parsed = CaseFile.safeParse(JSON.parse(readFileSync(file, "utf8")));
       if (!parsed.success) throw new Error(`${kind}/${f} is malformed`);
