@@ -26,7 +26,6 @@ jobs:
     timeout-minutes: 60
     env:
       ISSUE_ID: ${{ github.event.client_payload.identifier }}
-      LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -37,6 +36,7 @@ jobs:
         name: Check the reservation and the limits, read the issue from Linear
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
         run: |
           echo "$ISSUE_ID" | grep -Eq '^SR-[0-9]+$' || { echo "::error::Bad issue id"; exit 1; }
           # Title and text come from Linear for the reserved issue, never from the dispatch payload.
@@ -45,11 +45,13 @@ jobs:
           since=$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)
           today=$(gh pr list -R "$GITHUB_REPOSITORY" --state all --label chain --search "created:>=$since" --json number --jq length)
           if [ "$open" != "0" ] || [ "$today" -ge 3 ]; then echo "::error::A pull request is open or the daily cap is reached."; exit 1; fi
+          # Random delimiter: issue text cannot end the value early or inject outputs.
+          delim="EOF_$(openssl rand -hex 16)"
           {
-            echo "title=$(jq -r .title "$RUNNER_TEMP/issue.json")"
-            echo "description<<LINEAR_EOF"
+            echo "title=$(jq -r '.title | gsub("[\r\n]"; " ")' "$RUNNER_TEMP/issue.json")"
+            echo "description<<$delim"
             jq -r .description "$RUNNER_TEMP/issue.json"
-            echo "LINEAR_EOF"
+            echo "$delim"
           } >> "$GITHUB_OUTPUT"
       - uses: actions/setup-java@v6
         with:
@@ -89,6 +91,7 @@ jobs:
         # Only after a confirmed reservation does anything write to Linear.
         if: always() && steps.res.outcome == 'success' && (steps.claude.outputs.structured_output == '' || fromJSON(steps.claude.outputs.structured_output || '{}').status != 'done')
         env:
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
           WHY: ${{ fromJSON(steps.claude.outputs.structured_output || '{"summary":"the builder did not finish"}').summary }}
         run: |
           node scripts/chain-next.mjs hold "$ISSUE_ID" "$WHY"

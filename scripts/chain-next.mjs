@@ -108,7 +108,8 @@ async function main() {
   }
   if (cmd === "check") {
     const reserved = chained.find((i) => i.identifier === id);
-    if (!reserved || (reserved.creatorId ?? OWNER_ID) !== OWNER_ID) {
+    // A held issue (needs-lucas) cannot restart until Lucas clears the label.
+    if (!reserved || (reserved.creatorId ?? OWNER_ID) !== OWNER_ID || reserved.labels.includes(HOLD_LABEL)) {
       console.error(`${id} is not reserved by the chain.`);
       process.exitCode = 1;
       return;
