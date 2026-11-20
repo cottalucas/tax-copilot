@@ -19,7 +19,8 @@ loading, error with Retry, and empty states. Firestore rule: she reads only clie
 is hers, no writes. Web config comes from the Firebase project at deploy time (infra.yml registers
 the web app). Tests: queue logic (unit), rules (4 emulator tests), end to end on the Auth and
 Firestore emulators (login, empty state, grouping, flagged first, another user's client hidden,
-sign out) and axe on every state. Google sign-in works live once Lucas switches on the provider.
+sign out) and axe on every state. The audit gate caught @grpc/grpc-js advisories pulled in by
+firebase; an npm override pins the patched 1.14.7 (0 production vulnerabilities). Google sign-in works live once Lucas switches on the provider.
 
 ### 2026-11-20 Foundation done: #7 merged, deployed from main
 - #7 merged after one bootstrap merge done by Lucas: `review` and `evals:live` came off the
