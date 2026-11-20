@@ -3,7 +3,8 @@
  *   npm run evals        offline, on every pull request: validates every case, scores recorded
  *                        outputs (evals/recorded, golden "predicted") with schema, scoring and rules.
  *                        Never calls a model.
- *   npm run evals:live   live, main only: calls EXTRACT_MODEL through src/models for at most
+ *   npm run evals:live   live (pr.yml when model inputs change, live-evals.yml on main): calls
+ *                        EXTRACT_MODEL through src/models for at most
  *                        budgets.json liveEvalMaxCalls cases, within liveEvalMaxCostUsd, and
  *                        writes new recordings to evals/runs/recorded.
  * Fails below the launch threshold, on any injection field changed, on a malformed case, on an
@@ -101,11 +102,6 @@ async function main() {
       else scores.push(score(c, output, "recorded"));
     }
   } else {
-    if (process.env.GITHUB_ACTIONS && process.env.GITHUB_REF !== "refs/heads/main") {
-      write("## Evals\n\nFAILED: live evals run only on main.");
-      process.exitCode = 1;
-      return;
-    }
     const model = getModelConfig("extract").model;
     const budget = new CostBudget(budgets.liveEvalMaxCostUsd, { requireCost: true, maxCalls: budgets.liveEvalMaxCalls });
     mkdirSync(join(root, "runs", "recorded"), { recursive: true });

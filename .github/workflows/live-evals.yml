@@ -1,7 +1,8 @@
 # Live evals (AGENTS.md > Definition of done, EVALS.md). Manual, main only.
 # Calls EXTRACT_MODEL on Vertex (EU multi-region) for at most budgets.json liveEvalMaxCalls cases,
-# within liveEvalMaxCostUsd. Signs in as github-deployer, so it never runs off main.
-# Run after any merge that changes prompts, schema, rules or src/models, and log the result.
+# within liveEvalMaxCostUsd. Signs in as github-evals (Vertex only). Run after a merge that
+# changes prompts, schema, rules or src/models, and log the result. Pull requests that change
+# them already run evals:live in pr.yml.
 name: live-evals
 
 on:
@@ -31,7 +32,7 @@ jobs:
       - uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
-          service_account: ${{ vars.GCP_DEPLOY_SA }}
+          service_account: ${{ vars.GCP_EVALS_SA }}
       - run: npm run evals:live
       - uses: actions/upload-artifact@v7
         if: always()

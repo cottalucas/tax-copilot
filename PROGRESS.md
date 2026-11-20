@@ -11,6 +11,14 @@ SR-25 and the foundation run: cleanup, offline pull request evals, live evals on
 
 ## Log
 
+### 2026-11-20 Review blocks cleared the right way (engineering lead)
+The earlier instruction "pull request evals offline only, deployer on main" left two real gaps,
+and the reviewer was right to block them. Fix, no accepted risk: `evals:live` runs before merge on
+pull requests that change model inputs, signed in as a new github-evals identity that can only
+call Vertex. github-deployer is bound to refs/heads/main in Google Cloud and loses its Vertex
+role: it only deploys, only from main. A 10 CHF monthly budget alert covers spend. Identity and
+budget commands run by Lucas.
+
 ### 2026-11-20 Foundation cleanup (SR-25)
 Done: two kinds of AI at the top of AGENTS.md. Product AI: `src/models` keeps the provider
 interface with Vertex only and one role (extract); openrouter, anthropic and openai providers,
@@ -166,12 +174,12 @@ calibrated rules (none means it would now be a comment).
 | 2026-11-20 | #7 run 6 | Evals give pull request code github-deployer rights | SECURITY | Resolved 2026-11-20: pull requests never sign in to Google, live evals run on main only |
 | 2026-11-20 | #7 run 6 | Evals skip when no eval input changed | CRITERION | Resolved: offline evals run on every pull request, live evals by hand |
 | 2026-11-20 | #7 run 6 | A fixture could relabel its kind and skip the live run | CRITERION | The folder sets the kind |
-| 2026-11-20 | #7 run 7 | Offline evals pass with zero recordings | SECURITY | Accepted by Lucas's plan: recordings come from the first live run on main |
+| 2026-11-20 | #7 run 7 | Offline evals pass with zero recordings | SECURITY | Fixed in run 8: live evals run before merge when model inputs change |
 | 2026-11-20 | #7 run 7 | Nightly full evals removed, live runs capped at 10 of 18 cases | SECURITY | Accepted by Lucas's plan (cost). Template gap: rotate cases across runs |
-| 2026-11-20 | #7 run 7 | Deployer identity for live evals, main guard only in workflow YAML | SECURITY | Accepted by Lucas's plan. Template gap: Vertex only identity, branch bound in Google Cloud |
+| 2026-11-20 | #7 run 7 | Deployer identity for live evals, main guard only in workflow YAML | SECURITY | Fixed in run 8 |
 | 2026-11-20 | #7 run 7 | Stale EVAL_MODELS line, stale provider line in ARCHITECTURE.md | CRITERION | Fixed |
-| 2026-11-20 | #7 run 8 | Offline evals cannot catch prompt or adapter regressions before merge | SECURITY | Accepted by Lucas's plan. Needs his decision to clear the gate |
-| 2026-11-20 | #7 run 8 | Deployer trust policy restricts by repository, not branch | SECURITY | Accepted by Lucas's plan. Needs his decision to clear the gate |
+| 2026-11-20 | #7 run 8 | Offline evals cannot catch prompt or adapter regressions before merge | SECURITY | Fixed: `evals:live` on pull requests that change model inputs, as github-evals (Vertex only) |
+| 2026-11-20 | #7 run 8 | Deployer trust policy restricts by repository, not branch | SECURITY | Fixed: deployer bound to refs/heads/main in Google Cloud, Vertex role removed (Lucas's command block) |
 | 2026-11-20 | #7 run 8 | Old PROGRESS lines read as current policy (deployer in pull request evals, OPENROUTER key) | CRITERION | Marked superseded |
 | 2026-11-19 | #7 run 4 | codeql.yml held security-events write inside a pull request defined workflow | SECURITY | CodeQL default setup (extended queries) run by GitHub, plus ruleset "Code scanning blocks merges". codeql.yml deleted |
 
@@ -199,9 +207,6 @@ calibrated rules (none means it would now be a comment).
 
 ## Template gaps
 - Live evals cover 10 of 18 cases per run. Rotate cases across runs so every case runs live.
-- Later hardening: a Vertex only identity for live evals, and github-deployer bound to main in
-  Google Cloud (today the trust policy restricts by repository; the main guard sits in the
-  workflow YAML). Pull requests no longer sign in to Google at all (2026-11-20).
 - Golden MODELS guidance should probe which models a new project can call per region: catalogs
   list models a project cannot use.
 - Staging environment: none yet. Add a staging Firebase project before the first real client.

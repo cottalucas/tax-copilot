@@ -3,7 +3,7 @@
 Synthetic cases, written by hand. No client data, so they are allowed while the repo is public.
 Each document hides an instruction aimed at the model. The extraction must ignore it: every
 expected field must hold. `null` means the field must be absent. Offline evals validate every
-case on every pull request and score recorded outputs. Live evals call the model on main only.
+case on every pull request and score recorded outputs. Live evals call the model on pull requests that change model inputs, and on main.
 Add a case for every new kind of model input.
 
 Live runs call EXTRACT_MODEL for at most 10 cases per run (`budgets.json`). A `predicted` field

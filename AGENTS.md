@@ -20,7 +20,7 @@ Copilot. Product: PRD.md. System: ARCHITECTURE.md.
 | test:integration | `npm run test:integration` | Firestore emulator, needs Java 11+ |
 | test:e2e | `npm run test:e2e` | Playwright with axe. First run: `npx playwright install chromium` |
 | evals | `npm run evals` | Offline: validates cases, scores recorded outputs. No model calls |
-| evals:live | `npm run evals:live` | Live, main only (live-evals.yml). At most 10 calls, cost capped |
+| evals:live | `npm run evals:live` | Live on Vertex eu: pull requests that change model inputs, and live-evals.yml. At most 10 calls, cost capped |
 | build | `npm run build` | Web to `dist/`, functions to `lib/` |
 | review | CI only | Codex. Blocks only on a tagged criterion, Never rule or security reason |
 
@@ -76,7 +76,8 @@ Skills live in `.agents/skills/` (see its README). Load a skill only when the ta
 - Never submit without her final review.
 - Never send real client data outside the EU or to any dev tool. Golden cases are anonymized.
 - Never call a product model outside `src/models`, or any provider but Vertex on an EU endpoint.
-- Never sign in to Google, or call a product model, from a pull request workflow.
+- Never sign in to Google from a pull request workflow, except `evals:live` as github-evals
+  (Vertex only). Never give pull request code the deployer identity.
 - Never use an LLM judge for numbers.
 - Never put a model name in code or workflows, or a secret value anywhere in the repo.
 - Never change the locked stack: Firebase Hosting and Auth, Cloud Functions in europe-west6,
@@ -88,8 +89,8 @@ Skills live in `.agents/skills/` (see its README). Load a skill only when the ta
 - Every gate below passes, including the review.
 - PROGRESS.md updated. No secret or client data in the diff.
 - After a merge that changes `prompts/`, `src/schema/`, `src/extraction/`, `rules/` or
-  `src/models/`: run live-evals once from main (Actions > live-evals > Run workflow) and log calls,
-  cost and result in PROGRESS.md. Commit the new recordings from its artifact to `evals/recorded/`.
+  `src/models/`: run live-evals once from main (Actions > live-evals > Run workflow), log calls,
+  cost and result in PROGRESS.md, and commit the recordings from its artifact to `evals/recorded/`.
 
 ## Pipeline
 No human QA. Every pull request runs every gate. When all pass, the pull request merges itself
@@ -103,6 +104,8 @@ repo owner is mentioned on the pull request.
 | Firestore rules | `test:integration` | Any rules test fails |
 | End to end and accessibility | `test:e2e` | Any Playwright test fails, any WCAG 2.2 AA violation |
 | Offline evals | `evals` | A malformed case, an empty injection set, a recorded output under the threshold or with an injection field changed |
+| Live evals | `evals:live` | Runs when model inputs change. Under the threshold, an injection field changed, over 10 calls or 0.25 USD |
+| Changed files | `changes` | Path filter error |
 | Dependencies | `audit` | A high or critical advisory in production dependencies |
 | Code scanning | CodeQL default setup + ruleset | Any error or warning alert, or a high or critical security alert |
 | Review | `review` | Codex blocks with a tagged [CRITERION], [NEVER] or [SECURITY] reason, or its output is malformed |
@@ -114,11 +117,12 @@ repo owner is mentioned on the pull request.
 | After pr.yml fails | halt.yml: Linear comment, GitHub mention |
 | Nightly 02:00 UTC | nightly.yml: full test:e2e, form change check (placeholder) |
 | Mention @claude | claude.yml: Claude Code builder (build AI) |
-| Manual, main only | live-evals.yml: live evals on Vertex. infra.yml: Google Cloud setup and deploy |
+| Manual | live-evals.yml: live evals on Vertex (github-evals). infra.yml, main only: Google Cloud setup and deploy (github-deployer) |
 
 - Required on main: a pull request plus every gate above. Admins included. No approvals.
   Branches need not be up to date (GitHub auto merge does not update them).
-- Only infra.yml and live-evals.yml sign in to Google, as github-deployer, and only on main.
+- github-deployer signs in only from infra.yml on main, enforced in Google Cloud (bound to
+  refs/heads/main). github-evals can only call Vertex.
 - The reviewer loads from the base commit and runs in a trusted folder, so a pull request cannot
   change its own reviewer. It judges the criteria the pull request body quotes. Rules:
   `scripts/review-rules.md`.
@@ -128,7 +132,7 @@ Names only. A human sets secret values. Agents never see them.
 - Secrets: ANTHROPIC_API_KEY, OPENAI_API_KEY (build AI), LINEAR_API_KEY.
 - Build AI: BUILDER_MODEL, REVIEWER_MODEL.
 - Product AI: EXTRACT_PROVIDER, EXTRACT_MODEL, VERTEX_PROJECT_ID, VERTEX_REGION.
-- Infra: FIREBASE_PROJECT_ID, FIRESTORE_LOCATION, GCP_WIF_PROVIDER, GCP_DEPLOY_SA.
+- Infra: FIREBASE_PROJECT_ID, FIRESTORE_LOCATION, GCP_WIF_PROVIDER, GCP_DEPLOY_SA, GCP_EVALS_SA.
 
 ## Conflict order
 Linear wins on scope. Never do wins on data. ARCHITECTURE.md wins on technical shape. The latest

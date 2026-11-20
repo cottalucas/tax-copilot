@@ -64,8 +64,8 @@ Two kinds of AI (AGENTS.md). Build AI (Claude Code, Codex) never runs in the pro
 - Why `eu`: probed 2026-11-20, this project gets 404 for every Gemini 2.5 model in europe-west1,
   europe-west4 and global, and 3.x models serve only on global and `eu`. europe-west6 serves none.
   `gemini-3.1-flash-lite` is the cheapest that answers in the EU. The adapter refuses global.
-- Login: keyless. Application Default Credentials locally, Workload Identity as github-deployer
-  in CI, from main only (live-evals.yml, infra.yml). Pull request workflows never sign in.
+- Login: keyless. Application Default Credentials locally. In CI, Workload Identity as
+  github-evals (roles/aiplatform.user only) for `evals:live` and live-evals.yml.
 - Cost: priced from `config/model-prices.json` (non-global price). Vertex caches stable prompt
   prefixes on its own; cached tokens are priced as cached.
 - Real client data: today only `vertex` on an EU endpoint may receive it (`dataClass: "client"`).
@@ -87,11 +87,15 @@ Two kinds of AI (AGENTS.md). Build AI (Claude Code, Codex) never runs in the pro
 ## Keyless deploy identity
 infra.yml signs in with Workload Identity Federation. No key file exists.
 - Pool `github`, provider `tax-copilot`, accepts only `cottalucas/tax-copilot`.
-- Used only by infra.yml and live-evals.yml, both guarded to run on main.
-- Service account `github-deployer@tax-co-pilot.iam.gserviceaccount.com`. Roles: aiplatform.user, firebase.admin,
+- Deployer: used only by infra.yml, bound in Google Cloud to `refs/heads/main` of this repo.
+- Evals: `github-evals@tax-co-pilot.iam.gserviceaccount.com`, roles/aiplatform.user only, any
+  branch of this repo. Cannot deploy or touch data.
+- Service account `github-deployer@tax-co-pilot.iam.gserviceaccount.com`. Roles: firebase.admin,
   identitytoolkit.admin, datastore.owner, serviceusage.serviceUsageAdmin, cloudfunctions.admin,
   run.admin, artifactregistry.admin, cloudbuild.builds.editor, iam.serviceAccountUser.
-- Created by Lucas on 2026-11-19. Variables GCP_WIF_PROVIDER and GCP_DEPLOY_SA point to it.
+- Created by Lucas on 2026-11-19 (deployer) and 2026-11-20 (evals). Variables GCP_WIF_PROVIDER,
+  GCP_DEPLOY_SA and GCP_EVALS_SA point to them.
+- Spend: a Google Cloud budget on the project alerts at 50%, 90% and 100% of 10 CHF a month.
 
 ## Deploy
 Live deploys are manual. Actions > infra > Run workflow.
