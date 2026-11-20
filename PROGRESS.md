@@ -263,6 +263,7 @@ calibrated rules (none means it would now be a comment).
 | 2026-11-20 | #9 run 5 | Reservation result ignored | CRITERION | A failed Linear update stops the pick |
 | 2026-11-20 | #9 run 6 | Hold step ran scripts the builder could have changed | SECURITY | Hold runs a copy taken before the builder starts |
 | 2026-11-20 | #9 run 6 | No allowed git commit and push for the builder | CRITERION | git add, commit and push allowed |
+| 2026-11-20 | #9 run 7 | Linear key reached a script the builder could change; OIDC for the whole job; git push anywhere | SECURITY | Split into reserve, build and hold jobs: the Linear key never meets builder code, OIDC only in build (the Claude action needs it), push only to origin |
 | 2026-11-19 | #7 run 4 | codeql.yml held security-events write inside a pull request defined workflow | SECURITY | CodeQL default setup (extended queries) run by GitHub, plus ruleset "Code scanning blocks merges". codeql.yml deleted |
 
 ## Assumptions
