@@ -259,6 +259,8 @@ calibrated rules (none means it would now be a comment).
 | 2026-11-20 | #9 run 4 | Checkout kept a write token reachable by npm scripts | SECURITY | persist-credentials false |
 | 2026-11-20 | #9 run 4 | Only the first 100 issues were read | CRITERION | All pages read |
 | 2026-11-20 | #9 run 4 | A failed pull request creation left the issue restartable | CRITERION | Any failure after the reservation holds the issue |
+| 2026-11-20 | #9 run 5 | History and blocker relations read one page only | SECURITY | More than one page counts as unverified or blocked |
+| 2026-11-20 | #9 run 5 | Reservation result ignored | CRITERION | A failed Linear update stops the pick |
 | 2026-11-19 | #7 run 4 | codeql.yml held security-events write inside a pull request defined workflow | SECURITY | CodeQL default setup (extended queries) run by GitHub, plus ruleset "Code scanning blocks merges". codeql.yml deleted |
 
 ## Assumptions

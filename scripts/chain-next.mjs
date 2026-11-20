@@ -77,8 +77,8 @@ async function load() {
          nodes {
            id identifier title description startedAt state { type } team { id } creator { id }
            labels { nodes { name } }
-           inverseRelations { nodes { type issue { state { type } } } }
-           history(first: 100) { nodes { actor { id } updatedDescription toTitle } }
+           inverseRelations(first: 100) { pageInfo { hasNextPage } nodes { type issue { state { type } } } }
+           history(first: 100) { pageInfo { hasNextPage } nodes { actor { id } updatedDescription toTitle } }
          } } } }`,
       { id: PROJECT_ID, after },
     );
@@ -94,9 +94,14 @@ async function load() {
     startedAt: n.startedAt,
     teamId: n.team.id,
     creatorId: n.creator?.id,
-    editedOnlyByOwner: editedOnlyBy(n.history.nodes.map((h) => ({ actorId: h.actor?.id, updatedDescription: h.updatedDescription, toTitle: h.toTitle })), OWNER_ID),
+    // Incomplete history or relations (more than one page) count as unverified or blocked.
+    editedOnlyByOwner:
+      !n.history.pageInfo.hasNextPage &&
+      editedOnlyBy(n.history.nodes.map((h) => ({ actorId: h.actor?.id, updatedDescription: h.updatedDescription, toTitle: h.toTitle })), OWNER_ID),
     labels: n.labels.nodes.map((l) => l.name),
-    blockers: n.inverseRelations.nodes.filter((r) => r.type === "blocks").map((r) => r.issue.state.type),
+    blockers: n.inverseRelations.pageInfo.hasNextPage
+      ? ["unknown"]
+      : n.inverseRelations.nodes.filter((r) => r.type === "blocks").map((r) => r.issue.state.type),
   }));
   const team = issues[0]
     ? await linear(`query($id: String!) { team(id: $id) { states { nodes { id name type } } labels(first: 100) { nodes { id name } } } }`, { id: issues[0].teamId })
@@ -106,7 +111,10 @@ async function load() {
 
 const state = (team, type, name) => team.states.nodes.find((s) => s.type === type && (!name || s.name === name)) ?? team.states.nodes.find((s) => s.type === type);
 const label = (team, name) => team.labels.nodes.find((l) => l.name === name);
-const update = (id, input) => linear(`mutation($id: String!, $input: IssueUpdateInput!) { issueUpdate(id: $id, input: $input) { success } }`, { id, input });
+async function update(id, input) {
+  const data = await linear(`mutation($id: String!, $input: IssueUpdateInput!) { issueUpdate(id: $id, input: $input) { success } }`, { id, input });
+  if (!data.issueUpdate?.success) throw new Error(`Linear did not apply the update to ${id}.`);
+}
 
 async function main() {
   if (!process.env.LINEAR_API_KEY) throw new Error("LINEAR_API_KEY is not set.");
