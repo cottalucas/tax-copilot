@@ -243,6 +243,11 @@ calibrated rules (none means it would now be a comment).
 | 2026-11-20 | #7 run 16 | Fork pull requests had no workflow to post evals:live | SECURITY | Forks get an explicit failure status: re-open from a branch |
 | 2026-11-20 | #7 run 16 | #7's own live result is attested, not computed by the trusted workflow | SECURITY | Bootstrap: the gate #7 adds cannot certify #7. Needs Lucas's one decision |
 | 2026-11-20 | #7 CodeQL | Unpinned third party actions (4), proxy wrote network data to a file | code scanning ruleset | Actions pinned to commit hashes. The proxy writes exchanges to stdout; the trusted workflow saves them |
+| 2026-11-20 | #9 run 1 | Picker ran the dispatched ref's code with write access | SECURITY | chain.yml runs only on main and checks out main |
+| 2026-11-20 | #9 run 1 | Linear text steered the builder and the review | SECURITY | Only issues created by Lucas are picked; the prompt marks the text as data under AGENTS.md |
+| 2026-11-20 | #9 run 1 | A direct dispatch could skip the reservation and the cap | CRITERION | chain-build re-checks the Linear reservation, open pull requests and the daily cap |
+| 2026-11-20 | #9 run 1 | Merged issues waited behind the gate; partial work could open a pull request | CRITERION | Reconcile runs first; the builder must report done, else needs-lucas and no pull request |
+| 2026-11-20 | #9 run 1 | Canceled blockers counted as done | CRITERION | Only completed blockers count |
 | 2026-11-19 | #7 run 4 | codeql.yml held security-events write inside a pull request defined workflow | SECURITY | CodeQL default setup (extended queries) run by GitHub, plus ruleset "Code scanning blocks merges". codeql.yml deleted |
 
 ## Assumptions

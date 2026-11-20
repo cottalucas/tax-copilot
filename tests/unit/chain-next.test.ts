@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 // @ts-expect-error plain JS script without types
-import { pickNext } from "../../scripts/chain-next.mjs";
+import { mergedIds, OWNER_ID, pickNext } from "../../scripts/chain-next.mjs";
 
 const issue = (identifier: string, title: string, extra = {}) => ({ identifier, title, stateType: "backlog", labels: [], blockers: [], ...extra });
 
@@ -21,6 +21,16 @@ describe("build chain picker", () => {
   it("waits while a chained issue is still in progress", () => {
     expect(pickNext([issue("SR-16", "1. Login", { stateType: "started", labels: ["chain"] }), issue("SR-17", "2. Intake")])).toBeUndefined();
     expect(pickNext([issue("SR-25", "Cleanup", { stateType: "started" }), issue("SR-17", "2. Intake")]).identifier).toBe("SR-17");
+  });
+
+  it("does not count a canceled blocker as done, and only picks Lucas's issues", () => {
+    expect(pickNext([issue("SR-17", "2. Intake", { blockers: ["canceled"] })])).toBeUndefined();
+    expect(pickNext([issue("SR-30", "2. Other", { creatorId: "someone-else" })])).toBeUndefined();
+    expect(pickNext([issue("SR-17", "2. Intake", { creatorId: OWNER_ID })]).identifier).toBe("SR-17");
+  });
+
+  it("reads Linear ids from merged chain pull request titles", () => {
+    expect([...mergedIds(["SR-16: Login and home queue", "docs: other", "SR-17: Intake"])]).toEqual(["SR-16", "SR-17"]);
   });
 
   it("returns nothing when every issue is done or blocked", () => {

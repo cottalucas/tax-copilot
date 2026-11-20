@@ -21,16 +21,24 @@ concurrency:
 jobs:
   pick:
     name: chain
-    if: github.repository == 'cottalucas/tax-copilot'
+    # Main's code only: a manual run from another branch does nothing.
+    if: github.repository == 'cottalucas/tax-copilot' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: main
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
+      - name: Move merged chained issues to Done
+        run: |
+          MERGED_TITLES=$(gh pr list -R "$GITHUB_REPOSITORY" --state merged --label chain --limit 30 --json title --jq '.[].title')
+          export MERGED_TITLES
+          node scripts/chain-next.mjs reconcile
       - id: gate
         name: Stop when something is in flight or the daily cap is reached
         run: |
@@ -45,9 +53,7 @@ jobs:
         name: Pick the next Linear issue
         if: steps.gate.outputs.go == 'true'
         run: |
-          MERGED_TITLES=$(gh pr list -R "$GITHUB_REPOSITORY" --state merged --label chain --limit 20 --json title --jq '.[].title')
-          export MERGED_TITLES
-          node scripts/chain-next.mjs > "$RUNNER_TEMP/next.json"
+          node scripts/chain-next.mjs pick > "$RUNNER_TEMP/next.json"
           if [ -s "$RUNNER_TEMP/next.json" ]; then echo "found=true" >> "$GITHUB_OUTPUT"; cat "$RUNNER_TEMP/next.json" | head -c 200; echo; else echo "::notice title=chain::Nothing ready. Waiting for Lucas or blockers."; fi
       - name: Start the build
         if: steps.next.outputs.found == 'true'
