@@ -55,6 +55,11 @@ jobs:
             jq -r .description "$RUNNER_TEMP/issue.json"
             echo "$delim"
           } >> "$GITHUB_OUTPUT"
+      # Copy the chain scripts before the builder runs: later Linear writes use this trusted copy.
+      - name: Keep a trusted copy of the chain scripts
+        run: |
+          mkdir -p "$RUNNER_TEMP/trusted"
+          cp scripts/chain-next.mjs scripts/review-prompt.mjs "$RUNNER_TEMP/trusted/"
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
@@ -87,7 +92,7 @@ jobs:
             "needs_lucas" and say why in summary.
           claude_args: >-
             --model ${{ vars.BUILDER_MODEL }} --max-turns 80
-            --allowedTools "Bash(npm ci),Bash(npm run check),Bash(npm run test:unit),Bash(npm run test:integration),Bash(npm run test:e2e),Bash(npm run evals),Bash(npm run build),Bash(npm install:*),Bash(git status),Bash(git diff:*),Bash(git log:*),Edit,Write,Read,Glob,Grep"
+            --allowedTools "Bash(npm ci),Bash(npm run check),Bash(npm run test:unit),Bash(npm run test:integration),Bash(npm run test:e2e),Bash(npm run evals),Bash(npm run build),Bash(npm install:*),Bash(git status),Bash(git diff:*),Bash(git log:*),Bash(git add:*),Bash(git commit:*),Bash(git push:*),Edit,Write,Read,Glob,Grep"
             --json-schema '{"type":"object","properties":{"status":{"type":"string","enum":["done","needs_lucas"]},"summary":{"type":"string"}},"required":["status","summary"]}'
       - name: Stop when the builder is not done
         # Only after a confirmed reservation does anything write to Linear.
@@ -96,7 +101,7 @@ jobs:
           LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
           WHY: ${{ fromJSON(steps.claude.outputs.structured_output || '{"summary":"the builder did not finish"}').summary }}
         run: |
-          node scripts/chain-next.mjs hold "$ISSUE_ID" "$WHY"
+          node "$RUNNER_TEMP/trusted/chain-next.mjs" hold "$ISSUE_ID" "$WHY"
           echo "::error title=chain-build::${ISSUE_ID} is not done: ${WHY}. Labelled needs-lucas; the chain stops."
           exit 1
       - name: Open the pull request with the Claude App token
@@ -126,4 +131,4 @@ jobs:
         if: failure() && steps.res.outcome == 'success'
         env:
           LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
-        run: node scripts/chain-next.mjs hold "$ISSUE_ID" "the chain-build run failed after the reservation"
+        run: node "$RUNNER_TEMP/trusted/chain-next.mjs" hold "$ISSUE_ID" "the chain-build run failed after the reservation"
