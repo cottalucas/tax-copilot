@@ -11,6 +11,16 @@ Foundation done. Next: SR-16 (login and home queue) once Lucas sets up Google si
 
 ## Log
 
+### 2026-11-20 SR-16 Login and home queue
+Done: Google sign-in through Firebase Auth (popup) with signed out, signing in and failure
+states; the home queue groups her clients by status in working order (Needs review, Documents in,
+Ready to fill, Submitted), flagged clients first, each row with name, status badge and flag count;
+loading, error with Retry, and empty states. Firestore rule: she reads only clients whose ownerUid
+is hers, no writes. Web config comes from the Firebase project at deploy time (infra.yml registers
+the web app). Tests: queue logic (unit), rules (4 emulator tests), end to end on the Auth and
+Firestore emulators (login, empty state, grouping, flagged first, another user's client hidden,
+sign out) and axe on every state. Google sign-in works live once Lucas switches on the provider.
+
 ### 2026-11-20 Foundation done: #7 merged, deployed from main
 - #7 merged after one bootstrap merge done by Lucas: `review` and `evals:live` came off the
   required list for that merge only and went straight back (confirmed: 8 required checks, admins

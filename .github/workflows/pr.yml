@@ -54,6 +54,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
 

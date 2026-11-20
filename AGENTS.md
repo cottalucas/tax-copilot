@@ -18,7 +18,7 @@ Copilot. Product: PRD.md. System: ARCHITECTURE.md.
 | check | `npm run check` | TypeScript, ESLint, secret guard, DESIGN.md lint |
 | test:unit | `npm run test:unit` | Vitest, 80% coverage floor on `src/`, network mocked |
 | test:integration | `npm run test:integration` | Firestore emulator, needs Java 11+ |
-| test:e2e | `npm run test:e2e` | Playwright with axe. First run: `npx playwright install chromium` |
+| test:e2e | `npm run test:e2e` | Playwright with axe on the Auth and Firestore emulators (Java 11+) |
 | evals | `npm run evals` | Offline: validates cases, scores recorded outputs. No model calls |
 | evals:live | `npm run evals:live` | Live on Vertex eu: pull request code in a credential free container behind a trusted proxy, nightly with rotation, live-evals.yml. At most 10 calls |
 | build | `npm run build` | Web to `dist/`, functions to `lib/` |
