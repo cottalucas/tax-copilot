@@ -1,9 +1,9 @@
-# Live evals before merge, as a trusted harness (AGENTS.md > Pipeline).
-# pull_request_target: this file and all code come from main. From the pull request it takes only
-# data: prompts/*.md and eval case JSON. It never runs pull request code, so the Vertex identity
-# is never in reach of it. Posts the "evals:live" status on the pull request head commit.
-# Model code changes (src/, rules/) are covered before merge by offline evals, which run the pull
-# request's schema, scoring and rules code on recorded real outputs for every case.
+# Live evals before merge (AGENTS.md > Pipeline). pull_request_target: this file, the proxy and the
+# Google identity come from main. The pull request's code runs end to end (prompts, schema,
+# extraction, adapter, rules) inside a container with no credentials. It reaches Vertex only
+# through the trusted proxy (scripts/vertex-proxy.mjs), which holds the token and allows one
+# model and EU location, at most budgets.json liveEvalMaxCalls calls and liveEvalMaxCostUsd.
+# Posts the "evals:live" status on the pull request head commit.
 name: live-evals-pr
 
 on:
@@ -37,8 +37,8 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - id: data
-        name: Take only data files from the pull request
+      - id: pr
+        name: Check out the pull request's files (not run here)
         run: |
           git fetch --no-tags origin "pull/${PR}/head"
           # Only certify the commit this event names: stop if the pull request moved meanwhile.
@@ -46,36 +46,48 @@ jobs:
             echo "::error title=evals:live::The pull request moved past ${HEAD_SHA}. The newer commit gets its own run."
             exit 1
           fi
-          changed=$(git diff --name-only "$BASE_SHA"...FETCH_HEAD)
-          data=$(printf '%s\n' "$changed" | grep -E '^(prompts/[^/]+\.md|evals/(golden|injection)/[^/]+\.json)$' || true)
-          model=$(printf '%s\n' "$changed" | grep -E '^(prompts/|src/schema/|src/extraction/|src/models/|rules/|evals/|config/model-prices\.json|budgets\.json)' || true)
-          for f in $data; do
-            if git cat-file -e "FETCH_HEAD:$f" 2>/dev/null; then git show "FETCH_HEAD:$f" > "$f"; else rm -f "$f"; fi
-          done
+          git worktree add --detach "$RUNNER_TEMP/pr" "$HEAD_SHA"
+          model=$(git diff --name-only "$BASE_SHA"...FETCH_HEAD | grep -E '^(prompts/|src/schema/|src/extraction/|src/models/|rules/|evals/|config/model-prices\.json|budgets\.json|package(-lock)?\.json)' || true)
           if [ -z "$model" ]; then echo "run=false" >> "$GITHUB_OUTPUT"; else echo "run=true" >> "$GITHUB_OUTPUT"; fi
-          printf 'Data files taken from the pull request:\n%s\n' "${data:-none}"
       - name: Report skipped
-        if: steps.data.outputs.run != 'true'
+        if: success() && steps.pr.outputs.run == 'false'
         run: |
           gh api "repos/${GITHUB_REPOSITORY}/statuses/${HEAD_SHA}" -f state=success -f context=evals:live \
             -f description="No model inputs changed. Skipped."
       - uses: ./.github/actions/setup
-        if: steps.data.outputs.run == 'true'
+        if: steps.pr.outputs.run == 'true'
       - uses: google-github-actions/auth@v3
-        if: steps.data.outputs.run == 'true'
+        if: steps.pr.outputs.run == 'true'
         with:
           workload_identity_provider: ${{ vars.GCP_WIF_EVALS_PROVIDER }}
           service_account: ${{ vars.GCP_EVALS_SA }}
+      - name: Start the trusted Vertex proxy
+        if: steps.pr.outputs.run == 'true'
+        run: |
+          node scripts/vertex-proxy.mjs 8787 > "$RUNNER_TEMP/proxy.log" 2>&1 &
+          for _ in $(seq 1 20); do grep -q "Vertex proxy ready" "$RUNNER_TEMP/proxy.log" && break; sleep 1; done
+          grep -q "Vertex proxy ready" "$RUNNER_TEMP/proxy.log"
       - id: run
-        if: steps.data.outputs.run == 'true'
-        run: npm run evals:live
+        name: Run the pull request's live evals in a container without credentials
+        if: steps.pr.outputs.run == 'true'
+        run: |
+          docker run --rm --add-host=host.docker.internal:host-gateway \
+            -v "$RUNNER_TEMP/pr:/app" -w /app \
+            -e EXTRACT_PROVIDER -e EXTRACT_MODEL -e VERTEX_PROJECT_ID -e VERTEX_REGION \
+            -e VERTEX_PROXY_URL=http://host.docker.internal:8787 \
+            node:22-bookworm-slim sh -c "npm ci --ignore-scripts --no-audit --no-fund && npm run evals:live"
       - name: Report result
-        if: always() && steps.data.outputs.run == 'true'
+        if: always() && steps.pr.outputs.run == 'true'
         env:
           OUTCOME: ${{ steps.run.outcome }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           state=failure; desc="Live evals failed or could not run."
-          if [ "$OUTCOME" = "success" ]; then state=success; desc="Live evals passed on Vertex eu."; fi
+          if [ "$OUTCOME" = "success" ]; then state=success; desc="Live evals passed on Vertex eu (pull request code, no credentials)."; fi
           gh api "repos/${GITHUB_REPOSITORY}/statuses/${HEAD_SHA}" -f state="$state" -f context=evals:live \
             -f description="$desc" -f target_url="$RUN_URL"
+      - name: Report a failed setup
+        if: failure() && steps.pr.outputs.run != 'true'
+        run: |
+          gh api "repos/${GITHUB_REPOSITORY}/statuses/${HEAD_SHA}" -f state=failure -f context=evals:live \
+            -f description="Live evals setup failed."

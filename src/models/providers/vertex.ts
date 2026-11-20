@@ -16,6 +16,8 @@ export interface VertexOptions {
   getAccessToken?: () => Promise<string>;
   /** Injected in tests to mock the network. */
   fetch?: typeof globalThis.fetch;
+  /** Base URL override, used only for the trusted live eval proxy. */
+  endpoint?: string;
 }
 
 /**
@@ -44,7 +46,14 @@ export class VertexProvider implements ModelProvider {
   }
 
   static fromEnv(env: NodeJS.ProcessEnv = process.env): VertexProvider {
-    return new VertexProvider({ projectId: requireEnv(env, "VERTEX_PROJECT_ID"), region: requireEnv(env, "VERTEX_REGION") });
+    // VERTEX_PROXY_URL: live evals on pull requests run in a container without credentials and
+    // reach Vertex only through the trusted proxy (scripts/vertex-proxy.mjs), which adds the token.
+    const proxy = (env.VERTEX_PROXY_URL ?? "").trim();
+    return new VertexProvider({
+      projectId: requireEnv(env, "VERTEX_PROJECT_ID"),
+      region: requireEnv(env, "VERTEX_REGION"),
+      ...(proxy ? { endpoint: proxy, getAccessToken: async () => "via-proxy" } : {}),
+    });
   }
 
   get region(): string {
@@ -55,7 +64,8 @@ export class VertexProvider implements ModelProvider {
     const { projectId, region } = this.options;
     // "eu" is the EU multi-region endpoint: data stays in the EU, newer Gemini models serve there.
     const host = region === "eu" ? "aiplatform.eu.rep.googleapis.com" : `${region}-aiplatform.googleapis.com`;
-    return `https://${host}/v1/projects/${projectId}/locations/${region}/publishers/google/models/${model}:generateContent`;
+    const base = this.options.endpoint ?? `https://${host}`;
+    return `${base}/v1/projects/${projectId}/locations/${region}/publishers/google/models/${model}:generateContent`;
   }
 
   async complete(request: CompletionRequest & { model: string }): Promise<CompletionResult> {

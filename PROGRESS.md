@@ -16,7 +16,8 @@ Recorded real outputs for all 18 cases from a laptop run (Lucas's Google login, 
 20 calls, 0.019 USD, 18 of 18 injection cases held. Offline evals now require a recording for
 every injection case and score them through the pull request's own schema, scoring and rules
 code, so model code changes are checked before merge without any identity. The trusted harness
-checks the fetched commit equals the event's head. Google federation is bound per workflow file
+checks the fetched commit equals the event's head. (Later the same day: the pull request's own
+code runs live in a credential free container behind a trusted Vertex proxy.) Google federation is bound per workflow file
 on main (`job_workflow_ref`): github-evals only for live-evals-pr, nightly and live-evals,
 github-deployer only for infra (Lucas's command block, run 2026-11-20; the github-evals Vertex
 role needed a second try because the account was not visible yet). The project already had a
@@ -201,6 +202,10 @@ calibrated rules (none means it would now be a comment).
 | 2026-11-20 | #7 run 10 | Harness could certify a commit it never evaluated | SECURITY | Fetched commit must equal the event head |
 | 2026-11-20 | #7 run 10 | Changed model code reached main before any live test, zero recordings | SECURITY | 18 real recordings committed, offline evals require one per case |
 | 2026-11-20 | #7 run 10 | pr.yml header and stale PROGRESS lines | CRITERION | Fixed |
+| 2026-11-20 | #7 run 11 | Skip status could follow a failed data step | SECURITY | Skip only after success, failure status otherwise |
+| 2026-11-20 | #7 run 11 | Adapter code changes not live tested before merge | SECURITY | Pull request code now runs live in a credential free container behind a trusted, capped Vertex proxy |
+| 2026-11-20 | #7 run 11 | evals:live required only after merge | CRITERION | Not claimed in this pull request (bootstrap: pull_request_target runs main's workflow) |
+| 2026-11-20 | #7 run 11 | EVALS.md lacked the build AI and product AI terms | CRITERION | Added |
 | 2026-11-19 | #7 run 4 | codeql.yml held security-events write inside a pull request defined workflow | SECURITY | CodeQL default setup (extended queries) run by GitHub, plus ruleset "Code scanning blocks merges". codeql.yml deleted |
 
 ## Assumptions

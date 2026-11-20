@@ -70,6 +70,11 @@ describe("vertex", () => {
     await expect(complete({ dataClass: "anonymized", messages: [] }, { env, provider: vertex(fakeFetch({ error: { message: "denied" } }, 403)) })).rejects.toThrow(/403: denied/);
   });
 
+  it("sends calls through the trusted proxy when VERTEX_PROXY_URL is set", () => {
+    const p = createProvider("vertex", { VERTEX_PROJECT_ID: "p", VERTEX_REGION: "eu", VERTEX_PROXY_URL: "http://proxy:8787" }) as VertexProvider;
+    expect(p.url("m")).toBe("http://proxy:8787/v1/projects/p/locations/eu/publishers/google/models/m:generateContent");
+  });
+
   it("is built from env and fails clearly without its settings", () => {
     expect(createProvider("vertex", { VERTEX_PROJECT_ID: "p", VERTEX_REGION: "eu" }).name).toBe("vertex");
     expect(() => createProvider("vertex", {})).toThrow(/VERTEX_PROJECT_ID/);

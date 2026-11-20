@@ -45,21 +45,25 @@ Never for numbers. An LLM judge is allowed later only for free text such as flag
 with a written rubric. None today.
 
 ## Offline and live
+All of this is product AI (AGENTS.md > Two kinds of AI): calls go through `src/models` to Vertex
+`eu` only. Build AI (Claude Code, Codex) is never evaluated here.
+
 - Offline (`npm run evals`, every pull request): validates every case file, requires a recording
   in `evals/recorded/` for every injection case, and scores the recordings (and golden
   `predicted`) through the pull request's schema, scoring and rules code. No Google login, no
   model call.
 - Live (`npm run evals:live`): calls EXTRACT_MODEL (Vertex `gemini-3.1-flash-lite`, `eu`) for at
-  most 10 cases: golden first, then a rotating window of injection cases. Runs on pull requests
-  that change model inputs as a trusted harness (main's code, the pull request's prompts and case
-  JSON only), nightly with rotation (all 18 cases within two nights), and by hand from main.
+  most 10 cases: golden first, then a rotating window of injection cases. On pull requests that
+  change model inputs, the pull request's own code runs in a container with no credentials and
+  reaches Vertex only through the trusted proxy (`scripts/vertex-proxy.mjs`, main's code, capped).
+  Also nightly with rotation (all 18 cases within two nights), and by hand from main.
   Signed in as github-evals (Vertex only). Writes recordings to commit to `evals/recorded/`.
 
 ## Regression rule
 Every correction she makes becomes a new golden case or a new rule with a test (SR-22).
 
 ## When it runs
-Offline on every pull request. Live on pull requests that change model inputs (trusted harness:
-prompt and case changes run live before merge, code changes run live after merge), nightly, and
+Offline on every pull request. Live on pull requests that change model inputs (their own code,
+before merge, behind the trusted proxy), nightly, and
 by hand from main after a model related merge (AGENTS.md > Definition of done). About 0.01 USD per
 live run, about 0.50 USD a month, inside the 10 CHF monthly budget.
