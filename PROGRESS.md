@@ -255,6 +255,10 @@ calibrated rules (none means it would now be a comment).
 | 2026-11-20 | #9 run 3 | Fixed output delimiter could be injected by issue text | SECURITY | Random delimiter, title on one line |
 | 2026-11-20 | #9 run 3 | Linear key visible to Claude in the build job | SECURITY | Key only in the reservation and hold steps |
 | 2026-11-20 | #9 run 3 | A held issue could be rebuilt by a new dispatch | CRITERION | check rejects issues labelled needs-lucas |
+| 2026-11-20 | #9 run 4 | Edited issue text or a missing creator could steer the builder | SECURITY | Creator must be Lucas and every title or description edit in the history must be his |
+| 2026-11-20 | #9 run 4 | Checkout kept a write token reachable by npm scripts | SECURITY | persist-credentials false |
+| 2026-11-20 | #9 run 4 | Only the first 100 issues were read | CRITERION | All pages read |
+| 2026-11-20 | #9 run 4 | A failed pull request creation left the issue restartable | CRITERION | Any failure after the reservation holds the issue |
 | 2026-11-19 | #7 run 4 | codeql.yml held security-events write inside a pull request defined workflow | SECURITY | CodeQL default setup (extended queries) run by GitHub, plus ruleset "Code scanning blocks merges". codeql.yml deleted |
 
 ## Assumptions

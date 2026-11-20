@@ -31,6 +31,8 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
+          # No write token left in .git for npm scripts to use. Claude pushes with its app token.
+          persist-credentials: false
       # A dispatch only builds what chain.yml reserved, and never past the limits.
       - id: res
         name: Check the reservation and the limits, read the issue from Linear
@@ -119,3 +121,9 @@ jobs:
           } > "$RUNNER_TEMP/body.md"
           gh label create chain -R "$GITHUB_REPOSITORY" --color 5e6ad2 --description "Opened by the build chain" 2>/dev/null || true
           gh pr create -R "$GITHUB_REPOSITORY" --base main --head "$BRANCH" --title "${ISSUE_ID}: ${ISSUE_TITLE}" --body-file "$RUNNER_TEMP/body.md" --label chain
+      # Any failure after a confirmed reservation holds the issue, so a new dispatch cannot restart it.
+      - name: Hold the issue on any later failure
+        if: failure() && steps.res.outcome == 'success'
+        env:
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+        run: node scripts/chain-next.mjs hold "$ISSUE_ID" "the chain-build run failed after the reservation"

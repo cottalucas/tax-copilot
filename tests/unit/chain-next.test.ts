@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 // @ts-expect-error plain JS script without types
-import { mergedSince, OWNER_ID, pickNext } from "../../scripts/chain-next.mjs";
+import { editedOnlyBy, mergedSince, OWNER_ID, pickNext } from "../../scripts/chain-next.mjs";
 
-const issue = (identifier: string, title: string, extra = {}) => ({ identifier, title, stateType: "backlog", labels: [], blockers: [], ...extra });
+const issue = (identifier: string, title: string, extra = {}) => ({ identifier, title, stateType: "backlog", labels: [], blockers: [], creatorId: OWNER_ID, ...extra });
 
 describe("build chain picker", () => {
   it("takes the lowest journey step whose blockers are done", () => {
@@ -27,6 +27,13 @@ describe("build chain picker", () => {
     expect(pickNext([issue("SR-17", "2. Intake", { blockers: ["canceled"] })])).toBeUndefined();
     expect(pickNext([issue("SR-30", "2. Other", { creatorId: "someone-else" })])).toBeUndefined();
     expect(pickNext([issue("SR-17", "2. Intake", { creatorId: OWNER_ID })]).identifier).toBe("SR-17");
+  });
+
+  it("skips issues without a known creator or edited by someone else", () => {
+    expect(pickNext([issue("SR-17", "2. Intake", { creatorId: undefined })])).toBeUndefined();
+    expect(pickNext([issue("SR-17", "2. Intake", { editedOnlyByOwner: false })])).toBeUndefined();
+    expect(editedOnlyBy([{ actorId: OWNER_ID, updatedDescription: true }, { actorId: "x", toTitle: null }], OWNER_ID)).toBe(true);
+    expect(editedOnlyBy([{ actorId: "x", updatedDescription: true }], OWNER_ID)).toBe(false);
   });
 
   it("counts a merge only if it happened after the issue last started", () => {

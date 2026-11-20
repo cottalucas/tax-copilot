@@ -4,7 +4,8 @@
 //   node scripts/chain-next.mjs pick             reserves the next issue (In Progress + chain label), prints it
 //   node scripts/chain-next.mjs check SR-n       prints SR-n's title and text from Linear if the chain reserved it, else exits 1
 //   node scripts/chain-next.mjs hold SR-n "why"  labels SR-n needs-lucas and comments why
-// Only issues created by Lucas (OWNER_ID) are picked, so only his text steers the builder.
+// Only issues created by Lucas (OWNER_ID) and edited only by him are picked, so only his text
+// steers the builder.
 import { LINEAR_API } from "./review-prompt.mjs";
 
 export const PROJECT_ID = "7353ed17-2db6-46dd-8353-4717ae53ff76";
@@ -28,7 +29,8 @@ export function pickNext(issues) {
     (i) =>
       ["backlog", "unstarted"].includes(i.stateType) &&
       !i.labels.includes(HOLD_LABEL) &&
-      (i.creatorId ?? OWNER_ID) === OWNER_ID &&
+      i.creatorId === OWNER_ID &&
+      i.editedOnlyByOwner !== false &&
       i.blockers.every((b) => b === "completed"),
   );
   ready.sort((a, b) => {
@@ -40,6 +42,11 @@ export function pickNext(issues) {
 }
 
 /** Ids whose chain pull request merged after the issue last started (a reopened issue needs a new merge). */
+/** True when every title or description edit in the issue history was made by Lucas. */
+export function editedOnlyBy(history, ownerId) {
+  return history.every((h) => !(h.updatedDescription || h.toTitle) || h.actorId === ownerId);
+}
+
 export function mergedSince(merged, issues) {
   const done = new Set();
   for (const i of issues) {
@@ -61,15 +68,24 @@ async function linear(query, variables) {
 }
 
 async function load() {
-  const data = await linear(
-    `query($id: String!) { project(id: $id) { issues(first: 100) { nodes {
-       id identifier title description startedAt state { type } team { id } creator { id }
-       labels { nodes { name } }
-       inverseRelations { nodes { type issue { state { type } } } }
-     } } } }`,
-    { id: PROJECT_ID },
-  );
-  const issues = data.project.issues.nodes.map((n) => ({
+  const nodes = [];
+  let after = null;
+  do {
+    const page = await linear(
+      `query($id: String!, $after: String) { project(id: $id) { issues(first: 100, after: $after) {
+         pageInfo { hasNextPage endCursor }
+         nodes {
+           id identifier title description startedAt state { type } team { id } creator { id }
+           labels { nodes { name } }
+           inverseRelations { nodes { type issue { state { type } } } }
+           history(first: 100) { nodes { actor { id } updatedDescription toTitle } }
+         } } } }`,
+      { id: PROJECT_ID, after },
+    );
+    nodes.push(...page.project.issues.nodes);
+    after = page.project.issues.pageInfo.hasNextPage ? page.project.issues.pageInfo.endCursor : null;
+  } while (after);
+  const issues = nodes.map((n) => ({
     id: n.id,
     identifier: n.identifier,
     title: n.title,
@@ -78,6 +94,7 @@ async function load() {
     startedAt: n.startedAt,
     teamId: n.team.id,
     creatorId: n.creator?.id,
+    editedOnlyByOwner: editedOnlyBy(n.history.nodes.map((h) => ({ actorId: h.actor?.id, updatedDescription: h.updatedDescription, toTitle: h.toTitle })), OWNER_ID),
     labels: n.labels.nodes.map((l) => l.name),
     blockers: n.inverseRelations.nodes.filter((r) => r.type === "blocks").map((r) => r.issue.state.type),
   }));
@@ -109,7 +126,7 @@ async function main() {
   if (cmd === "check") {
     const reserved = chained.find((i) => i.identifier === id);
     // A held issue (needs-lucas) cannot restart until Lucas clears the label.
-    if (!reserved || (reserved.creatorId ?? OWNER_ID) !== OWNER_ID || reserved.labels.includes(HOLD_LABEL)) {
+    if (!reserved || reserved.creatorId !== OWNER_ID || !reserved.editedOnlyByOwner || reserved.labels.includes(HOLD_LABEL)) {
       console.error(`${id} is not reserved by the chain.`);
       process.exitCode = 1;
       return;
