@@ -1,8 +1,10 @@
 # Build chain, build step (AGENTS.md > Build chain). Started by chain.yml with one Linear issue id.
 # Three jobs keep trust apart:
 #   reserve  main's code, Linear key: checks the reservation and limits, reads the issue from Linear.
-#   build    Claude Code (build AI, BUILDER_MODEL), no Linear key: implements and pushes, then the
-#            pull request is opened with the Claude GitHub App token so every gate runs.
+#   build    Claude Code (build AI, BUILDER_MODEL): read only token, no OIDC, no Linear key.
+#            Commits locally; the commits leave as a patch.
+#   publish  fresh checkout of main: applies the patch, mints the Claude App token, pushes and opens
+#            the pull request so every gate runs. Runs no builder code.
 #   hold     main's code on a fresh checkout, Linear key: labels the issue needs-lucas when the
 #            build failed or is not done. Nothing the builder wrote is used here.
 # Acts only on cottalucas/tax-copilot (the Claude App is installed on this repository only).
@@ -59,8 +61,8 @@ jobs:
           # REST listing, not search: a fresh pull request is never missed by the search index.
           open=$(gh api "repos/${GITHUB_REPOSITORY}/pulls?state=open&per_page=100" --jq length)
           since=$(date -u -d '24 hours ago' +%s)
-          today=$(gh api "repos/${GITHUB_REPOSITORY}/pulls?state=all&sort=created&direction=desc&per_page=100" \
-            --jq "[.[] | select(any(.labels[]; .name == \"chain\")) | select((.created_at | fromdateiso8601) >= $since)] | length")
+          today=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls?state=all&sort=created&direction=desc&per_page=100" \
+            --jq ".[] | select(any(.labels[]; .name == \"chain\")) | select((.created_at | fromdateiso8601) >= $since) | .number" | wc -l | tr -d ' ')
           if [ "$open" != "0" ] || [ "$today" -ge 3 ]; then echo "::error::A pull request is open or the daily cap is reached."; exit 1; fi
           # Random delimiter: issue text cannot end the value early or inject outputs.
           delim="EOF_$(openssl rand -hex 16)"
@@ -72,37 +74,27 @@ jobs:
             echo "$delim"
           } >> "$GITHUB_OUTPUT"
 
+  # Builder: no OIDC, no write access, no secrets but the Anthropic key. Claude commits locally;
+  # the commits leave the job only as a patch file.
   build:
     name: chain-build (build)
     needs: reserve
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    # The job's own token is read only. Pushes and the pull request use the Claude GitHub App token,
-    # minted through OIDC, and the app is installed on cottalucas/tax-copilot only: that
-    # installation is what confines the builder to this repository.
     permissions:
       contents: read
-      id-token: write
     outputs:
       status: ${{ steps.result.outputs.status }}
       summary: ${{ steps.result.outputs.summary }}
     env:
       ISSUE_ID: ${{ needs.reserve.outputs.id }}
-      ISSUE_TITLE: ${{ needs.reserve.outputs.title }}
-      ISSUE_BODY: ${{ needs.reserve.outputs.description }}
     steps:
       - uses: actions/checkout@v7
         with:
           ref: main
           fetch-depth: 0
-          # No write token left in .git for npm scripts to use. Claude pushes with its app token.
           persist-credentials: false
-      - id: branch
-        name: Create the branch the builder works on
-        run: |
-          b="chain/$(echo "$ISSUE_ID" | tr '[:upper:]' '[:lower:]')-${GITHUB_RUN_ID}"
-          git checkout -b "$b"
-          echo "name=$b" >> "$GITHUB_OUTPUT"
+      - run: git checkout -b chain-work && git config user.name "claude[bot]" && git config user.email "41898282+claude[bot]@users.noreply.github.com"
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
@@ -113,6 +105,8 @@ jobs:
         uses: anthropics/claude-code-action@c84e279f859e2591391e95bd309286eb111c345f # v1.0.284
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # The job's read only token: no OIDC, no Claude App token in this job.
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           prompt: |
             You are the builder for cottalucas/tax-copilot. Act only on this repository.
             Implement Linear issue ${{ needs.reserve.outputs.id }}: ${{ needs.reserve.outputs.title }}
@@ -128,14 +122,13 @@ jobs:
             never do, definition of done. Read the files its table names for this kind of task.
             Run npm run check, npm run test:unit, npm run test:integration, npm run test:e2e and
             npm run evals, and fix what fails. Update PROGRESS.md with a Log entry.
-            You are on branch ${{ steps.branch.outputs.name }}. Commit to it and push it to origin
-            (git push origin ${{ steps.branch.outputs.name }}). Do not open a pull request: the
-            workflow does. Finish with status "done" only if every acceptance criterion is met and
-            every command passes. If a criterion needs Lucas (a decision, an account, data), finish
-            with status "needs_lucas" and say why in summary.
+            Commit your work on the current branch with git commit. Do not push and do not open a
+            pull request: the workflow publishes your commits. Finish with status "done" only if
+            every acceptance criterion is met and every command passes. If a criterion needs Lucas
+            (a decision, an account, data), finish with status "needs_lucas" and say why in summary.
           claude_args: >-
             --model ${{ vars.BUILDER_MODEL }} --max-turns 80
-            --allowedTools "Bash(npm ci),Bash(npm run check),Bash(npm run test:unit),Bash(npm run test:integration),Bash(npm run test:e2e),Bash(npm run evals),Bash(npm run build),Bash(npm install:*),Bash(git status),Bash(git diff:*),Bash(git log:*),Bash(git add:*),Bash(git commit:*),Bash(git push origin:*),Edit,Write,Read,Glob,Grep"
+            --allowedTools "Bash(npm ci),Bash(npm run check),Bash(npm run test:unit),Bash(npm run test:integration),Bash(npm run test:e2e),Bash(npm run evals),Bash(npm run build),Bash(npm install:*),Bash(git status),Bash(git diff:*),Bash(git log:*),Bash(git add:*),Bash(git commit:*),Edit,Write,Read,Glob,Grep"
             --json-schema '{"type":"object","properties":{"status":{"type":"string","enum":["done","needs_lucas"]},"summary":{"type":"string"}},"required":["status","summary"]}'
       - id: result
         if: always()
@@ -148,15 +141,56 @@ jobs:
           echo "status=$status" >> "$GITHUB_OUTPUT"
           echo "summary=$summary" >> "$GITHUB_OUTPUT"
           if [ "$status" != "done" ]; then echo "::error title=chain-build::${ISSUE_ID} is not done: ${summary}"; exit 1; fi
-      - name: Open the pull request with the Claude App token
+          if [ "$(git rev-list --count main..HEAD)" = "0" ]; then echo "::error title=chain-build::No commits."; exit 1; fi
+          git format-patch main..HEAD --stdout > "$RUNNER_TEMP/chain.patch"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: chain-patch
+          path: ${{ runner.temp }}/chain.patch
+          retention-days: 7
+
+  # Publish: fresh checkout of main, applies the patch (data), runs no builder code. Only this job
+  # mints the Claude GitHub App token (OIDC), installed on cottalucas/tax-copilot only.
+  publish:
+    name: chain-build (publish)
+    needs: [reserve, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      ISSUE_ID: ${{ needs.reserve.outputs.id }}
+      ISSUE_TITLE: ${{ needs.reserve.outputs.title }}
+      ISSUE_BODY: ${{ needs.reserve.outputs.description }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: chain-patch
+          path: ${{ runner.temp }}/patch
+      - id: branch
+        run: |
+          b="chain/$(echo "$ISSUE_ID" | tr '[:upper:]' '[:lower:]')-${GITHUB_RUN_ID}"
+          git checkout -b "$b"
+          git -c user.name="claude[bot]" -c user.email="41898282+claude[bot]@users.noreply.github.com" am "$RUNNER_TEMP/patch/chain.patch"
+          echo "name=$b" >> "$GITHUB_OUTPUT"
+      # One turn, no tools: only to mint the Claude GitHub App token.
+      - id: app
+        uses: anthropics/claude-code-action@c84e279f859e2591391e95bd309286eb111c345f # v1.0.284
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: Reply with the single word OK. Do not use any tool.
+          claude_args: --model ${{ vars.BUILDER_MODEL }} --max-turns 1 --disallowedTools "Bash,Edit,Write"
+      - name: Push the branch and open the pull request with the Claude App token
         env:
-          GH_TOKEN: ${{ steps.claude.outputs.github_token }}
+          GH_TOKEN: ${{ steps.app.outputs.github_token }}
           BRANCH: ${{ steps.branch.outputs.name }}
         run: |
-          if [ -z "$BRANCH" ] || [ "$(git ls-remote --heads "https://github.com/${GITHUB_REPOSITORY}.git" "$BRANCH" | wc -l)" = "0" ]; then
-            echo "::error title=chain-build::No branch was pushed for ${ISSUE_ID}."
-            exit 1
-          fi
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/${BRANCH}"
           {
             echo "Built by the chain for ${ISSUE_ID}: ${ISSUE_TITLE}"
             echo
@@ -171,9 +205,9 @@ jobs:
 
   hold:
     name: chain-build (hold)
-    needs: [reserve, build]
+    needs: [reserve, build, publish]
     # Only after a confirmed reservation, and only when anything after it failed or is not done.
-    if: always() && needs.reserve.outputs.reserved == 'true' && (needs.reserve.result != 'success' || needs.build.result != 'success')
+    if: always() && needs.reserve.outputs.reserved == 'true' && (needs.reserve.result != 'success' || needs.build.result != 'success' || needs.publish.result != 'success')
     runs-on: ubuntu-latest
     permissions:
       contents: read

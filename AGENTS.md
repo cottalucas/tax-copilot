@@ -132,8 +132,8 @@ repo owner is mentioned on the pull request.
 - chain.yml (hourly or by hand) starts the next Linear issue when nothing is in flight: no open
   pull request, no `chain` issue In Progress, under 3 chained pull requests in 24 hours. It skips
   `needs-lucas` issues and issues with open blockers.
-- chain-build.yml runs Claude Code on it and opens the pull request with the Claude GitHub App
-  token, so every gate runs. After the merge the issue moves to Done and the next one starts. A
+- chain-build.yml runs Claude Code on it with a read only token (commits leave as a patch), then
+  a separate job opens the pull request with the Claude GitHub App token, so every gate runs. After the merge the issue moves to Done and the next one starts. A
   failed build or a blocked pull request stops the chain until fixed.
 
 ## Secrets and variables
