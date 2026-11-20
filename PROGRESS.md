@@ -203,6 +203,7 @@ Every block, so the reviewer can be tuned. Category is the tag the block would g
 calibrated rules (none means it would now be a comment).
 | Date | Pull request | Reason given | Category | Action |
 | --- | --- | --- | --- | --- |
+| 2026-11-20 | #11 run 6 | Marker check is not a full PDF parse | CRITERION | Lead call: intake screens files, extraction (SR-18) parses them. Pull request body reworded to claim exactly that |
 | 2026-11-20 | #11 run 5 | Only the first five bytes were checked | CRITERION | Header %PDF- and the %%EOF end marker; full parsing stays with extraction (SR-18) |
 | 2026-11-20 | #11 run 4 | A drop during the PDF check could swap in unchecked files | CRITERION | Lock first, then check and upload one fixed snapshot |
 | 2026-11-20 | #11 run 3 | A drop during upload could replace the selection mid upload | CRITERION | Selection locked while uploading |
