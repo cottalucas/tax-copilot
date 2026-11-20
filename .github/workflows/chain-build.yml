@@ -30,6 +30,7 @@ jobs:
     env:
       ISSUE_ID: ${{ github.event.client_payload.identifier }}
     outputs:
+      reserved: ${{ steps.check.outputs.reserved }}
       id: ${{ steps.res.outputs.id }}
       title: ${{ steps.res.outputs.title }}
       description: ${{ steps.res.outputs.description }}
@@ -41,15 +42,20 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
-      - id: res
-        name: Check the reservation and the limits, read the issue from Linear
+      - id: check
+        name: Check the reservation, read the issue from Linear
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
         run: |
           echo "$ISSUE_ID" | grep -Eq '^SR-[0-9]+$' || { echo "::error::Bad issue id"; exit 1; }
           # Title and text come from Linear for the reserved issue, never from the dispatch payload.
           node scripts/chain-next.mjs check "$ISSUE_ID" > "$RUNNER_TEMP/issue.json"
+          echo "reserved=true" >> "$GITHUB_OUTPUT"
+      - id: res
+        name: Check the limits, pass the issue on
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
           open=$(gh pr list -R "$GITHUB_REPOSITORY" --state open --json number --jq length)
           since=$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)
           today=$(gh pr list -R "$GITHUB_REPOSITORY" --state all --label chain --search "created:>=$since" --json number --jq length)
@@ -128,8 +134,9 @@ jobs:
         env:
           OUT: ${{ steps.claude.outputs.structured_output }}
         run: |
-          status=$(printf '%s' "${OUT:-{}}" | jq -r '.status // "failed"')
-          summary=$(printf '%s' "${OUT:-{}}" | jq -r '.summary // "the builder did not finish"' | tr '\r\n' '  ' | head -c 500)
+          [ -n "$OUT" ] || OUT='{}'
+          status=$(printf '%s' "$OUT" | jq -r '.status // "failed"')
+          summary=$(printf '%s' "$OUT" | jq -r '.summary // "the builder did not finish"' | tr '\r\n' '  ' | head -c 500)
           echo "status=$status" >> "$GITHUB_OUTPUT"
           echo "summary=$summary" >> "$GITHUB_OUTPUT"
           if [ "$status" != "done" ]; then echo "::error title=chain-build::${ISSUE_ID} is not done: ${summary}"; exit 1; fi
@@ -157,8 +164,8 @@ jobs:
   hold:
     name: chain-build (hold)
     needs: [reserve, build]
-    # Only after a confirmed reservation, and only when the build failed or is not done.
-    if: always() && needs.reserve.result == 'success' && needs.build.result != 'success'
+    # Only after a confirmed reservation, and only when anything after it failed or is not done.
+    if: always() && needs.reserve.outputs.reserved == 'true' && (needs.reserve.result != 'success' || needs.build.result != 'success')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -172,6 +179,6 @@ jobs:
           node-version-file: .nvmrc
       - env:
           LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
-          ISSUE_ID: ${{ needs.reserve.outputs.id }}
+          ISSUE_ID: ${{ github.event.client_payload.identifier }}
           WHY: ${{ needs.build.outputs.summary || 'the chain-build run failed' }}
         run: node scripts/chain-next.mjs hold "$ISSUE_ID" "$WHY"
