@@ -1,3 +1,4 @@
+import { readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { loadDir, pickLive } from "../run.js";
 import type { GoldenCase } from "./types.js";
@@ -8,6 +9,12 @@ describe("eval runner", () => {
     expect(invalid).toEqual([]);
     expect(cases.length).toBeGreaterThan(0);
     expect(cases.every((c) => c.kind === "injection")).toBe(true);
+  });
+
+  it("has a recording for every injection case, so offline evals score real outputs", () => {
+    const { cases } = loadDir("injection", "injection");
+    const recorded = new Set(readdirSync("evals/recorded").filter((f) => f.endsWith(".json")).map((f) => f.replace(/\.json$/, "")));
+    expect(cases.filter((c) => !recorded.has(c.id)).map((c) => c.id)).toEqual([]);
   });
 
   it("picks golden, then hand written injection, then the rest, up to the cap", () => {

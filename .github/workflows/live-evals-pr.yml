@@ -2,7 +2,8 @@
 # pull_request_target: this file and all code come from main. From the pull request it takes only
 # data: prompts/*.md and eval case JSON. It never runs pull request code, so the Vertex identity
 # is never in reach of it. Posts the "evals:live" status on the pull request head commit.
-# Pull requests that change model code (src/, rules/) get their live run after merge (live-evals.yml).
+# Model code changes (src/, rules/) are covered before merge by offline evals, which run the pull
+# request's schema, scoring and rules code on recorded real outputs for every case.
 name: live-evals-pr
 
 on:
@@ -40,6 +41,11 @@ jobs:
         name: Take only data files from the pull request
         run: |
           git fetch --no-tags origin "pull/${PR}/head"
+          # Only certify the commit this event names: stop if the pull request moved meanwhile.
+          if [ "$(git rev-parse FETCH_HEAD)" != "$HEAD_SHA" ]; then
+            echo "::error title=evals:live::The pull request moved past ${HEAD_SHA}. The newer commit gets its own run."
+            exit 1
+          fi
           changed=$(git diff --name-only "$BASE_SHA"...FETCH_HEAD)
           data=$(printf '%s\n' "$changed" | grep -E '^(prompts/[^/]+\.md|evals/(golden|injection)/[^/]+\.json)$' || true)
           model=$(printf '%s\n' "$changed" | grep -E '^(prompts/|src/schema/|src/extraction/|src/models/|rules/|evals/|config/model-prices\.json|budgets\.json)' || true)

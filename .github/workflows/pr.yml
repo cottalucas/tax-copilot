@@ -1,6 +1,7 @@
 # Every pull request (AGENTS.md > Pipeline). No human QA: a pull request halts when any gate fails.
-# Required on main: check, test:unit, test:integration, test:e2e, evals, audit, review, and the
-# evals:live status from live-evals-pr.yml. Code scanning: CodeQL default setup plus a ruleset.
+# Required on main: check, test:unit, test:integration, test:e2e, evals, audit, review. After
+# live-evals-pr.yml reaches main, its evals:live status is required too. Code scanning: CodeQL
+# default setup plus a ruleset.
 # Pull request code never signs in to Google.
 
 name: pr

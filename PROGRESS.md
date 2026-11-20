@@ -11,6 +11,15 @@ SR-25 and the foundation run: cleanup, offline pull request evals, live evals on
 
 ## Log
 
+### 2026-11-20 Recordings and federation by workflow
+Recorded real outputs for all 18 cases from a laptop run (Lucas's Google login, Vertex `eu`):
+20 calls, 0.019 USD, 18 of 18 injection cases held. Offline evals now require a recording for
+every injection case and score them through the pull request's own schema, scoring and rules
+code, so model code changes are checked before merge without any identity. The trusted harness
+checks the fetched commit equals the event's head. Google federation is bound per workflow file
+on main (`job_workflow_ref`): github-evals only for live-evals-pr, nightly and live-evals,
+github-deployer only for infra (Lucas's command block).
+
 ### 2026-11-20 Review blocks cleared the right way (engineering lead)
 The earlier instruction "pull request evals offline only, deployer on main" left two real gaps,
 and the reviewer was right to block them. Fix, no accepted risk: `evals:live` runs before merge on
@@ -26,7 +35,8 @@ interface with Vertex only and one role (extract); openrouter, anthropic and ope
 the CHECK role and EVAL_MODELS are gone. Pull request evals run offline (case validation,
 recorded outputs scored with schema, scoring and rules), never sign in to Google. Live evals:
 live-evals.yml, manual, main only, at most 10 calls and 0.25 USD (`budgets.json`), recordings as
-an artifact. Nightly no longer runs evals. infra.yml is main only and enables the Drive API.
+an artifact. Nightly no longer runs evals. (Superseded later the same day: trusted pull request
+harness and rotating nightly live evals, see the entry above.) infra.yml is main only and enables the Drive API.
 Coverage floor fixed at 80%. UX review workflow removed, axe check kept. Session starter: plans
 in Lucas's prompts are approved. `changes` job removed (no path filters left on pull requests).
 Already done, checked once: SR-24 Done in Linear, secret scanning and push protection on.
@@ -36,7 +46,7 @@ Done: `src/models` has four providers (vertex default, anthropic, openai, openro
 role by EXTRACT_* and CHECK_* variables. Vertex calls the EU multi-region endpoint with keyless
 Google login and prices calls from `config/model-prices.json`. Prompt caching counted for all
 providers (Anthropic `cache_control`). Evals use EXTRACT_* (default Vertex
-`gemini-3.1-flash-lite`, location `eu`), run only when eval inputs change and nightly, and sign in
+`gemini-3.1-flash-lite`, location `eu`; EVAL_MODELS since removed), run only when eval inputs change and nightly, and sign in
 as `github-deployer` (Lucas's call: no separate identity yet). Injection set: 15 BIPIA attacks (MIT) plus 3 hand written. No OpenRouter in
 any workflow. Coverage 98.75%, floor raised to 98%. (Superseded the same day by the foundation
 cleanup: Vertex only, pull requests never sign in, floor fixed at 80%.)
@@ -185,6 +195,10 @@ calibrated rules (none means it would now be a comment).
 | 2026-11-20 | #7 run 9 | Pull request code could use the Vertex identity, so code caps cannot bound spend | SECURITY | Live evals moved to a trusted pull_request_target harness: main's code, pull request data only |
 | 2026-11-20 | #7 run 9 | The same 10 of 18 cases always ran live, nightly removed | SECURITY | Rotating window plus nightly live evals: all cases within two nights |
 | 2026-11-20 | #7 run 9 | Live gate not shown working, GCP_EVALS_SA missing | CRITERION | Waits on Lucas's identity block, then the gate runs live |
+| 2026-11-20 | #7 run 10 | Evals identity trusts any branch, a pull request workflow could request it | SECURITY | Federation bound to the trusted workflow files on main (job_workflow_ref) |
+| 2026-11-20 | #7 run 10 | Harness could certify a commit it never evaluated | SECURITY | Fetched commit must equal the event head |
+| 2026-11-20 | #7 run 10 | Changed model code reached main before any live test, zero recordings | SECURITY | 18 real recordings committed, offline evals require one per case |
+| 2026-11-20 | #7 run 10 | pr.yml header and stale PROGRESS lines | CRITERION | Fixed |
 | 2026-11-19 | #7 run 4 | codeql.yml held security-events write inside a pull request defined workflow | SECURITY | CodeQL default setup (extended queries) run by GitHub, plus ruleset "Code scanning blocks merges". codeql.yml deleted |
 
 ## Assumptions

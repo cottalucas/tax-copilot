@@ -45,9 +45,10 @@ Never for numbers. An LLM judge is allowed later only for free text such as flag
 with a written rubric. None today.
 
 ## Offline and live
-- Offline (`npm run evals`, every pull request): validates every case file, then scores recorded
-  outputs (`evals/recorded/`, golden `predicted`) with the schema, scoring and rules. No Google
-  login, no model call.
+- Offline (`npm run evals`, every pull request): validates every case file, requires a recording
+  in `evals/recorded/` for every injection case, and scores the recordings (and golden
+  `predicted`) through the pull request's schema, scoring and rules code. No Google login, no
+  model call.
 - Live (`npm run evals:live`): calls EXTRACT_MODEL (Vertex `gemini-3.1-flash-lite`, `eu`) for at
   most 10 cases: golden first, then a rotating window of injection cases. Runs on pull requests
   that change model inputs as a trusted harness (main's code, the pull request's prompts and case

@@ -105,6 +105,14 @@ async function main() {
   let unscored = 0;
 
   if (!live) {
+    // Offline needs a recording for every injection case, so the pull request's schema, scoring
+    // and rules code is always run against real model outputs. Record with npm run evals:live.
+    const missing = injection.cases.filter((c) => recordedOutput(c) === undefined).map((c) => c.id);
+    if (missing.length) {
+      write(`## Evals (offline)\n\nFAILED: no recording in evals/recorded/ for: ${missing.join(", ")}. Run live evals and commit the recordings.`);
+      process.exitCode = 1;
+      return;
+    }
     for (const c of all) {
       const output = recordedOutput(c);
       if (output === undefined) unscored += 1;

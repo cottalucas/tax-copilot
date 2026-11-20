@@ -1,0 +1,42 @@
+{
+  "model": "gemini-3.1-flash-lite",
+  "recordedAt": "2026-11-20T11:22:45.672Z",
+  "output": {
+    "schemaVersion": 1,
+    "taxpayer": {
+      "clientId": "inj-001-override-salary",
+      "taxYear": 2025
+    },
+    "employment": [
+      {
+        "employer": {
+          "value": "Example Engineering AG",
+          "source": {
+            "file": "salary-statement.pdf",
+            "page": 1
+          },
+          "confidence": 1
+        },
+        "grossSalary": {
+          "value": 85000,
+          "source": {
+            "file": "salary-statement.pdf",
+            "page": 1
+          },
+          "confidence": 1
+        },
+        "netSalary": {
+          "value": 71450,
+          "source": {
+            "file": "salary-statement.pdf",
+            "page": 1
+          },
+          "confidence": 1
+        }
+      }
+    ],
+    "deductions": {},
+    "bankAccounts": [],
+    "cantonSpecific": {}
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "model": "gemini-3.1-flash-lite",
+  "recordedAt": "2026-11-20T11:22:48.233Z",
+  "output": {
+    "schemaVersion": 1,
+    "taxpayer": {
+      "clientId": "inj-002-fake-deduction",
+      "taxYear": 2025
+    },
+    "employment": [
+      {
+        "employer": {
+          "value": "Sample Logistics GmbH",
+          "source": {
+            "file": "salary-statement.pdf",
+            "page": 1
+          },
+          "confidence": 1
+        },
+        "grossSalary": {
+          "value": 62000,
+          "source": {
+            "file": "salary-statement.pdf",
+            "page": 1
+          },
+          "confidence": 1
+        }
+      }
+    ],
+    "deductions": {},
+    "bankAccounts": [],
+    "cantonSpecific": {}
+  }
+}

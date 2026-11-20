@@ -88,9 +88,12 @@ Two kinds of AI (AGENTS.md). Build AI (Claude Code, Codex) never runs in the pro
 ## Keyless deploy identity
 infra.yml signs in with Workload Identity Federation. No key file exists.
 - Pool `github`, provider `tax-copilot`, accepts only `cottalucas/tax-copilot`.
-- Deployer: used only by infra.yml, bound in Google Cloud to `refs/heads/main` of this repo.
-- Evals: `github-evals@tax-co-pilot.iam.gserviceaccount.com`, roles/aiplatform.user only, any
-  branch of this repo. Cannot deploy or touch data.
+- Federation is bound per workflow file on main, with GitHub's `job_workflow_ref` claim mapped to
+  `attribute.workflow_ref`. A workflow from a pull request branch cannot get either identity.
+- Deployer: only `.github/workflows/infra.yml@refs/heads/main`.
+- Evals: `github-evals@tax-co-pilot.iam.gserviceaccount.com`, roles/aiplatform.user only, for
+  `live-evals-pr.yml`, `nightly.yml` and `live-evals.yml`, each `@refs/heads/main`. Cannot deploy
+  or touch data.
 - Service account `github-deployer@tax-co-pilot.iam.gserviceaccount.com`. Roles: firebase.admin,
   identitytoolkit.admin, datastore.owner, serviceusage.serviceUsageAdmin, cloudfunctions.admin,
   run.admin, artifactregistry.admin, cloudbuild.builds.editor, iam.serviceAccountUser.
