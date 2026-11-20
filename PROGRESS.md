@@ -22,8 +22,8 @@ fields. Picking an existing Drive folder needs the Google Picker (an API key fro
 follow up. Tests: intake rules (unit), 7 rules tests, end to end with Drive mocked at the network
 (files only to Drive, with her token, into the new folder, no other host), axe on the form.
 E2E now signs in through an emulator only hook (dropped from production builds, checked); the
-emulator's Google popup was too flaky to drive. A separate test checks the real button opens
-Google's popup. 32 of 32 passed over 4 repeats.
+emulator's Google popup was too flaky to drive. A separate test signs in end to end through the real button and
+the emulator's Google popup.
 
 ### 2026-11-20 SR-16 Login and home queue
 Done: Google sign-in through Firebase Auth (popup) with signed out, signing in and failure
@@ -203,6 +203,8 @@ Every block, so the reviewer can be tuned. Category is the tag the block would g
 calibrated rules (none means it would now be a comment).
 | Date | Pull request | Reason given | Category | Action |
 | --- | --- | --- | --- | --- |
+| 2026-11-20 | #11 run 2 | Uploads tracked by file name, same names collide | CRITERION | Tracked by position, reset on a new selection |
+| 2026-11-20 | #11 run 2 | No test completes sign in through the real button | SECURITY | Popup test signs in end to end (3 full runs green; cold start timeout 25 s) |
 | 2026-11-20 | #11 run 1 | Drive upload sent multipart/form-data, the mock hid it | CRITERION | multipart/related body built exactly; the mock rejects other content types |
 | 2026-11-20 | #11 run 1 | Drive token could come from a different Google account | CRITERION | reauthenticateWithPopup: Firebase rejects another account (auth/user-mismatch) |
 | 2026-11-20 | #11 run 1 | A file named .pdf with another declared type passed | CRITERION | Declared type must be PDF, and the first bytes must be %PDF- |

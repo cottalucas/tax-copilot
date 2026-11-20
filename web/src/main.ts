@@ -132,10 +132,13 @@ function renderIntake(user: User) {
 
   let files: File[] = [];
   let folderId: string | undefined;
-  const uploaded = new Set<string>();
+  // Each selected file is tracked by its position, so two files with the same name both upload.
+  const uploaded = new Set<number>();
   const showFiles = (picked: File[]) => {
     const { accepted, rejected } = checkFiles(picked);
     files = accepted;
+    uploaded.clear();
+    folderId = undefined;
     list.replaceChildren(...accepted.map((f) => el("li", {}, f.name)));
     errors.replaceChildren(...rejected.map((r) => el("p", {}, r)));
   };
@@ -165,13 +168,11 @@ function renderIntake(user: User) {
       status.textContent = "Connecting to your Google Drive";
       const token = await driveToken(user);
       folderId ??= await createFolder(token, folderName(checked.name, new Date().getFullYear()));
-      let n = 0;
-      for (const f of files) {
-        n += 1;
-        if (uploaded.has(f.name)) continue;
-        status.textContent = `Uploading ${n} of ${files.length} to your Drive`;
+      for (const [i, f] of files.entries()) {
+        if (uploaded.has(i)) continue;
+        status.textContent = `Uploading ${i + 1} of ${files.length} to your Drive`;
         await uploadFile(token, folderId, f);
-        uploaded.add(f.name);
+        uploaded.add(i);
       }
       status.textContent = "Saving the client";
       await addDoc(collection(db, "clients"), {

@@ -12,13 +12,21 @@ test("signed out: the login screen", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Sign in with Google" })).toBeVisible();
 });
 
-test("the sign in button opens Google's sign in popup", async ({ page }) => {
+test("the sign in button completes Google sign in through the popup", async ({ page }) => {
   await page.goto("/");
   const popupPromise = page.waitForEvent("popup");
   await page.getByRole("button", { name: "Sign in with Google" }).click();
   const popup = await popupPromise;
   expect(popup.url()).toContain("providerId=google.com");
-  await popup.close();
+  // The emulator opens on its account screen; the new account form sits behind "Add new account".
+  await popup.waitForLoadState("networkidle");
+  const form = popup.locator("#email-input");
+  if (!(await form.isVisible())) await popup.getByRole("button", { name: /add new account/i }).click();
+  await form.fill("preparer@example.com");
+  await popup.locator("#sign-in").click();
+  // The first sign in on a fresh Auth emulator is slow (cold start).
+  await expect(page.getByRole("heading", { name: "No clients yet" })).toBeVisible({ timeout: 25_000 });
+  await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
 });
 
 test("SR-16: login, empty queue, then clients grouped by status with flagged first", async ({ page }) => {
