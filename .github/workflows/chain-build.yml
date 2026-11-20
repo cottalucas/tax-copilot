@@ -56,9 +56,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          open=$(gh pr list -R "$GITHUB_REPOSITORY" --state open --json number --jq length)
-          since=$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)
-          today=$(gh pr list -R "$GITHUB_REPOSITORY" --state all --label chain --search "created:>=$since" --json number --jq length)
+          # REST listing, not search: a fresh pull request is never missed by the search index.
+          open=$(gh api "repos/${GITHUB_REPOSITORY}/pulls?state=open&per_page=100" --jq length)
+          since=$(date -u -d '24 hours ago' +%s)
+          today=$(gh api "repos/${GITHUB_REPOSITORY}/pulls?state=all&sort=created&direction=desc&per_page=100" \
+            --jq "[.[] | select(any(.labels[]; .name == \"chain\")) | select((.created_at | fromdateiso8601) >= $since)] | length")
           if [ "$open" != "0" ] || [ "$today" -ge 3 ]; then echo "::error::A pull request is open or the daily cap is reached."; exit 1; fi
           # Random delimiter: issue text cannot end the value early or inject outputs.
           delim="EOF_$(openssl rand -hex 16)"
@@ -75,11 +77,11 @@ jobs:
     needs: reserve
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    # The job's own token is read only. Pushes and the pull request use the Claude GitHub App token,
+    # minted through OIDC, and the app is installed on cottalucas/tax-copilot only: that
+    # installation is what confines the builder to this repository.
     permissions:
-      contents: write
-      pull-requests: write
-      issues: write
-      # Needed by claude-code-action to exchange OIDC for the Claude GitHub App token.
+      contents: read
       id-token: write
     outputs:
       status: ${{ steps.result.outputs.status }}
@@ -95,6 +97,12 @@ jobs:
           fetch-depth: 0
           # No write token left in .git for npm scripts to use. Claude pushes with its app token.
           persist-credentials: false
+      - id: branch
+        name: Create the branch the builder works on
+        run: |
+          b="chain/$(echo "$ISSUE_ID" | tr '[:upper:]' '[:lower:]')-${GITHUB_RUN_ID}"
+          git checkout -b "$b"
+          echo "name=$b" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
@@ -105,7 +113,6 @@ jobs:
         uses: anthropics/claude-code-action@c84e279f859e2591391e95bd309286eb111c345f # v1.0.284
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          branch_prefix: chain/
           prompt: |
             You are the builder for cottalucas/tax-copilot. Act only on this repository.
             Implement Linear issue ${{ needs.reserve.outputs.id }}: ${{ needs.reserve.outputs.title }}
@@ -121,7 +128,8 @@ jobs:
             never do, definition of done. Read the files its table names for this kind of task.
             Run npm run check, npm run test:unit, npm run test:integration, npm run test:e2e and
             npm run evals, and fix what fails. Update PROGRESS.md with a Log entry.
-            Commit and push your work to your branch on origin. Do not open a pull request: the
+            You are on branch ${{ steps.branch.outputs.name }}. Commit to it and push it to origin
+            (git push origin ${{ steps.branch.outputs.name }}). Do not open a pull request: the
             workflow does. Finish with status "done" only if every acceptance criterion is met and
             every command passes. If a criterion needs Lucas (a decision, an account, data), finish
             with status "needs_lucas" and say why in summary.
@@ -143,7 +151,7 @@ jobs:
       - name: Open the pull request with the Claude App token
         env:
           GH_TOKEN: ${{ steps.claude.outputs.github_token }}
-          BRANCH: ${{ steps.claude.outputs.branch_name }}
+          BRANCH: ${{ steps.branch.outputs.name }}
         run: |
           if [ -z "$BRANCH" ] || [ "$(git ls-remote --heads "https://github.com/${GITHUB_REPOSITORY}.git" "$BRANCH" | wc -l)" = "0" ]; then
             echo "::error title=chain-build::No branch was pushed for ${ISSUE_ID}."
