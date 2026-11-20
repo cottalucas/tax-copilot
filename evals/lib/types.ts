@@ -10,6 +10,8 @@ export interface ExpectedFlag {
 /** One golden case. Anonymized before it enters the repo (AGENTS.md > Never do). */
 export interface GoldenCase {
   id: string;
+  /** "golden" (default): anonymized real case. "injection": synthetic prompt injection case. */
+  kind?: "golden" | "injection";
   taxYear: number;
   documents: DocumentText[];
   previous?: ExtractedReturn;

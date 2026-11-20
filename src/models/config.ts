@@ -1,26 +1,29 @@
 import { ModelConfigError } from "./errors.js";
-import type { ProviderName } from "./types.js";
+import type { ModelRole, ProviderName } from "./types.js";
 
 export interface ModelConfig {
   provider: ProviderName;
   model: string;
 }
 
-const PROVIDERS: readonly ProviderName[] = ["openrouter", "vertex"];
+export const PROVIDERS: readonly ProviderName[] = ["vertex"];
+export const DEFAULT_PROVIDER: ProviderName = "vertex";
 
 /**
- * Reads provider and model from variables. Never hardcode a model name (AGENTS.md).
+ * Reads provider and model for a role from variables: EXTRACT_PROVIDER and EXTRACT_MODEL.
+ * Provider defaults to vertex, the only product AI provider. The model always comes from a
+ * variable: never a model name in code (AGENTS.md).
  */
-export function getModelConfig(env: NodeJS.ProcessEnv = process.env): ModelConfig {
-  const provider = (env.MODEL_PROVIDER ?? "").trim() as ProviderName;
+export function getModelConfig(role: ModelRole = "extract", env: NodeJS.ProcessEnv = process.env): ModelConfig {
+  const prefix = role.toUpperCase();
+  const raw = (env[`${prefix}_PROVIDER`] ?? "").trim();
+  const provider = (raw || DEFAULT_PROVIDER) as ProviderName;
   if (!PROVIDERS.includes(provider)) {
-    throw new ModelConfigError(
-      `MODEL_PROVIDER must be one of ${PROVIDERS.join(", ")}. Got "${env.MODEL_PROVIDER ?? ""}".`,
-    );
+    throw new ModelConfigError(`${prefix}_PROVIDER must be one of ${PROVIDERS.join(", ")}. Got "${raw}".`);
   }
-  const model = (env.APP_MODEL ?? "").trim();
+  const model = (env[`${prefix}_MODEL`] ?? "").trim();
   if (!model) {
-    throw new ModelConfigError("APP_MODEL is not set. Set it as a repository variable or in .env.");
+    throw new ModelConfigError(`${prefix}_MODEL is not set. Set it as a repository variable or in .env.`);
   }
   return { provider, model };
 }
@@ -28,7 +31,7 @@ export function getModelConfig(env: NodeJS.ProcessEnv = process.env): ModelConfi
 export function requireEnv(env: NodeJS.ProcessEnv, name: string): string {
   const value = (env[name] ?? "").trim();
   if (!value) {
-    throw new ModelConfigError(`${name} is not set. A human sets it as a secret (AGENTS.md > Secrets and variables).`);
+    throw new ModelConfigError(`${name} is not set. A human sets it (AGENTS.md > Secrets and variables).`);
   }
   return value;
 }

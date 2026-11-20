@@ -17,6 +17,14 @@ describe("scoreFields", () => {
   });
 });
 
+describe("absent fields", () => {
+  it("treats expected null as must be absent", () => {
+    const r = scoreFields({ "deductions.pillar3a": null }, {});
+    expect(r[0]!.correct).toBe(true);
+    expect(scoreFields({ "deductions.pillar3a": null }, { "deductions.pillar3a": 7056 })[0]!.correct).toBe(false);
+  });
+});
+
 describe("scoreFlags", () => {
   it("computes recall and critical recall", () => {
     const r = scoreFlags(

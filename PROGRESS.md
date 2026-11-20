@@ -1,7 +1,7 @@
 # PROGRESS.md
 
 ## Current focus
-SR-24: scaffolding layer (lean docs, gates on every pull request, skills, infra).
+SR-25 and the foundation run: cleanup, offline pull request evals, live evals on main, deploy.
 
 ## Next up
 1. SR-24: gates, auto merge, proof pull requests, infra.
@@ -10,6 +10,76 @@ SR-24: scaffolding layer (lean docs, gates on every pull request, skills, infra)
 4. Move the review job to `pull_request_target` (read the diff only, never run pull request code).
 
 ## Log
+
+### 2026-11-20 Recordings and federation by workflow
+Recorded real outputs for all 18 cases from a laptop run (Lucas's Google login, Vertex `eu`):
+20 calls, 0.019 USD, 18 of 18 injection cases held. Offline evals now require a recording for
+every injection case and score them through the pull request's own schema, scoring and rules
+code, so model code changes are checked before merge without any identity. The trusted harness
+checks the fetched commit equals the event's head. (Later the same day: the pull request's own
+code runs live in a credential free container behind a trusted Vertex proxy.) Google federation is bound per workflow file
+on main (`job_workflow_ref`): github-evals only for live-evals-pr, nightly and live-evals,
+github-deployer only for infra (Lucas's command block, run 2026-11-20; the github-evals Vertex
+role needed a second try because the account was not visible yet). The project already had a
+10 CHF monthly budget ("Firebase Project tax-co-pilot").
+
+### 2026-11-20 Review blocks cleared the right way (engineering lead)
+The earlier instruction "pull request evals offline only, deployer on main" left two real gaps,
+and the reviewer was right to block them. Fix, no accepted risk: `evals:live` runs before merge on
+pull requests that change model inputs, signed in as a new github-evals identity that can only
+call Vertex, only from jobs that run main's code (a pull_request_target harness takes only
+prompts and case JSON from the pull request). github-deployer is bound to refs/heads/main in Google Cloud and loses its Vertex
+role: it only deploys, only from main. A 10 CHF monthly budget alert covers spend. Identity and
+budget commands run by Lucas.
+
+### 2026-11-20 Foundation cleanup (SR-25)
+Done: two kinds of AI at the top of AGENTS.md. Product AI: `src/models` keeps the provider
+interface with Vertex only and one role (extract); openrouter, anthropic and openai providers,
+the CHECK role and the old EVAL_MODELS variable (obsolete, deleted) are gone. Pull request evals run offline (case validation,
+recorded outputs scored with schema, scoring and rules), never sign in to Google. Live evals:
+live-evals.yml, manual, main only, at most 10 calls and 0.25 USD (`budgets.json`), recordings as
+an artifact. Nightly no longer runs evals. (Superseded later the same day: trusted pull request
+harness and rotating nightly live evals, see the entry above.) infra.yml is main only and enables the Drive API.
+Coverage floor fixed at 80%. UX review workflow removed, axe check kept. Session starter: plans
+in Lucas's prompts are approved. `changes` job removed (no path filters left on pull requests).
+Already done, checked once: SR-24 Done in Linear, secret scanning and push protection on.
+
+### 2026-11-20 Model setup, cheap (Part 1)
+Done: `src/models` has four providers (vertex default, anthropic, openai, openrouter), picked per
+role by EXTRACT_* and CHECK_* variables. Vertex calls the EU multi-region endpoint with keyless
+Google login and prices calls from `config/model-prices.json`. Prompt caching counted for all
+providers (Anthropic `cache_control`). Evals use EXTRACT_* (default Vertex
+`gemini-3.1-flash-lite`, location `eu`; the EVAL_MODELS variable is obsolete and deleted), run only when eval inputs change and nightly, and sign in
+as `github-deployer` (Lucas's call: no separate identity yet). Injection set: 15 BIPIA attacks (MIT) plus 3 hand written. No OpenRouter in
+any workflow. Coverage 98.75%, floor raised to 98%. (Superseded the same day by the foundation
+cleanup: Vertex only, pull requests never sign in, floor fixed at 80%.)
+Failed first: a local eval run returned 404 on `gemini-2.5-flash-lite` in europe-west4. Probing
+showed every 2.5 model is closed to this project (europe-west1, europe-west4, global), while 3.x
+Flash Lite serves on global and the EU multi-region `eu`. Switched to `gemini-3.1-flash-lite` on
+`eu`. A probe of mine was also broken by zsh eating `$m:g` in URLs: use `${m}` in shell URLs.
+Eval finding: on real calls Flash Lite took a fake pillar 3a deduction from a note addressed to
+"the assistant" (inj-002). The extraction prompt now takes values only from the document's own
+fields and ignores notes aimed at an assistant or reader. Three runs after the fix: 18 of 18
+injection cases held, 0.017 USD per run.
+Verified: `npm run check`, `npm run test:unit` (63 tests, coverage 98.77%), `actionlint`,
+`npm run evals` on Vertex `eu` (3 runs).
+
+### 2026-11-19 SR-24 gates on every pull request
+Done: every gate runs on every pull request (AGENTS.md > Pipeline). Full unit, integration and
+end to end suites. `audit` (production dependencies, high and above). Code scanning: CodeQL
+default setup (extended) and a ruleset that blocks merges on alerts. Secret guard and GitHub push protection. Firestore rules tests.
+Prompt injection set (3 synthetic cases) and page tag neutralizing. Budgets in `budgets.json`:
+functions at most 60 s (unit tested), eval cost at most 1 USD per run. Coverage floor 93% on
+`src/` that only goes up (`coverage-floor.json`, lowering it fails). Playwright axe checks for
+WCAG 2.2 AA. Screenshot UX review against Nielsen's heuristics, comments only. Auto merge
+(squash) once every required check passes. Halt workflow (workflow_run, base code only) posts to
+Linear and mentions the owner. Upgraded zod 4, openai 7, firebase-admin 14, firebase-functions 7
+(two high advisories cleared). The extraction prompt now includes the JSON Schema generated from
+Zod (it was missing) and asks for at most 2000 output tokens: the OpenRouter key refused the
+default 65536 with a 402 (credit limit). infra.yml: Firebase Auth step, Firestore location check, live app deploy
+off by default.
+Verified locally: `npm run check`, `npm run test:unit` (coverage 93.5%), `npm run test:e2e`
+(with axe), `npm run test:integration`, `actionlint`. Evals need the CI key.
 
 ### 2026-11-19 SR-24 lean context files, DESIGN.md, skills
 Done: AGENTS.md rewritten (commands first, read table, always do, ask first, never do, pipeline).
@@ -103,10 +173,60 @@ calibrated rules (none means it would now be a comment).
 | 2026-11-19 | #5 run 6 (old reviewer from main) | Codex ran in the pull request checkout and could load its AGENTS.md. Approve passed next to a tagged blocker | would be SECURITY | Codex runs in the trusted folder. Tagged blockers always block |
 | 2026-11-19 | #5 run 7 (old reviewer from main) | Unclaimed SR-24 criteria judged missed, base docs rule, pull request can edit pr.yml | old reviewer, no tags | One time admin merge approved by Lucas. pr.yml risk logged below |
 | 2026-11-19 | #6 run 1 (calibrated) | LINEAR_API_KEY passed to pr.yml, which a pull request can edit | SECURITY | Key removed from pr.yml. Criteria come from the pull request body |
+| 2026-11-19 | #7 run 1 | UX job gave a model key and write token to pull request code | SECURITY | Split: `ux-shots` (no secrets) and ux-review.yml (base code only) |
+| 2026-11-19 | #7 run 1 | CodeQL gate read only the first 100 alerts | SECURITY | Reads every page |
+| 2026-11-19 | #7 run 1 | Auto merge cannot work for fork pull requests | CRITERION | Same repo only, on purpose: forks never auto merge in a public repo |
+| 2026-11-19 | #7 run 1 | infra trusted FIRESTORE_LOCATION, a wrong value could pass outside europe-west6 | CRITERION | infra fails unless the location is europe-west6 |
+| 2026-11-19 | #7 run 1 | Calls without a reported cost could pass the 1 USD gate | CRITERION | Unknown cost fails the run |
+| 2026-11-19 | #7 run 2 | CodeQL count could read a failed request as zero alerts | SECURITY | pipefail, the request must succeed |
+| 2026-11-19 | #7 run 2 | "Branch must be up to date" off weakens the merge gate | SECURITY | Kept: Lucas approved decision 2. Without a PAT or GitHub App a workflow cannot update branches and rerun checks. Nightly and push runs on main catch drift |
+| 2026-11-19 | #7 run 2 | Auto merge write token in a workflow the pull request defines | SECURITY | automerge.yml moved to pull_request_target: base code, API only, never pull request code |
+| 2026-11-19 | #7 run 2 | Infra criterion claimed without a successful run | CRITERION | Not claimed here. The infra run after merge is the evidence |
+| 2026-11-19 | #7 run 3 | Only the first model could fail evals, a later model's injection miss passed | CRITERION | Injection set must hold for every model |
+| 2026-11-19 | #7 run 4 | A missing injection folder passed as an empty suite | CRITERION | Empty injection set fails the run |
+| 2026-11-19 | #7 run 5 | Injection cases could pass from saved outputs without a model call | CRITERION | Injection cases always run live |
+| 2026-11-20 | #7 run 6 | Evals give pull request code github-deployer rights | SECURITY | Resolved 2026-11-20: pull requests never sign in to Google, live evals run on main only |
+| 2026-11-20 | #7 run 6 | Evals skip when no eval input changed | CRITERION | Resolved: offline evals run on every pull request, live evals by hand |
+| 2026-11-20 | #7 run 6 | A fixture could relabel its kind and skip the live run | CRITERION | The folder sets the kind |
+| 2026-11-20 | #7 run 7 | Offline evals pass with zero recordings | SECURITY | Fixed in run 8: live evals run before merge when model inputs change |
+| 2026-11-20 | #7 run 7 | Nightly full evals removed, live runs capped at 10 of 18 cases | SECURITY | Accepted by Lucas's plan (cost). Template gap: rotate cases across runs |
+| 2026-11-20 | #7 run 7 | Deployer identity for live evals, main guard only in workflow YAML | SECURITY | Fixed in run 8 |
+| 2026-11-20 | #7 run 7 | Stale EVAL_MODELS line, stale provider line in ARCHITECTURE.md | CRITERION | Fixed |
+| 2026-11-20 | #7 run 8 | Offline evals cannot catch prompt or adapter regressions before merge | SECURITY | Fixed in run 9: trusted live harness |
+| 2026-11-20 | #7 run 8 | Deployer trust policy restricts by repository, not branch | SECURITY | Fixed: deployer bound to refs/heads/main in Google Cloud, Vertex role removed (Lucas's command block) |
+| 2026-11-20 | #7 run 8 | Old PROGRESS lines read as current policy (deployer in pull request evals, OPENROUTER key) | CRITERION | Marked superseded |
+| 2026-11-20 | #7 run 9 | Pull request code could use the Vertex identity, so code caps cannot bound spend | SECURITY | Live evals moved to a trusted pull_request_target harness: main's code, pull request data only |
+| 2026-11-20 | #7 run 9 | The same 10 of 18 cases always ran live, nightly removed | SECURITY | Rotating window plus nightly live evals: all cases within two nights |
+| 2026-11-20 | #7 run 9 | Live gate not shown working, GCP_EVALS_SA missing | CRITERION | Waits on Lucas's identity block, then the gate runs live |
+| 2026-11-20 | #7 run 10 | Evals identity trusts any branch, a pull request workflow could request it | SECURITY | Federation bound to the trusted workflow files on main (job_workflow_ref) |
+| 2026-11-20 | #7 run 10 | Harness could certify a commit it never evaluated | SECURITY | Fetched commit must equal the event head |
+| 2026-11-20 | #7 run 10 | Changed model code reached main before any live test, zero recordings | SECURITY | 18 real recordings committed, offline evals require one per case |
+| 2026-11-20 | #7 run 10 | pr.yml header and stale PROGRESS lines | CRITERION | Fixed |
+| 2026-11-20 | #7 run 11 | Skip status could follow a failed data step | SECURITY | Skip only after success, failure status otherwise |
+| 2026-11-20 | #7 run 11 | Adapter code changes not live tested before merge | SECURITY | Pull request code now runs live in a credential free container behind a trusted, capped Vertex proxy |
+| 2026-11-20 | #7 run 11 | evals:live required only after merge | CRITERION | Not claimed in this pull request (bootstrap: pull_request_target runs main's workflow) |
+| 2026-11-20 | #7 run 11 | EVALS.md lacked the build AI and product AI terms | CRITERION | Added |
+| 2026-11-20 | #7 run 12 | Offline evals could pass a prompt or adapter change on old recordings | SECURITY | Recordings carry a hash of the model inputs; a mismatch fails offline |
+| 2026-11-20 | #7 run 12 | Harness trusted the pull request's eval exit code | SECURITY | Main's code scores the real exchanges the proxy logged, and writes the trusted recordings |
+| 2026-11-20 | #7 run 12 | No evidence that `changes` was retired and admins are blocked | CRITERION | Branch protection and ruleset state quoted in the body |
+| 2026-11-20 | #7 run 13 | Committed recordings cannot prove Vertex made them, live check not required | SECURITY | Bootstrap: #7 cannot trigger the trusted workflow before merge. Lucas attests its evals:live status (recordings from this exact model code, hash checked) and the check becomes required. The agent may not post it |
+| 2026-11-20 | #7 run 13 | Hashing followed symlinks on the trusted host | SECURITY | Symlinks and paths outside the checkout rejected, in hashing and in the verifier |
+| 2026-11-20 | #7 run 14 | Parent folder symlinks passed, and the container could rewrite the tree the verifier reads | SECURITY | Real paths checked for every component. The container gets its own checkout; the verifier reads an unmounted one |
+| 2026-11-20 | #7 run 15 | evals:live could pass without a model call on pull requests that change no model input | SECURITY | Live evals now run on every pull request (about 0.01 USD each, about 1 USD a month at 100 pull requests, inside 10 CHF) |
+| 2026-11-20 | #7 run 15 | Old PROGRESS lines named EVAL_MODELS | CRITERION | Marked obsolete |
+| 2026-11-20 | #7 run 16 | Fork pull requests had no workflow to post evals:live | SECURITY | Forks get an explicit failure status: re-open from a branch |
+| 2026-11-20 | #7 run 16 | #7's own live result is attested, not computed by the trusted workflow | SECURITY | Bootstrap: the gate #7 adds cannot certify #7. Needs Lucas's one decision |
+| 2026-11-20 | #7 CodeQL | Unpinned third party actions (4), proxy wrote network data to a file | code scanning ruleset | Actions pinned to commit hashes. The proxy writes exchanges to stdout; the trusted workflow saves them |
+| 2026-11-19 | #7 run 4 | codeql.yml held security-events write inside a pull request defined workflow | SECURITY | CodeQL default setup (extended queries) run by GitHub, plus ruleset "Code scanning blocks merges". codeql.yml deleted |
 
 ## Assumptions
 | Date | Assumption | Confirm with |
 | --- | --- | --- |
+| 2026-11-20 | SR-25's "adapter keeps the openrouter provider, unused" is replaced by Lucas's later instruction to remove it | Lucas |
+| 2026-11-20 | Recorded outputs for offline scoring come from the first live run (step 9) and land in the follow-up pull request | Lucas |
+| 2026-11-20 | Live evals pick 10 of 18 cases: hand written injection first, then BIPIA in order | Lucas |
+| 2026-11-20 | CHECK role covers the pull request reviewer and the UX review (decision 2) | Lucas, approved |
+| 2026-11-20 | `gemini-3.1-flash-lite` on the EU multi-region `eu` is the default: 2.5 models return 404 for this project, west1, west4 and west6 serve no usable Flash Lite (replaces decision 1) | Lucas |
 | 2026-11-18 | golden-template and tax-copilot did not exist. Created both as private repos under cottalucas. tax-copilot made public 2026-11-19 on Lucas's request | Lucas, confirmed |
 | 2026-11-18 | Linear has no blocking relations set. Task order follows the journey numbering (0 to 7) | Lucas |
 | 2026-11-18 | Status names: Documents in, Needs review, Ready to fill, Submitted. Notion says "done", Linear SR-22 says "Mark as submitted". Linear wins | Lucas |
@@ -118,11 +238,19 @@ calibrated rules (none means it would now be a comment).
 | 2026-11-18 | Web portal uses Vite with plain TypeScript, no UI framework yet. Framework choice left to SR-16 | Lucas |
 | 2026-11-18 | Functions source is the repo root (single package), so functions can import `src/` and `rules/` | Agent |
 | 2026-11-18 | Installed openjdk@21 and actionlint with Homebrew on this laptop to run the emulator and lint workflows | Lucas |
-| 2026-11-18 | Added repo variables beyond the brief: FIREBASE_PROJECT_ID, FIRESTORE_LOCATION, optional EVAL_MODELS | Lucas |
+| 2026-11-18 | Added repo variables beyond the brief: FIREBASE_PROJECT_ID, FIRESTORE_LOCATION, optional EVAL_MODELS (obsolete, deleted 2026-11-20) | Lucas |
 | 2026-11-18 | Hosting has no rewrite to functions yet, so preview channels deploy without functions | Agent |
 
 ## Template gaps
-- Any secret in a `pull_request` workflow (OPENAI_API_KEY, OPENROUTER_API_KEY today) can be read
+- Golden MODELS guidance should probe which models a new project can call per region: catalogs
+  list models a project cannot use.
+- Staging environment: none yet. Add a staging Firebase project before the first real client.
+- Golden has no gate set: coverage floor, budgets, audit, code scanning, injection set, axe,
+  auto merge and halt notifications. Copy this pipeline back as the Golden default.
+- GitHub auto merge cannot update branches on the free plan (no merge queue), so "branch must be
+  up to date" is off. A GitHub App token could update branches and rerun checks. Golden should
+  ship that, or say so.
+- Any secret in a `pull_request` workflow (OPENAI_API_KEY for the review today) can be read
   by a same repo pull request that edits the workflow. Only accounts with write access can do
   that, but agents have it. Follow up with the `pull_request_target` review job (diff only, never
   pull request code) and keep model keys out of pull request workflows where possible.

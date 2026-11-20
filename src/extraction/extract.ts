@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { complete, type AdapterDeps, type DataClass } from "../models/index.js";
-import { parseExtractedReturn, type ExtractedReturn } from "../schema/extraction.js";
+import { z } from "zod";
+import { ExtractedReturn as ExtractedReturnSchema, parseExtractedReturn, type ExtractedReturn } from "../schema/extraction.js";
 
 export interface DocumentText {
   file: string;
@@ -16,16 +17,32 @@ export interface ExtractOptions extends AdapterDeps {
   taxYear: number;
 }
 
+export const EXTRACTION_MAX_TOKENS = 2000;
+
 const PROMPT_PATH = fileURLToPath(new URL("../../prompts/extraction.md", import.meta.url));
 
 export function loadExtractionPrompt(): string {
   return readFileSync(PROMPT_PATH, "utf8").replace(/<!--[\s\S]*?-->/g, "").trim();
 }
 
+/** Stops document text from closing or opening page tags (prompt injection, AGENTS.md). */
+export function neutralize(text: string): string {
+  return text.replace(/<(\/?)(page)/gi, "&lt;$1$2");
+}
+
 export function renderDocuments(docs: DocumentText[]): string {
   return docs
-    .map((d) => d.pages.map((text, i) => `<page file="${d.file}" page="${i + 1}">\n${text}\n</page>`).join("\n"))
+    .map((d) =>
+      d.pages
+        .map((text, i) => `<page file="${neutralize(d.file).replace(/"/g, "'")}" page="${i + 1}">\n${neutralize(text)}\n</page>`)
+        .join("\n"),
+    )
     .join("\n");
+}
+
+/** JSON Schema the model must follow, generated from the Zod schema (one source). */
+export function extractionJsonSchema(): string {
+  return JSON.stringify(z.toJSONSchema(ExtractedReturnSchema, { io: "input" }));
 }
 
 /**
@@ -38,11 +55,13 @@ export async function extractReturn(docs: DocumentText[], options: ExtractOption
       dataClass: options.dataClass,
       model: options.model,
       json: true,
+      // One return is a small JSON object. A cap keeps cost bounded (budgets.json).
+      maxTokens: EXTRACTION_MAX_TOKENS,
       messages: [
         { role: "system", content: loadExtractionPrompt() },
         {
           role: "user",
-          content: `clientId: ${options.clientId}\ntaxYear: ${options.taxYear}\nschemaVersion: 1\n\n${renderDocuments(docs)}`,
+          content: `clientId: ${options.clientId}\ntaxYear: ${options.taxYear}\nschemaVersion: 1\n\nJSON Schema:\n${extractionJsonSchema()}\n\nDocuments:\n${renderDocuments(docs)}`,
         },
       ],
     },

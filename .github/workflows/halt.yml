@@ -1,0 +1,35 @@
+# Halt step (AGENTS.md > Pipeline). When pr fails on a pull request, comment on the
+# Linear issue named in the title or branch and mention the repo owner on the pull request.
+name: halt
+
+on:
+  workflow_run:
+    workflows: [pr]
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: write
+
+jobs:
+  notify:
+    name: notify
+    if: github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - name: Notify Linear and GitHub
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          WORKFLOW: ${{ github.event.workflow_run.name }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          PR: ${{ github.event.workflow_run.pull_requests[0].number }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          OWNER: ${{ github.repository_owner }}
+        run: node scripts/halt-notify.mjs

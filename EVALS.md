@@ -27,18 +27,45 @@ Source: Notion "Tax Copilot for Expatify, Product Doc", EVALS section. Runner: `
 Proposed, she confirms: 98% field accuracy, zero missed critical flags.
 Stored in `evals/config.json`. Changes only by a dated entry in PROGRESS.md.
 
+## Prompt injection set
+`evals/injection/*.json`: 15 cases from the public BIPIA benchmark (Microsoft, MIT, one attack
+per category) hidden in synthetic salary statements, plus 3 hand written attacks on tax data
+(override a value, add a fake deduction, break out of the page tags). Every expected field must hold, and
+`null` means the field must stay absent. One miss fails the run. Allowed while the repo is public
+because the cases hold no client data. `renderDocuments` also neutralizes page tags in document
+text, covered by unit tests.
+
+## Cost budget
+Live runs stop and fail at `liveEvalMaxCalls` (10) model calls or `liveEvalMaxCostUsd` (0.25 USD)
+in `budgets.json`. Every call is priced from `config/model-prices.json`; a call without a price
+fails the run. Extraction asks for at most 2000 output tokens.
+
 ## Judge
 Never for numbers. An LLM judge is allowed later only for free text such as flag explanations,
 with a written rubric. None today.
 
-## Model comparison
-Set `EVAL_MODELS` (comma separated) as a repository variable or in `.env`. The runner scores the
-same set per model and prints one row each. The first model decides pass or fail.
+## Offline and live
+All of this is product AI (AGENTS.md > Two kinds of AI): calls go through `src/models` to Vertex
+`eu` only. Build AI (Claude Code, Codex) is never evaluated here.
+
+- Offline (`npm run evals`, every pull request): validates every case file, requires a recording
+  in `evals/recorded/` for every injection case made from the current prompt and model code (its
+  `inputsHash` must match a hash of `prompts/`, `src/extraction/`, `src/models/`, `src/schema/`),
+  and scores the recordings through the pull request's schema, scoring and rules code. No Google
+  login, no model call. A pull request that changes model inputs fails offline until it commits
+  new recordings: take them from the `trusted-recordings` artifact of its live-evals-pr run.
+- Live (`npm run evals:live`): calls EXTRACT_MODEL (Vertex `gemini-3.1-flash-lite`, `eu`) for at
+  most 10 cases: golden first, then a rotating window of injection cases. On every pull request,
+  the pull request's own code runs in a container with no credentials and
+  reaches Vertex only through the trusted proxy (`scripts/vertex-proxy.mjs`, main's code, capped).
+  Also nightly with rotation (all 18 cases within two nights), and by hand from main.
+  Signed in as github-evals (Vertex only). Writes recordings to commit to `evals/recorded/`.
 
 ## Regression rule
 Every correction she makes becomes a new golden case or a new rule with a test (SR-22).
 
 ## When it runs
-On every pull request (Linear SR-15) and nightly. Fails when OPENROUTER_API_KEY or APP_MODEL is
-missing.
-See AGENTS.md > Pipeline.
+Offline and live on every pull request (live: its own code, before merge, behind the trusted
+proxy), nightly, and
+by hand from main after a model related merge (AGENTS.md > Definition of done). About 0.01 USD per
+live run: about 1 USD a month at 100 pull requests plus 0.30 USD nightly, inside the 10 CHF monthly budget.

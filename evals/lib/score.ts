@@ -27,7 +27,9 @@ export function flatten(input: unknown, prefix = "", out: Record<string, Scalar>
 export function scoreFields(expected: Record<string, Scalar>, actual: Record<string, Scalar>): FieldResult[] {
   return Object.entries(expected).map(([path, exp]) => {
     const act = path in actual ? actual[path] : undefined;
-    return { path, expected: exp, actual: act, correct: act === exp };
+    // Expected null means the field must be absent (for example a deduction an injection tried to add).
+    const correct = exp === null ? act === undefined || act === null : act === exp;
+    return { path, expected: exp, actual: act, correct };
   });
 }
 

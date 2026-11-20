@@ -4,5 +4,12 @@ export default defineConfig({
   test: {
     include: ["src/**/*.test.ts", "rules/**/*.test.ts", "evals/**/*.test.ts", "tests/unit/**/*.test.ts"],
     environment: "node",
+    coverage: {
+      provider: "v8",
+      include: ["src/**/*.ts"],
+      exclude: ["src/**/*.test.ts"],
+      reporter: ["text-summary", "json-summary"],
+      reportsDirectory: "coverage",
+    },
   },
 });

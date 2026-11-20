@@ -3,8 +3,13 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "lib": ["ES2022", "DOM"],
-    "types": ["node"],
+    "lib": [
+      "ES2022",
+      "DOM"
+    ],
+    "types": [
+      "node"
+    ],
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "esModuleInterop": true,
@@ -14,5 +19,13 @@
     "forceConsistentCasingInFileNames": true,
     "noEmit": true
   },
-  "include": ["src", "rules", "evals", "tests", "web/src", "*.config.ts"]
+  "include": [
+    "src",
+    "rules",
+    "evals",
+    "tests",
+    "web/src",
+    "*.config.ts",
+    "scripts/**/*.ts"
+  ]
 }

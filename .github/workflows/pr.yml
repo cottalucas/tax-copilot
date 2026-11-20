@@ -1,7 +1,9 @@
-# Every pull request (AGENTS.md > Pipeline). Every job here is a required check on main.
-# No human QA: a pull request halts when tests, evals or review fail.
-# Path filtered jobs always run and report a status, so the branch rule can require them.
-# A missing secret or variable fails the job: keys are in, so nothing skips silently.
+# Every pull request (AGENTS.md > Pipeline). No human QA: a pull request halts when any gate fails.
+# Required on main: check, test:unit, test:integration, test:e2e, evals, audit, review. The
+# evals:live status (live-evals-pr.yml) joins the required list once that workflow is on main. Code scanning: CodeQL
+# default setup plus a ruleset.
+# Pull request code never signs in to Google.
+
 name: pr
 
 on:
@@ -15,40 +17,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  changes:
-    name: changes
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: read
-    outputs:
-      app: ${{ steps.filter.outputs.app }}
-      evals: ${{ steps.filter.outputs.evals }}
-    steps:
-      - uses: actions/checkout@v7
-      - id: filter
-        uses: dorny/paths-filter@v4
-        with:
-          filters: |
-            app:
-              - 'web/**'
-              - 'src/**'
-              - 'rules/**'
-              - 'tests/e2e/**'
-              - 'firebase.json'
-              - 'firestore.rules'
-              - 'package.json'
-              - 'package-lock.json'
-              - 'vite.config.ts'
-              - 'playwright.config.ts'
-            evals:
-              - 'prompts/**'
-              - 'src/schema/**'
-              - 'src/extraction/**'
-              - 'src/models/**'
-              - 'rules/**'
-              - 'evals/**'
-
   check:
     name: check
     runs-on: ubuntu-latest
@@ -57,6 +25,8 @@ jobs:
       - uses: ./.github/actions/setup
       - run: npm run check
 
+  # Full unit suite on every pull request, with the 80% coverage floor and the Cloud Function
+  # duration budget (budgets.json).
   unit:
     name: test:unit
     runs-on: ubuntu-latest
@@ -77,48 +47,37 @@ jobs:
       - uses: ./.github/actions/setup
       - run: npm run test:integration
 
+  # Full Playwright suite on every pull request, including the WCAG 2.2 AA accessibility checks.
   e2e:
     name: test:e2e
-    needs: changes
     runs-on: ubuntu-latest
     steps:
-      - name: Skip when app code did not change
-        if: needs.changes.outputs.app != 'true'
-        run: echo "::notice title=test:e2e skipped::No app code changed in this pull request."
       - uses: actions/checkout@v7
-        if: needs.changes.outputs.app == 'true'
       - uses: ./.github/actions/setup
-        if: needs.changes.outputs.app == 'true'
-      - if: needs.changes.outputs.app == 'true'
-        run: npx playwright install --with-deps chromium
-      - if: needs.changes.outputs.app == 'true'
-        run: npm run test:e2e
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
 
+  # Offline evals on every pull request: validates every case and scores recorded outputs with
+  # the schema, scoring and rules. No Google login, no secrets, no model calls. Live evals run by
+  # hand on main (live-evals.yml).
   evals:
     name: evals
-    needs: changes
     runs-on: ubuntu-latest
-    env:
-      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-      MODEL_PROVIDER: ${{ vars.MODEL_PROVIDER }}
-      APP_MODEL: ${{ vars.APP_MODEL }}
-      EVAL_MODELS: ${{ vars.EVAL_MODELS }}
     steps:
-      - id: gate
-        run: |
-          # Golden set runs on every pull request (Linear SR-15 wins over the Notion path filter).
-          if [ -z "$OPENROUTER_API_KEY" ] || [ -z "$APP_MODEL" ]; then
-            echo "::error title=evals blocked::OPENROUTER_API_KEY secret or APP_MODEL variable is not set."
-            exit 1
-          else
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          fi
       - uses: actions/checkout@v7
-        if: steps.gate.outputs.run == 'true'
       - uses: ./.github/actions/setup
-        if: steps.gate.outputs.run == 'true'
-      - if: steps.gate.outputs.run == 'true'
-        run: npm run evals
+      - run: npm run evals
+
+  # Dependency audit: production dependencies, high and critical fail the pull request.
+  audit:
+    name: audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - run: npm audit --omit=dev --audit-level=high
 
   review:
     name: review
@@ -130,22 +89,18 @@ jobs:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       REVIEWER_MODEL: ${{ vars.REVIEWER_MODEL }}
     steps:
-      - id: gate
+      - name: Check secrets and variables
         run: |
           if [ -z "$OPENAI_API_KEY" ] || [ -z "$REVIEWER_MODEL" ]; then
             echo "::error title=review blocked::OPENAI_API_KEY secret or REVIEWER_MODEL variable is not set."
             exit 1
-          else
-            echo "run=true" >> "$GITHUB_OUTPUT"
           fi
       - uses: actions/checkout@v7
-        if: steps.gate.outputs.run == 'true'
         with:
           fetch-depth: 0
       # The reviewer, its rules, AGENTS.md and TASKS.md come only from the base commit, never from
       # the pull request, so a pull request cannot change the reviewer that judges it.
       - name: Load the reviewer from the base commit
-        if: steps.gate.outputs.run == 'true'
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
@@ -156,7 +111,6 @@ jobs:
           done
           echo "Reviewer loaded from base commit $BASE_SHA."
       - name: Build review prompt
-        if: steps.gate.outputs.run == 'true'
         env:
           TRUSTED_DIR: ${{ runner.temp }}/trusted
           PR_TITLE: ${{ github.event.pull_request.title }}
@@ -165,8 +119,7 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: node "$RUNNER_TEMP/trusted/scripts/review-prompt.mjs" > "$RUNNER_TEMP/review-prompt.md"
       - name: Codex review
-        if: steps.gate.outputs.run == 'true'
-        uses: openai/codex-action@v1
+        uses: openai/codex-action@306c6a196a99dcc6582530c396a19d2672d5e9ec # v1.14
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           model: ${{ vars.REVIEWER_MODEL }}
@@ -176,9 +129,9 @@ jobs:
           # Run Codex in the trusted folder, so it never loads the pull request's own AGENTS.md.
           # The diff is in the prompt.
           working-directory: ${{ runner.temp }}/trusted
-      # Posts or updates one comment, then fails the job on "Verdict: Changes requested".
+      # Posts or updates one comment. Blocks only on a tagged [CRITERION], [NEVER] or [SECURITY]
+      # reason, and fails closed on malformed output.
       - name: Post one review comment and gate on the verdict
-        if: steps.gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR: ${{ github.event.pull_request.number }}

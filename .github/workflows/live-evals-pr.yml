@@ -1,0 +1,117 @@
+# Live evals before merge (AGENTS.md > Pipeline). pull_request_target: this file, the proxy and the
+# Google identity come from main. The pull request's code runs end to end (prompts, schema,
+# extraction, adapter, rules) inside a container with no credentials. It reaches Vertex only
+# through the trusted proxy (scripts/vertex-proxy.mjs), which holds the token and allows one
+# model and EU location, at most budgets.json liveEvalMaxCalls calls and liveEvalMaxCostUsd.
+# Main's code then scores the real exchanges the proxy logged (evals/verify-proxy.ts) and posts
+# the "evals:live" status on the pull request head commit. The pull request's exit code is ignored.
+name: live-evals-pr
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  statuses: write
+  id-token: write
+
+concurrency:
+  group: live-evals-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  # Forks never get the Vertex proxy (public repo). Their pull requests fail closed with a clear
+  # status; a maintainer re-opens the change from a branch of this repo to run live evals.
+  fork:
+    name: evals:live (fork)
+    if: github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          gh api "repos/${GITHUB_REPOSITORY}/statuses/${HEAD_SHA}" -f state=failure -f context=evals:live \
+            -f description="Fork pull requests cannot run live evals. Re-open from a branch of this repo."
+
+  live:
+    name: evals:live (trusted)
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      PR: ${{ github.event.pull_request.number }}
+      EXTRACT_PROVIDER: ${{ vars.EXTRACT_PROVIDER }}
+      EXTRACT_MODEL: ${{ vars.EXTRACT_MODEL }}
+      VERTEX_PROJECT_ID: ${{ vars.VERTEX_PROJECT_ID }}
+      VERTEX_REGION: ${{ vars.VERTEX_REGION }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: pr
+        name: Check out the pull request's files (not run here)
+        run: |
+          git fetch --no-tags origin "pull/${PR}/head"
+          # Only certify the commit this event names: stop if the pull request moved meanwhile.
+          if [ "$(git rev-parse FETCH_HEAD)" != "$HEAD_SHA" ]; then
+            echo "::error title=evals:live::The pull request moved past ${HEAD_SHA}. The newer commit gets its own run."
+            exit 1
+          fi
+          # Two checkouts of the same commit: "pr-run" is mounted into the container and may be
+          # changed by pull request code; "pr" is never mounted, so the verifier reads it as is.
+          git worktree add --detach "$RUNNER_TEMP/pr" "$HEAD_SHA"
+          git worktree add --detach "$RUNNER_TEMP/pr-run" "$HEAD_SHA"
+          # Live evals run on every pull request: about 0.01 USD each, inside the 10 CHF budget.
+          echo "run=true" >> "$GITHUB_OUTPUT"
+      - uses: ./.github/actions/setup
+        if: steps.pr.outputs.run == 'true'
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        if: steps.pr.outputs.run == 'true'
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_EVALS_PROVIDER }}
+          service_account: ${{ vars.GCP_EVALS_SA }}
+      - name: Start the trusted Vertex proxy
+        if: steps.pr.outputs.run == 'true'
+        run: |
+          node scripts/vertex-proxy.mjs 8787 > "$RUNNER_TEMP/proxy.jsonl" 2> "$RUNNER_TEMP/proxy.log" &
+          for _ in $(seq 1 20); do grep -q "Vertex proxy ready" "$RUNNER_TEMP/proxy.log" && break; sleep 1; done
+          grep -q "Vertex proxy ready" "$RUNNER_TEMP/proxy.log"
+      - name: Run the pull request's live evals in a container without credentials
+        if: steps.pr.outputs.run == 'true'
+        continue-on-error: true
+        run: |
+          docker run --rm --add-host=host.docker.internal:host-gateway \
+            -v "$RUNNER_TEMP/pr-run:/app" -w /app \
+            -e EXTRACT_PROVIDER -e EXTRACT_MODEL -e VERTEX_PROJECT_ID -e VERTEX_REGION \
+            -e VERTEX_PROXY_URL=http://host.docker.internal:8787 \
+            node:22-bookworm-slim sh -c "npm ci --ignore-scripts --no-audit --no-fund && npm run evals:live"
+      # The pull request's exit code is not trusted. Main's code scores the real exchanges.
+      - id: run
+        name: Verify the real model outputs the proxy saw
+        if: steps.pr.outputs.run == 'true'
+        run: npx tsx evals/verify-proxy.ts "$RUNNER_TEMP/proxy.jsonl" "$RUNNER_TEMP/pr" "$RUNNER_TEMP/recorded"
+      - uses: actions/upload-artifact@v7
+        if: always() && steps.pr.outputs.run == 'true'
+        with:
+          name: trusted-recordings
+          path: ${{ runner.temp }}/recorded/
+          retention-days: 14
+      - name: Report result
+        if: always() && steps.pr.outputs.run == 'true'
+        env:
+          OUTCOME: ${{ steps.run.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          state=failure; desc="Live evals failed or could not run."
+          if [ "$OUTCOME" = "success" ]; then state=success; desc="Live evals passed on Vertex eu (pull request code, no credentials)."; fi
+          gh api "repos/${GITHUB_REPOSITORY}/statuses/${HEAD_SHA}" -f state="$state" -f context=evals:live \
+            -f description="$desc" -f target_url="$RUN_URL"
+      - name: Report a failed setup
+        if: failure() && steps.pr.outputs.run != 'true'
+        run: |
+          gh api "repos/${GITHUB_REPOSITORY}/statuses/${HEAD_SHA}" -f state=failure -f context=evals:live \
+            -f description="Live evals setup failed."

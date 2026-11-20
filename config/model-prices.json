@@ -1,0 +1,10 @@
+{
+  "note": "Data, not code: USD per 1M tokens, used to log and cap product AI cost. Add a row before switching EXTRACT_MODEL, or live evals fail on unknown cost. Source: cloud.google.com/vertex-ai/generative-ai/pricing, non-global (EU) standard prices, checked 2026-11-20.",
+  "vertex": {
+    "gemini-3.1-flash-lite": {
+      "input": 0.275,
+      "cachedInput": 0.0275,
+      "output": 1.65
+    }
+  }
+}

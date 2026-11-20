@@ -10,17 +10,17 @@ Tasks live in Linear, project Tax Copilot.
 ## Layout
 | Path | What |
 | --- | --- |
-| `src/models/` | The one model adapter. OpenRouter (dev, evals), Vertex EU (client data, stub) |
+| `src/models/` | Product AI adapter: Vertex Gemini on the EU endpoint only |
 | `src/schema/` | Zod extraction schema. Every value has source file and page |
 | `src/extraction/` | Extraction through the adapter, output validated |
 | `src/functions/` | Cloud Functions, europe-west6 |
 | `rules/` | Business rules as code, one test each |
 | `prompts/` | The one prompt source per model task |
-| `evals/` | Golden set runner, cases in `evals/golden/` |
+| `evals/` | Eval runner: offline on pull requests, live on main. Cases in `evals/golden/` and `evals/injection/` |
 | `web/` | Portal (Vite, TypeScript) |
 | `tests/` | Unit helpers, Firestore rules tests, Playwright smoke |
 | `.agents/skills/` | Skills any agent can load: `stop-slop`, `nielsen-heuristics-audit` |
-| `.github/workflows/` | push, pr, nightly, claude, infra |
+| `.github/workflows/` | push, pr, automerge, halt, nightly, claude (build AI), live-evals and infra (main only) |
 
 ## Commands
 ```bash
@@ -29,7 +29,7 @@ npm run check
 npm run test:unit
 npm run test:integration   # needs Java 11+ for the Firestore emulator
 npm run test:e2e           # first run: npx playwright install chromium
-npm run evals
+npm run evals              # offline, no model calls
 ```
 
 No keys are needed for check and tests. Pull requests have no human QA: tests, evals and the

@@ -15,7 +15,7 @@ Locked unless marked open.
 | Portal | Web app on Firebase Hosting, Firebase Auth | `web/` (Vite, TypeScript) |
 | Engine | Cloud Functions v2, europe-west6 (Zurich) | `src/functions/` |
 | Extraction | Model call through the adapter, fixed JSON schema, Zod validated | `src/extraction/`, `src/schema/`, `prompts/` |
-| Models | One adapter. OpenRouter for dev and evals, Vertex AI EU for client data | `src/models/` |
+| Product AI | One adapter, Vertex Gemini on the EU endpoint only | `src/models/` |
 | Rules | Plain code with tests, not prompts | `rules/` |
 | Storage | Firestore: client status, flags, corrections only. No documents | `firestore.rules` |
 | Files | Stay in her Google Drive, read through the Drive API | TODO SR-17 |
@@ -49,24 +49,31 @@ Draft, confirmed in SR-16 and SR-17.
 | Client data file | Her Drive (TODO SR-18) | Her, the fill step |
 | Status, flags, corrections | Firestore `(default)`, europe-west6 | Her only |
 | Government credentials | Nowhere. She types them per session | Nobody |
-| Golden cases | `evals/golden/`, anonymized. None while the repo is public (SR-23) | Pipeline, dev models |
+| Golden cases | `evals/golden/`, anonymized. None while the repo is public (SR-23) | Pipeline, live evals on Vertex `eu` |
 
-Functions run in europe-west6. Client data reaches models only through Vertex AI in a `europe-*`
-region. OpenRouter sees anonymized or synthetic data only.
+Functions run in europe-west6. Product AI is Vertex only, on the EU multi-region endpoint `eu`.
+Until SR-18 decides residency, no real client data is sent to any model.
 
 ## Models
-- Adapter: `src/models/index.ts`, `complete(request)`. ESLint blocks `openai`,
-  `@anthropic-ai/sdk` and `@google-cloud/vertexai` imports anywhere else.
-- Request: `messages`, `dataClass` ("anonymized" or "client"), optional `json`, `maxTokens`,
-  `model` (override for evals). Result: `text`, `provider`, `model`, `latencyMs`, `usage`.
-- Providers: `openrouter` (dev and evals) and `vertex` (stub until SR-18, EU regions only). The
-  adapter refuses `dataClass: "client"` for any provider except vertex.
-- Variables, values set 2026-11-19: MODEL_PROVIDER `openrouter`, APP_MODEL
-  `anthropic/claude-sonnet-5.5`, EVAL_MODELS `anthropic/claude-sonnet-5.5,google/gemini-3.8-flash`,
-  BUILDER_MODEL `claude-opus-5-5`, REVIEWER_MODEL `gpt-6.2-sol`. Later: VERTEX_PROJECT_ID,
-  VERTEX_REGION (`europe-*`).
-- No orchestration framework. LangChain only when a feature needs multi step orchestration.
-- Only pass the parameters a request sets. Some models reject sampling parameters.
+Two kinds of AI (AGENTS.md). Build AI (Claude Code, Codex) never runs in the product. Product AI:
+- Adapter: `src/models/index.ts`, `complete(request)`. The only way the product calls a model.
+  ESLint blocks `openai`, `@anthropic-ai/sdk` and `@google-cloud/vertexai` imports elsewhere.
+- Provider: `vertex` only, behind the `ModelProvider` interface. One role, extract:
+  EXTRACT_PROVIDER `vertex`, EXTRACT_MODEL `gemini-3.1-flash-lite`, VERTEX_REGION `eu` (EU
+  multi-region endpoint `aiplatform.eu.rep.googleapis.com`), VERTEX_PROJECT_ID `tax-co-pilot`.
+- Why `eu`: probed 2026-11-20, this project gets 404 for every Gemini 2.5 model in europe-west1,
+  europe-west4 and global, and 3.x models serve only on global and `eu`. europe-west6 serves none.
+  `gemini-3.1-flash-lite` is the cheapest that answers in the EU. The adapter refuses global.
+- Login: keyless. Application Default Credentials locally. In CI, Workload Identity as
+  github-evals (roles/aiplatform.user only), only in jobs that run main's code: the trusted proxy
+  for pull request live evals (pull request code runs in a container without credentials),
+  nightly and live-evals.yml. `VERTEX_PROXY_URL` points the adapter at that proxy.
+- Cost: priced from `config/model-prices.json` (non-global price). Vertex caches stable prompt
+  prefixes on its own; cached tokens are priced as cached.
+- Real client data: today only `vertex` on an EU endpoint may receive it (`dataClass: "client"`).
+  The final residency choice for real client data is made at SR-18.
+- A switch module covering build AI and product AI is a Template gap, fixed later.
+- No orchestration framework. Only pass the parameters a request sets.
 
 ## Security
 - Auth: Firebase Auth, one user (her). Google sign-in provider switched on by Lucas in the console.
@@ -82,15 +89,27 @@ region. OpenRouter sees anonymized or synthetic data only.
 ## Keyless deploy identity
 infra.yml signs in with Workload Identity Federation. No key file exists.
 - Pool `github`, provider `tax-copilot`, accepts only `cottalucas/tax-copilot`.
+- Federation is bound per workflow file on main. Two providers in pool `github`, each with an
+  attribute condition on GitHub's `job_workflow_ref` claim and a constant `attribute.role`:
+  `tax-copilot` (role deploy) and `tax-copilot-evals` (role evals). Each service account trusts
+  only its role. A workflow from a pull request branch cannot get either identity.
+- Deployer: only `.github/workflows/infra.yml@refs/heads/main`.
+- Evals: `github-evals@tax-co-pilot.iam.gserviceaccount.com`, roles/aiplatform.user only, for
+  `live-evals-pr.yml`, `nightly.yml` and `live-evals.yml`, each `@refs/heads/main`. Cannot deploy
+  or touch data.
 - Service account `github-deployer@tax-co-pilot.iam.gserviceaccount.com`. Roles: firebase.admin,
   identitytoolkit.admin, datastore.owner, serviceusage.serviceUsageAdmin, cloudfunctions.admin,
   run.admin, artifactregistry.admin, cloudbuild.builds.editor, iam.serviceAccountUser.
-- Created by Lucas on 2026-11-19. Variables GCP_WIF_PROVIDER and GCP_DEPLOY_SA point to it.
+- Created by Lucas on 2026-11-19 (deployer) and 2026-11-20 (evals). Variables GCP_WIF_PROVIDER,
+  GCP_DEPLOY_SA and GCP_EVALS_SA point to them.
+- Spend: a Google Cloud budget on the project alerts at 50%, 90% and 100% of 10 CHF a month.
 
 ## Deploy
 Live deploys are manual. Actions > infra > Run workflow.
-- Setup only (default): enables APIs, checks Firestore, deploys rules and indexes, turns on Auth.
-- With "deploy app" ticked: also deploys hosting and functions, then calls the health check.
+- Setup only (default): enables APIs, checks Firestore is in FIRESTORE_LOCATION, deploys rules
+  and indexes, turns on Firebase Auth (Identity Platform `initializeAuth` when not yet on).
+- With "deploy_app" ticked: also deploys hosting and functions, then calls the health check.
+- Budgets in `budgets.json`: functions run at most 60 seconds (global option, unit tested).
 - From a laptop, logged in with firebase: `npm run build && npx firebase deploy --project tax-co-pilot`.
 
 ## Rollback

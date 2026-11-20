@@ -1,4 +1,5 @@
-# Nightly (AGENTS.md > Pipeline): full test:e2e, full evals, government form change check.
+# Nightly (AGENTS.md > Pipeline): full test:e2e, live evals with rotation (every case runs live
+# within two nights, about 0.01 USD a night) and the government form change check.
 name: nightly
 
 on:
@@ -19,29 +20,26 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
 
-  evals:
-    name: evals (full)
+  live-evals:
+    name: evals:live (rotating)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     env:
-      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-      MODEL_PROVIDER: ${{ vars.MODEL_PROVIDER }}
-      APP_MODEL: ${{ vars.APP_MODEL }}
-      EVAL_MODELS: ${{ vars.EVAL_MODELS }}
+      EXTRACT_PROVIDER: ${{ vars.EXTRACT_PROVIDER }}
+      EXTRACT_MODEL: ${{ vars.EXTRACT_MODEL }}
+      VERTEX_PROJECT_ID: ${{ vars.VERTEX_PROJECT_ID }}
+      VERTEX_REGION: ${{ vars.VERTEX_REGION }}
+      EVAL_OFFSET: ${{ github.run_number }}
     steps:
-      - id: gate
-        run: |
-          if [ -z "$OPENROUTER_API_KEY" ] || [ -z "$APP_MODEL" ]; then
-            echo "::warning title=evals skipped::OPENROUTER_API_KEY secret or APP_MODEL variable is not set."
-            echo "run=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          fi
       - uses: actions/checkout@v7
-        if: steps.gate.outputs.run == 'true'
       - uses: ./.github/actions/setup
-        if: steps.gate.outputs.run == 'true'
-      - if: steps.gate.outputs.run == 'true'
-        run: npm run evals
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_EVALS_PROVIDER }}
+          service_account: ${{ vars.GCP_EVALS_SA }}
+      - run: npm run evals:live
 
   form-change:
     name: government form change check

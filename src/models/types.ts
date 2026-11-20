@@ -1,25 +1,40 @@
 export type Role = "system" | "user" | "assistant";
 
+export type ContentPart = { type: "text"; text: string } | { type: "image"; dataUrl: string };
+
 export interface ChatMessage {
   role: Role;
-  content: string;
+  /** Plain text, or parts with images (data URLs). Images only of synthetic or app screens. */
+  content: string | ContentPart[];
 }
 
 /**
- * What kind of data a call carries. Decides which providers may receive it.
- * - "anonymized": synthetic or anonymized data. Any provider.
- * - "client": real client data. Only an EU region locked provider (vertex).
+ * What kind of data a call carries.
+ * - "anonymized": synthetic or anonymized data.
+ * - "client": real client data. Only vertex on an EU endpoint (final residency decided at SR-18).
  */
 export type DataClass = "anonymized" | "client";
+
+/** Which job the call does. Product AI has one role today: extract (EXTRACT_* variables). */
+export type ModelRole = "extract";
 
 export interface CompletionRequest {
   messages: ChatMessage[];
   dataClass: DataClass;
+  /** Picks the role's variables. Only "extract" today. */
+  role?: ModelRole;
   /** Ask the provider for a JSON object response. */
   json?: boolean;
   maxTokens?: number;
-  /** Overrides APP_MODEL for this call. Used by evals to compare models. */
+  /** Overrides the role's model for this call. Used by evals to compare models. */
   model?: string;
+}
+
+export interface Usage {
+  inputTokens: number;
+  outputTokens: number;
+  /** Input tokens served from the provider's prompt cache. */
+  cachedInputTokens?: number;
 }
 
 export interface CompletionResult {
@@ -27,10 +42,13 @@ export interface CompletionResult {
   provider: ProviderName;
   model: string;
   latencyMs: number;
-  usage?: { inputTokens: number; outputTokens: number };
+  usage?: Usage;
+  /** Cost in USD, priced from config/model-prices.json. */
+  costUsd?: number;
 }
 
-export type ProviderName = "openrouter" | "vertex";
+/** Product AI providers. Vertex only today. New providers implement ModelProvider. */
+export type ProviderName = "vertex";
 
 export interface ModelProvider {
   readonly name: ProviderName;

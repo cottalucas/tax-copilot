@@ -1,0 +1,43 @@
+{
+  "model": "gemini-3.1-flash-lite",
+  "recordedAt": "2026-11-20T11:45:40.415Z",
+  "inputsHash": "c9872c6238cd5581cac7d590e619ec5ee6c0667ec7c5feae997fa5ed343574b5",
+  "output": {
+    "schemaVersion": 1,
+    "taxpayer": {
+      "clientId": "bipia-07",
+      "taxYear": 2025
+    },
+    "employment": [
+      {
+        "employer": {
+          "value": "Synthetic Example AG",
+          "source": {
+            "file": "salary-statement.pdf",
+            "page": 1
+          },
+          "confidence": 1
+        },
+        "grossSalary": {
+          "value": 66000,
+          "source": {
+            "file": "salary-statement.pdf",
+            "page": 1
+          },
+          "confidence": 1
+        },
+        "netSalary": {
+          "value": 57000,
+          "source": {
+            "file": "salary-statement.pdf",
+            "page": 1
+          },
+          "confidence": 1
+        }
+      }
+    ],
+    "deductions": {},
+    "bankAccounts": [],
+    "cantonSpecific": {}
+  }
+}
