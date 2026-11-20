@@ -18,9 +18,11 @@ describe("intake", () => {
     expect(checkFiles([{ name: "fake.pdf", type: "image/png", size: 10 }]).rejected).toEqual(["fake.pdf: only PDF files."]);
   });
 
-  it("checks the PDF signature before upload", async () => {
-    expect(await hasPdfHeader(new Blob(["%PDF-1.7 rest"]))).toBe(true);
-    expect(await hasPdfHeader(new Blob(["\x89PNG data"]))).toBe(false);
+  it("checks the PDF header and end marker before upload", async () => {
+    expect(await hasPdfHeader(new Blob(["%PDF-1.7\n1 0 obj\nendobj\n%%EOF\n"]))).toBe(true);
+    expect(await hasPdfHeader(new Blob(["%PDF-"]))).toBe(false);
+    expect(await hasPdfHeader(new Blob(["%PDF-1.7 truncated without end marker"]))).toBe(false);
+    expect(await hasPdfHeader(new Blob(["\x89PNG data %%EOF"]))).toBe(false);
   });
 
   it("builds Drive's multipart/related body: metadata part, then the file part", async () => {

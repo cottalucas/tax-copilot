@@ -40,8 +40,13 @@ export function folderName(client: string, year: number): string {
   return `Tax Copilot - ${client.replace(/[\\/]/g, "-")} - ${year}`;
 }
 
-/** True when the file starts with the PDF signature "%PDF-". Checked before any upload. */
+/**
+ * Structural PDF check before any upload: the file starts with "%PDF-" and has the "%%EOF" end
+ * marker in its last 1024 bytes. Not a full parser; extraction (SR-18) reads the content.
+ */
 export async function hasPdfHeader(file: Blob): Promise<boolean> {
-  const head = new Uint8Array(await file.slice(0, 5).arrayBuffer());
-  return String.fromCharCode(...head) === "%PDF-";
+  if (file.size < 13) return false;
+  const head = String.fromCharCode(...new Uint8Array(await file.slice(0, 5).arrayBuffer()));
+  const tail = new TextDecoder("latin1").decode(await file.slice(Math.max(0, file.size - 1024)).arrayBuffer());
+  return head === "%PDF-" && tail.includes("%%EOF");
 }

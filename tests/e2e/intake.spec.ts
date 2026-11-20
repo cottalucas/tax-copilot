@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { readClients, resetEmulators, signInWithGoogle } from "./helpers.js";
 
-const pdf = (name: string) => ({ name, mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4 synthetic test file") });
+const pdf = (name: string) => ({ name, mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\n% synthetic test file\n%%EOF\n") });
 
 test.beforeEach(async () => {
   await resetEmulators();
