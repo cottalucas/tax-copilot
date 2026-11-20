@@ -49,14 +49,16 @@ with a written rubric. None today.
   outputs (`evals/recorded/`, golden `predicted`) with the schema, scoring and rules. No Google
   login, no model call.
 - Live (`npm run evals:live`): calls EXTRACT_MODEL (Vertex `gemini-3.1-flash-lite`, `eu`) for at
-  most 10 cases: golden first, then hand written injection cases, then BIPIA cases. Runs as
-  `evals:live` on pull requests that change model inputs, and by hand from main (live-evals.yml),
-  signed in as github-evals (Vertex only). Writes recordings to commit to `evals/recorded/`.
+  most 10 cases: golden first, then a rotating window of injection cases. Runs on pull requests
+  that change model inputs as a trusted harness (main's code, the pull request's prompts and case
+  JSON only), nightly with rotation (all 18 cases within two nights), and by hand from main.
+  Signed in as github-evals (Vertex only). Writes recordings to commit to `evals/recorded/`.
 
 ## Regression rule
 Every correction she makes becomes a new golden case or a new rule with a test (SR-22).
 
 ## When it runs
-Offline on every pull request. Live on every pull request that changes prompts, schema,
-extraction, rules, `src/models` or evals, and by hand from main after such a merge (AGENTS.md >
-Definition of done). About 0.01 USD per live run, inside the 10 CHF monthly budget.
+Offline on every pull request. Live on pull requests that change model inputs (trusted harness:
+prompt and case changes run live before merge, code changes run live after merge), nightly, and
+by hand from main after a model related merge (AGENTS.md > Definition of done). About 0.01 USD per
+live run, about 0.50 USD a month, inside the 10 CHF monthly budget.

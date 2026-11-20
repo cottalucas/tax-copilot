@@ -15,4 +15,11 @@ describe("eval runner", () => {
     const picked = pickLive([mk("bipia-01", "injection"), mk("inj-001", "injection"), mk("case-1", "golden"), mk("bipia-02", "injection")], 3);
     expect(picked.map((c) => c.id)).toEqual(["case-1", "inj-001", "bipia-01"]);
   });
+
+  it("rotates the injection window so every case runs live across runs", () => {
+    const mk = (id: string) => ({ id, kind: "injection" }) as GoldenCase;
+    const cases = ["inj-001", "bipia-01", "bipia-02", "bipia-03"].map(mk);
+    const seen = new Set([0, 1].flatMap((offset) => pickLive(cases, 2, offset).map((c) => c.id)));
+    expect(seen.size).toBe(4);
+  });
 });

@@ -15,7 +15,8 @@ SR-25 and the foundation run: cleanup, offline pull request evals, live evals on
 The earlier instruction "pull request evals offline only, deployer on main" left two real gaps,
 and the reviewer was right to block them. Fix, no accepted risk: `evals:live` runs before merge on
 pull requests that change model inputs, signed in as a new github-evals identity that can only
-call Vertex. github-deployer is bound to refs/heads/main in Google Cloud and loses its Vertex
+call Vertex, only from jobs that run main's code (a pull_request_target harness takes only
+prompts and case JSON from the pull request). github-deployer is bound to refs/heads/main in Google Cloud and loses its Vertex
 role: it only deploys, only from main. A 10 CHF monthly budget alert covers spend. Identity and
 budget commands run by Lucas.
 
@@ -178,9 +179,12 @@ calibrated rules (none means it would now be a comment).
 | 2026-11-20 | #7 run 7 | Nightly full evals removed, live runs capped at 10 of 18 cases | SECURITY | Accepted by Lucas's plan (cost). Template gap: rotate cases across runs |
 | 2026-11-20 | #7 run 7 | Deployer identity for live evals, main guard only in workflow YAML | SECURITY | Fixed in run 8 |
 | 2026-11-20 | #7 run 7 | Stale EVAL_MODELS line, stale provider line in ARCHITECTURE.md | CRITERION | Fixed |
-| 2026-11-20 | #7 run 8 | Offline evals cannot catch prompt or adapter regressions before merge | SECURITY | Fixed: `evals:live` on pull requests that change model inputs, as github-evals (Vertex only) |
+| 2026-11-20 | #7 run 8 | Offline evals cannot catch prompt or adapter regressions before merge | SECURITY | Fixed in run 9: trusted live harness |
 | 2026-11-20 | #7 run 8 | Deployer trust policy restricts by repository, not branch | SECURITY | Fixed: deployer bound to refs/heads/main in Google Cloud, Vertex role removed (Lucas's command block) |
 | 2026-11-20 | #7 run 8 | Old PROGRESS lines read as current policy (deployer in pull request evals, OPENROUTER key) | CRITERION | Marked superseded |
+| 2026-11-20 | #7 run 9 | Pull request code could use the Vertex identity, so code caps cannot bound spend | SECURITY | Live evals moved to a trusted pull_request_target harness: main's code, pull request data only |
+| 2026-11-20 | #7 run 9 | The same 10 of 18 cases always ran live, nightly removed | SECURITY | Rotating window plus nightly live evals: all cases within two nights |
+| 2026-11-20 | #7 run 9 | Live gate not shown working, GCP_EVALS_SA missing | CRITERION | Waits on Lucas's identity block, then the gate runs live |
 | 2026-11-19 | #7 run 4 | codeql.yml held security-events write inside a pull request defined workflow | SECURITY | CodeQL default setup (extended queries) run by GitHub, plus ruleset "Code scanning blocks merges". codeql.yml deleted |
 
 ## Assumptions
@@ -206,7 +210,6 @@ calibrated rules (none means it would now be a comment).
 | 2026-11-18 | Hosting has no rewrite to functions yet, so preview channels deploy without functions | Agent |
 
 ## Template gaps
-- Live evals cover 10 of 18 cases per run. Rotate cases across runs so every case runs live.
 - Golden MODELS guidance should probe which models a new project can call per region: catalogs
   list models a project cannot use.
 - Staging environment: none yet. Add a staging Firebase project before the first real client.

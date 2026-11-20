@@ -20,7 +20,7 @@ Copilot. Product: PRD.md. System: ARCHITECTURE.md.
 | test:integration | `npm run test:integration` | Firestore emulator, needs Java 11+ |
 | test:e2e | `npm run test:e2e` | Playwright with axe. First run: `npx playwright install chromium` |
 | evals | `npm run evals` | Offline: validates cases, scores recorded outputs. No model calls |
-| evals:live | `npm run evals:live` | Live on Vertex eu: pull requests that change model inputs, and live-evals.yml. At most 10 calls, cost capped |
+| evals:live | `npm run evals:live` | Live on Vertex eu: trusted harness on pull requests, nightly with rotation, live-evals.yml. At most 10 calls |
 | build | `npm run build` | Web to `dist/`, functions to `lib/` |
 | review | CI only | Codex. Blocks only on a tagged criterion, Never rule or security reason |
 
@@ -76,8 +76,8 @@ Skills live in `.agents/skills/` (see its README). Load a skill only when the ta
 - Never submit without her final review.
 - Never send real client data outside the EU or to any dev tool. Golden cases are anonymized.
 - Never call a product model outside `src/models`, or any provider but Vertex on an EU endpoint.
-- Never sign in to Google from a pull request workflow, except `evals:live` as github-evals
-  (Vertex only). Never give pull request code the deployer identity.
+- Never run pull request code with a Google identity. Live evals on pull requests run main's code
+  and take only data files (prompts, case JSON) from the pull request.
 - Never use an LLM judge for numbers.
 - Never put a model name in code or workflows, or a secret value anywhere in the repo.
 - Never change the locked stack: Firebase Hosting and Auth, Cloud Functions in europe-west6,
@@ -104,8 +104,7 @@ repo owner is mentioned on the pull request.
 | Firestore rules | `test:integration` | Any rules test fails |
 | End to end and accessibility | `test:e2e` | Any Playwright test fails, any WCAG 2.2 AA violation |
 | Offline evals | `evals` | A malformed case, an empty injection set, a recorded output under the threshold or with an injection field changed |
-| Live evals | `evals:live` | Runs when model inputs change. Under the threshold, an injection field changed, over 10 calls or 0.25 USD |
-| Changed files | `changes` | Path filter error |
+| Live evals | `evals:live` status (live-evals-pr.yml) | When model inputs change: under the threshold, an injection field changed, over 10 calls or 0.25 USD. Main's code, pull request data only |
 | Dependencies | `audit` | A high or critical advisory in production dependencies |
 | Code scanning | CodeQL default setup + ruleset | Any error or warning alert, or a high or critical security alert |
 | Review | `review` | Codex blocks with a tagged [CRITERION], [NEVER] or [SECURITY] reason, or its output is malformed |
@@ -113,9 +112,9 @@ repo owner is mentioned on the pull request.
 | Trigger | Workflow |
 | --- | --- |
 | Push, any branch | push.yml: check, test:unit |
-| Pull request | pr.yml, CodeQL default setup. automerge.yml (pull_request_target, API only, branches of this repo only) |
+| Pull request | pr.yml, CodeQL default setup. live-evals-pr.yml and automerge.yml (pull_request_target, never pull request code) |
 | After pr.yml fails | halt.yml: Linear comment, GitHub mention |
-| Nightly 02:00 UTC | nightly.yml: full test:e2e, form change check (placeholder) |
+| Nightly 02:00 UTC | nightly.yml: full test:e2e, live evals with rotation, form change check (placeholder) |
 | Mention @claude | claude.yml: Claude Code builder (build AI) |
 | Manual | live-evals.yml: live evals on Vertex (github-evals). infra.yml, main only: Google Cloud setup and deploy (github-deployer) |
 

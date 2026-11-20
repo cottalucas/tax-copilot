@@ -65,7 +65,8 @@ Two kinds of AI (AGENTS.md). Build AI (Claude Code, Codex) never runs in the pro
   europe-west4 and global, and 3.x models serve only on global and `eu`. europe-west6 serves none.
   `gemini-3.1-flash-lite` is the cheapest that answers in the EU. The adapter refuses global.
 - Login: keyless. Application Default Credentials locally. In CI, Workload Identity as
-  github-evals (roles/aiplatform.user only) for `evals:live` and live-evals.yml.
+  github-evals (roles/aiplatform.user only), only in jobs that run main's code: the trusted pull
+  request harness, nightly and live-evals.yml.
 - Cost: priced from `config/model-prices.json` (non-global price). Vertex caches stable prompt
   prefixes on its own; cached tokens are priced as cached.
 - Real client data: today only `vertex` on an EU endpoint may receive it (`dataClass: "client"`).

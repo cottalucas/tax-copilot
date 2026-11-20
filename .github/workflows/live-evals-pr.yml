@@ -1,0 +1,75 @@
+# Live evals before merge, as a trusted harness (AGENTS.md > Pipeline).
+# pull_request_target: this file and all code come from main. From the pull request it takes only
+# data: prompts/*.md and eval case JSON. It never runs pull request code, so the Vertex identity
+# is never in reach of it. Posts the "evals:live" status on the pull request head commit.
+# Pull requests that change model code (src/, rules/) get their live run after merge (live-evals.yml).
+name: live-evals-pr
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  statuses: write
+  id-token: write
+
+concurrency:
+  group: live-evals-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  live:
+    name: evals:live (trusted)
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      PR: ${{ github.event.pull_request.number }}
+      EXTRACT_PROVIDER: ${{ vars.EXTRACT_PROVIDER }}
+      EXTRACT_MODEL: ${{ vars.EXTRACT_MODEL }}
+      VERTEX_PROJECT_ID: ${{ vars.VERTEX_PROJECT_ID }}
+      VERTEX_REGION: ${{ vars.VERTEX_REGION }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: data
+        name: Take only data files from the pull request
+        run: |
+          git fetch --no-tags origin "pull/${PR}/head"
+          changed=$(git diff --name-only "$BASE_SHA"...FETCH_HEAD)
+          data=$(printf '%s\n' "$changed" | grep -E '^(prompts/[^/]+\.md|evals/(golden|injection)/[^/]+\.json)$' || true)
+          model=$(printf '%s\n' "$changed" | grep -E '^(prompts/|src/schema/|src/extraction/|src/models/|rules/|evals/|config/model-prices\.json|budgets\.json)' || true)
+          for f in $data; do
+            if git cat-file -e "FETCH_HEAD:$f" 2>/dev/null; then git show "FETCH_HEAD:$f" > "$f"; else rm -f "$f"; fi
+          done
+          if [ -z "$model" ]; then echo "run=false" >> "$GITHUB_OUTPUT"; else echo "run=true" >> "$GITHUB_OUTPUT"; fi
+          printf 'Data files taken from the pull request:\n%s\n' "${data:-none}"
+      - name: Report skipped
+        if: steps.data.outputs.run != 'true'
+        run: |
+          gh api "repos/${GITHUB_REPOSITORY}/statuses/${HEAD_SHA}" -f state=success -f context=evals:live \
+            -f description="No model inputs changed. Skipped."
+      - uses: ./.github/actions/setup
+        if: steps.data.outputs.run == 'true'
+      - uses: google-github-actions/auth@v3
+        if: steps.data.outputs.run == 'true'
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_EVALS_SA }}
+      - id: run
+        if: steps.data.outputs.run == 'true'
+        run: npm run evals:live
+      - name: Report result
+        if: always() && steps.data.outputs.run == 'true'
+        env:
+          OUTCOME: ${{ steps.run.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          state=failure; desc="Live evals failed or could not run."
+          if [ "$OUTCOME" = "success" ]; then state=success; desc="Live evals passed on Vertex eu."; fi
+          gh api "repos/${GITHUB_REPOSITORY}/statuses/${HEAD_SHA}" -f state="$state" -f context=evals:live \
+            -f description="$desc" -f target_url="$RUN_URL"

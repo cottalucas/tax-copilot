@@ -1,5 +1,5 @@
-# Nightly (AGENTS.md > Pipeline): full test:e2e and the government form change check.
-# Live evals are manual and main only (live-evals.yml).
+# Nightly (AGENTS.md > Pipeline): full test:e2e, live evals with rotation (every case runs live
+# within two nights, about 0.01 USD a night) and the government form change check.
 name: nightly
 
 on:
@@ -19,6 +19,27 @@ jobs:
       - uses: ./.github/actions/setup
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
+
+  live-evals:
+    name: evals:live (rotating)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      EXTRACT_PROVIDER: ${{ vars.EXTRACT_PROVIDER }}
+      EXTRACT_MODEL: ${{ vars.EXTRACT_MODEL }}
+      VERTEX_PROJECT_ID: ${{ vars.VERTEX_PROJECT_ID }}
+      VERTEX_REGION: ${{ vars.VERTEX_REGION }}
+      EVAL_OFFSET: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_EVALS_SA }}
+      - run: npm run evals:live
 
   form-change:
     name: government form change check

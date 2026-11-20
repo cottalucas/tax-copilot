@@ -68,10 +68,19 @@ function score(c: GoldenCase, output: unknown, model: string): CaseScore {
   return { caseId: c.id, model, fields, fieldAccuracy: fields.length ? fields.filter((f) => f.correct).length / fields.length : 1, ...scoreFlags(c.expected.flags, flags) };
 }
 
-/** Live runs pick golden cases first, then hand written injection cases, then the rest. */
-export function pickLive(cases: GoldenCase[], max: number): GoldenCase[] {
-  const rank = (c: GoldenCase) => (c.kind === "golden" ? 0 : c.id.startsWith("inj-") ? 1 : 2);
-  return [...cases].sort((a, b) => rank(a) - rank(b) || a.id.localeCompare(b.id)).slice(0, max);
+/**
+ * Live runs pick golden cases first, then injection cases in a window that rotates with
+ * `offset` (EVAL_OFFSET, the nightly run number), so every case runs live across runs.
+ */
+export function pickLive(cases: GoldenCase[], max: number, offset = 0): GoldenCase[] {
+  const golden = cases.filter((c) => c.kind === "golden").sort((a, b) => a.id.localeCompare(b.id));
+  const rank = (c: GoldenCase) => (c.id.startsWith("inj-") ? 0 : 1);
+  const rest = cases.filter((c) => c.kind !== "golden").sort((a, b) => rank(a) - rank(b) || a.id.localeCompare(b.id));
+  const room = Math.max(0, max - golden.length);
+  if (rest.length === 0 || room === 0) return golden.slice(0, max);
+  const start = ((offset * room) % rest.length + rest.length) % rest.length;
+  const window = Array.from({ length: Math.min(room, rest.length) }, (_, i) => rest[(start + i) % rest.length]!);
+  return [...golden, ...window].slice(0, max);
 }
 
 async function main() {
@@ -106,7 +115,7 @@ async function main() {
     const budget = new CostBudget(budgets.liveEvalMaxCostUsd, { requireCost: true, maxCalls: budgets.liveEvalMaxCalls });
     mkdirSync(join(root, "runs", "recorded"), { recursive: true });
     try {
-      for (const c of pickLive(all, budgets.liveEvalMaxCalls)) {
+      for (const c of pickLive(all, budgets.liveEvalMaxCalls, Number(process.env.EVAL_OFFSET ?? 0) || 0)) {
         let output: unknown;
         try {
           output = await extractReturn(c.documents, { dataClass: "anonymized", clientId: c.id, taxYear: c.taxYear, budget });
