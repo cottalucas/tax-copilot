@@ -40,6 +40,7 @@ describe("firestore.rules: clients (SR-16)", () => {
   it("denies signed out users and every write", async () => {
     const anon = env.unauthenticatedContext().firestore();
     await assertFails(getDoc(doc(anon, "clients/c1")));
+    await assertFails(setDoc(doc(anon, "clients/c1"), { status: "documents_in" }));
     const db = env.authenticatedContext("preparer").firestore();
     await assertFails(setDoc(doc(db, "clients/c1"), { ownerUid: "preparer", displayName: "X", status: "submitted" }));
     await assertFails(setDoc(doc(db, "clients/c3"), { ownerUid: "preparer", displayName: "Y", status: "documents_in" }));
@@ -52,5 +53,6 @@ describe("firestore.rules: default deny", () => {
     await assertFails(setDoc(doc(db, "documents/d1"), { content: "pdf bytes" }));
     await assertFails(setDoc(doc(db, "credentials/c1"), { username: "x" }));
     await assertFails(getDoc(doc(db, "clients/c1/flags/f1")));
+    await assertFails(setDoc(doc(db, "clients/c1/flags/f1"), { reason: "x" }));
   });
 });
