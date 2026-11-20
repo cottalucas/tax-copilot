@@ -203,6 +203,7 @@ Every block, so the reviewer can be tuned. Category is the tag the block would g
 calibrated rules (none means it would now be a comment).
 | Date | Pull request | Reason given | Category | Action |
 | --- | --- | --- | --- | --- |
+| 2026-11-20 | #11 run 3 | A drop during upload could replace the selection mid upload | CRITERION | Selection locked while uploading |
 | 2026-11-20 | #11 run 2 | Uploads tracked by file name, same names collide | CRITERION | Tracked by position, reset on a new selection |
 | 2026-11-20 | #11 run 2 | No test completes sign in through the real button | SECURITY | Popup test signs in end to end (3 full runs green; cold start timeout 25 s) |
 | 2026-11-20 | #11 run 1 | Drive upload sent multipart/form-data, the mock hid it | CRITERION | multipart/related body built exactly; the mock rejects other content types |

@@ -134,7 +134,10 @@ function renderIntake(user: User) {
   let folderId: string | undefined;
   // Each selected file is tracked by its position, so two files with the same name both upload.
   const uploaded = new Set<number>();
+  // While an upload runs, the selection is locked: no new choice or drop can replace it.
+  let busy = false;
   const showFiles = (picked: File[]) => {
+    if (busy) return;
     const { accepted, rejected } = checkFiles(picked);
     files = accepted;
     uploaded.clear();
@@ -164,6 +167,8 @@ function renderIntake(user: User) {
     if (notPdf.length) return void errors.replaceChildren(...notPdf.map((m) => el("p", {}, m)));
     errors.replaceChildren();
     submit.setAttribute("disabled", "");
+    busy = true;
+    input.setAttribute("disabled", "");
     try {
       status.textContent = "Connecting to your Google Drive";
       const token = await driveToken(user);
@@ -192,6 +197,9 @@ function renderIntake(user: User) {
       errors.replaceChildren(el("p", {}, `${msg} Try again: files already in your Drive are not uploaded twice.`));
       submit.removeAttribute("disabled");
       submit.textContent = "Try again";
+    } finally {
+      busy = false;
+      input.removeAttribute("disabled");
     }
   });
   name.focus();
