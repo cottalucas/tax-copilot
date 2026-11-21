@@ -87,10 +87,16 @@ function score(c: GoldenCase, output: unknown, model: string): CaseScore {
  * Live runs pick golden cases first, then injection cases in a window that rotates with
  * `offset` (EVAL_OFFSET, the nightly run number), so every case runs live across runs.
  */
-export function pickLive(cases: GoldenCase[], max: number, offset = 0): GoldenCase[] {
+export function pickLive(cases: GoldenCase[], max: number, offset = 0, unrecorded: (c: GoldenCase) => boolean = () => false): GoldenCase[] {
   const golden = cases.filter((c) => c.kind === "golden").sort((a, b) => a.id.localeCompare(b.id));
   const rank = (c: GoldenCase) => (c.id.startsWith("inj-") ? 0 : 1);
-  const rest = cases.filter((c) => c.kind !== "golden").sort((a, b) => rank(a) - rank(b) || a.id.localeCompare(b.id));
+  const ordered = cases.filter((c) => c.kind !== "golden").sort((a, b) => rank(a) - rank(b) || a.id.localeCompare(b.id));
+  const missing = ordered.filter(unrecorded);
+  if (missing.length > 0) {
+    // Fill first with cases that have no current recording, then the rest in order.
+    return [...golden, ...missing, ...ordered.filter((c) => !unrecorded(c))].slice(0, max);
+  }
+  const rest = ordered;
   const room = Math.max(0, max - golden.length);
   if (rest.length === 0 || room === 0) return golden.slice(0, max);
   const start = ((offset * room) % rest.length + rest.length) % rest.length;
@@ -143,7 +149,10 @@ async function main() {
     try {
       const offset = Number(process.env.EVAL_OFFSET ?? 0) || 0;
       const first = media ? mediaSet.cases : [];
-      const picked = [...first, ...pickLive([...golden.cases, ...injection.cases], budgets.liveEvalMaxCalls - first.length, offset)];
+      // Cases without a current recording go first, so a pull request that changes model inputs
+      // gets every case recorded by the trusted proxy across a few pushes (10 calls each).
+      const unrecorded = (c: GoldenCase) => recordedOutput(c, inputsHash) === undefined;
+      const picked = [...first, ...pickLive([...golden.cases, ...injection.cases], budgets.liveEvalMaxCalls - first.length, offset, unrecorded)];
       for (const c of picked) {
         let output: unknown;
         try {

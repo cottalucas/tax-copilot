@@ -30,6 +30,13 @@ describe("eval runner", () => {
     expect(picked.map((c) => c.id)).toEqual(["case-1", "inj-001", "bipia-01"]);
   });
 
+  it("puts cases without a current recording first, so two pull request runs record all 18", () => {
+    const mk = (id: string) => ({ id, kind: "injection" }) as GoldenCase;
+    const cases = ["inj-001", "bipia-01", "bipia-02", "bipia-03"].map(mk);
+    const recorded = new Set(["inj-001", "bipia-01"]);
+    expect(pickLive(cases, 3, 0, (c) => !recorded.has(c.id)).map((c) => c.id)).toEqual(["bipia-02", "bipia-03", "inj-001"]);
+  });
+
   it("rotates the injection window so every case runs live across runs", () => {
     const mk = (id: string) => ({ id, kind: "injection" }) as GoldenCase;
     const cases = ["inj-001", "bipia-01", "bipia-02", "bipia-03"].map(mk);
