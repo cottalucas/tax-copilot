@@ -1,7 +1,8 @@
 # PROGRESS.md
 
 ## Current focus
-Foundation done. Next: SR-16 (login and home queue) once Lucas sets up Google sign-in.
+SR-18 part 1 (batch extraction on synthetic PDFs). SR-18 stays In Progress until the first golden
+case (needs SR-23) and the canton land.
 
 ## Next up
 1. SR-24: gates, auto merge, proof pull requests, infra.
@@ -10,6 +11,30 @@ Foundation done. Next: SR-16 (login and home queue) once Lucas sets up Google si
 4. Move the review job to `pull_request_target` (read the diff only, never run pull request code).
 
 ## Log
+
+### 2026-11-21 SR-18 Extraction, part 1: batch extraction
+Done: she chooses the tax year (nothing preselected), then "Extract all (n)" runs extraction for every client with documents in, a Drive
+folder and no data file. For each client her browser lists the PDFs in the client's Drive folder,
+downloads them with her own token and turns each page into text (pdf.js, loaded only when
+needed). The `extract` callable function (europe-west6, runs as `extract-fn`) checks the caller
+is on EXTRACT_ALLOWED_EMAILS with a verified email and owns the client, checks size limits (30
+files, 200 pages per file, 400,000 characters, at least some text), then calls
+`extractReturn` with `dataClass: "client"` and a cost budget of one call and 0.05 USD. The output
+is schema validated, every value with source file and page, every cited file and page must be one it was sent, and the output must be for the client and tax year asked for. Each PDF gets a unique label, mapped to its Drive file id in the data file. The browser saves it as
+`tax-copilot-data.json` in the client's Drive folder and `saveExtraction` records the file id
+(dataFileId, extractedAt). The queue shows Data: Extracted or Not yet. One client failing does
+not stop the batch; failures are listed with the reason. Logs hold counts and cost, never text or
+values. Residency approved by Lucas on 2026-11-21: client text to Vertex `eu` through this function only.
+Covered: output validated against the schema, every value stores source file and page, runs in
+batch. Not covered: field accuracy on golden cases (zero cases until SR-23).
+Tests: 7 function unit tests (allow list fails closed, owner check, limits, no text, invalid or
+unpriced output, logs without values), batch unit tests, two end to end tests with a generated
+text PDF and Drive and the functions mocked at the network (text reaches the function with file
+names and pages, one data file into the right folder, nothing else saved on failure, no outside
+host), axe on the queue with Extract all and an error. No model input changed, so no new
+recordings. Deploy fix: Firebase's functions ignore `*.md` matched at any depth and would have
+dropped the compiled prompt; the ignore list now names the root docs. pdf.js 6.5 (5.x had a high
+advisory).
 
 ### 2026-11-20 SR-17 New return and intake
 Done: "New client" on the queue opens a form: client name and PDFs (drop or choose; PDF only, at
@@ -203,6 +228,9 @@ Every block, so the reviewer can be tuned. Category is the tag the block would g
 calibrated rules (none means it would now be a comment).
 | Date | Pull request | Reason given | Category | Action |
 | --- | --- | --- | --- | --- |
+| 2026-11-21 | #12 run 3 | Two PDFs with the same name in one folder made citations ambiguous, and the page check kept only one of them | CRITERION | Each PDF gets a unique label (a repeat becomes `name (2).pdf`), the data file maps label to Drive file id, the function refuses duplicate names. Also checks the model's tax year and client id match the request (comment) |
+| 2026-11-21 | #12 run 2 | The batch set the tax year to last calendar year without asking her | NEVER | She chooses the tax year (last three years, nothing preselected) before Extract all runs; the data file records it. Also: Drive listing follows nextPageToken, and the function rejects citations to a file or page it was not sent (comments) |
+| 2026-11-21 | #12 run 1 | Failed extraction logged the raw error message (truncated), which could echo document text | SECURITY | Log a fixed category (budget, residency, config, invalid JSON, schema, provider status code, unknown) and duration only. Also made the data file save safe to retry (comment) |
 | 2026-11-20 | #11 run 6 | Marker check is not a full PDF parse | CRITERION | Lead call: intake screens files, extraction (SR-18) parses them. Pull request body reworded to claim exactly that |
 | 2026-11-20 | #11 run 5 | Only the first five bytes were checked | CRITERION | Header %PDF- and the %%EOF end marker; full parsing stays with extraction (SR-18) |
 | 2026-11-20 | #11 run 4 | A drop during the PDF check could swap in unchecked files | CRITERION | Lock first, then check and upload one fixed snapshot |
@@ -275,6 +303,9 @@ calibrated rules (none means it would now be a comment).
 ## Assumptions
 | Date | Assumption | Confirm with |
 | --- | --- | --- |
+| 2026-11-21 | New budget `extractMaxCostUsd` 0.05 USD per client: the 400,000 character cap costs about 0.03 USD on `gemini-3.1-flash-lite` | Lucas |
+| 2026-11-21 | Scanned PDFs (no text layer) are refused with a clear message, no OCR yet | Lucas |
+| 2026-11-21 | Code comments in `src/models` and `src/extraction` still say residency is decided "at SR-18". Updating them changes model inputs and needs new recordings, so they change with the next model input pull request | Lucas |
 | 2026-11-20 | SR-25's "adapter keeps the openrouter provider, unused" is replaced by Lucas's later instruction to remove it | Lucas |
 | 2026-11-20 | Recorded outputs for offline scoring come from the first live run (step 9) and land in the follow-up pull request | Lucas |
 | 2026-11-20 | Live evals pick 10 of 18 cases: hand written injection first, then BIPIA in order | Lucas |

@@ -2,5 +2,6 @@
   "note": "Budgets enforced in CI (AGENTS.md > Pipeline). Changing a value needs Lucas's approval.",
   "functionMaxSeconds": 60,
   "liveEvalMaxCalls": 10,
-  "liveEvalMaxCostUsd": 0.25
+  "liveEvalMaxCostUsd": 0.25,
+  "extractMaxCostUsd": 0.05
 }

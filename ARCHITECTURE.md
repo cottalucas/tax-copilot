@@ -14,11 +14,11 @@ Locked unless marked open.
 | --- | --- | --- |
 | Portal | Web app on Firebase Hosting, Firebase Auth | `web/` (Vite, TypeScript) |
 | Engine | Cloud Functions v2, europe-west6 (Zurich) | `src/functions/` |
-| Extraction | Model call through the adapter, fixed JSON schema, Zod validated | `src/extraction/`, `src/schema/`, `prompts/` |
+| Extraction | Her browser turns the PDFs into text per page (pdf.js). The `extract` callable function sends it through the adapter, fixed JSON schema, Zod validated | `web/src/pdf.ts`, `web/src/batch.ts`, `src/functions/extract.ts`, `src/extraction/`, `src/schema/`, `prompts/` |
 | Product AI | One adapter, Vertex Gemini on the EU endpoint only | `src/models/` |
 | Rules | Plain code with tests, not prompts | `rules/` |
 | Storage | Firestore: client status, flags, corrections only. No documents | `firestore.rules` |
-| Files | Stay in her Google Drive. Uploaded from her browser with her own OAuth token (scope `drive.file`) into a new folder per client | `web/src/drive.ts` |
+| Files | Stay in her Google Drive. Uploaded from her browser with her own OAuth token (scope `drive.file`) into a new folder per client, read back by her browser for extraction | `web/src/drive.ts` |
 | Filling | Claude in Chrome with one saved shortcut holding the form field map | TODO SR-21 |
 | Pipeline | GitHub Actions | `.github/workflows/`, AGENTS.md > Pipeline |
 
@@ -33,28 +33,34 @@ background job, never behind a Hosting rewrite.
 | Staging | none | Template gap. Add before the first real client |
 
 ## Data model
-`clients` confirmed in SR-16 (reads) and SR-17 (create).
+`clients` confirmed in SR-16 (reads), SR-17 (create) and SR-18 (extraction fields).
 - `clients/{clientId}`: ownerUid (her Firebase Auth uid), displayName (her label, not the legal
   name), status (`documents_in`, `needs_review`, `ready_to_fill`, `submitted`), flagCount,
-  driveFolderId, fileCount, createdAt. Rules: she reads only documents where ownerUid is her uid
-  (queries filter on it); she creates a client only with exactly these fields, status
-  `documents_in` and no flags. No updates or deletes yet.
+  driveFolderId, fileCount, createdAt, and after extraction dataFileId (the Drive id of the data
+  file) and extractedAt. Rules: she reads only documents where ownerUid is her uid (queries filter
+  on it); she creates a client only with exactly the SR-17 fields, status `documents_in` and no
+  flags. No updates or deletes from the browser: only the `saveExtraction` function (Admin SDK,
+  after checking she owns the client) writes dataFileId and extractedAt.
 - `clients/{clientId}/flags/{flagId}`: ruleId, severity, field, reason, resolved.
 - `clients/{clientId}/corrections/{id}`: field, before, after, at. Feeds new golden cases.
-- Extracted values are not stored in Firestore. TODO: the client data file lives in her Drive
-  next to the PDFs (default that satisfies the Never list).
+- Extracted values are not stored in Firestore. The client data file `tax-copilot-data.json` lives
+  in her Drive next to the PDFs: schemaVersion, taxYear (she chooses it), extractedAt, model, sources (a unique label per PDF and its Drive file id; a repeated name
+  becomes `name (2).pdf`), and the
+  schema validated extraction (every value with source file and page).
 
 ## Data inventory and residency
 | Data | Lives in | Who reads it |
 | --- | --- | --- |
 | Client PDFs | Her Google Drive only | Her, the engine through the Drive API |
-| Client data file | Her Drive (TODO SR-18) | Her, the fill step |
+| Client data file | Her Drive, `tax-copilot-data.json` in the client folder | Her, the fill step |
+| PDF text | Her browser, then the `extract` function (europe-west6) and Vertex `eu`, in memory for one call. Never stored or logged | Her, the extract function, Vertex |
 | Status, flags, corrections | Firestore `(default)`, europe-west6 | Her only |
 | Government credentials | Nowhere. She types them per session | Nobody |
 | Golden cases | `evals/golden/`, anonymized. None while the repo is public (SR-23) | Pipeline, live evals on Vertex `eu` |
 
 Functions run in europe-west6. Product AI is Vertex only, on the EU multi-region endpoint `eu`.
-Until SR-18 decides residency, no real client data is sent to any model.
+Residency decided 2026-11-21 (Lucas, SR-18): real client document text may go to Vertex on `eu`,
+only through the `extract` function. No other model or service receives it.
 
 ## Models
 Two kinds of AI (AGENTS.md). Build AI (Claude Code, Codex) never runs in the product. Product AI:
@@ -72,14 +78,23 @@ Two kinds of AI (AGENTS.md). Build AI (Claude Code, Codex) never runs in the pro
   nightly and live-evals.yml. `VERTEX_PROXY_URL` points the adapter at that proxy.
 - Cost: priced from `config/model-prices.json` (non-global price). Vertex caches stable prompt
   prefixes on its own; cached tokens are priced as cached.
-- Real client data: today only `vertex` on an EU endpoint may receive it (`dataClass: "client"`).
-  The final residency choice for real client data is made at SR-18.
+- Real client data: only `vertex` on an EU endpoint may receive it (`dataClass: "client"`),
+  decided at SR-18. The `extract` function sends it with `dataClass: "client"`.
+- Runtime identity: the `extract` and `saveExtraction` functions run as
+  `extract-fn@tax-co-pilot.iam.gserviceaccount.com` (roles/aiplatform.user, roles/datastore.user).
+  Created by Lucas. Their settings (EXTRACT_*, VERTEX_*, EXTRACT_ALLOWED_EMAILS) come from
+  repository variables, written to `.env.<project>` by infra.yml at deploy time.
+- Cost: one extraction is capped at `extractMaxCostUsd` (0.05 USD) and one model call
+  (`budgets.json`), and at 30 files, 200 pages per file and 400,000 characters.
 - A switch module covering build AI and product AI is a Template gap, fixed later.
 - No orchestration framework. Only pass the parameters a request sets.
 
 ## Security
 - Auth: Firebase Auth with Google sign-in (popup), one user (her). The Google provider is switched
   on by Lucas in the console. Tests sign in through the Auth emulator's Google popup.
+- Anyone with a Google account can sign in, but only accounts listed in EXTRACT_ALLOWED_EMAILS
+  (verified email) can run extraction, so nobody else can spend the model budget. Unset means
+  nobody. Both functions also check that the caller owns the client.
 - Firestore rules deny everything. Each allow rule ships with a test in
   `tests/integration/firestore.rules.test.ts`, including "another user cannot read".
 - Threats: prompt injection inside client PDFs (the prompt treats documents as data, output is
@@ -111,7 +126,8 @@ infra.yml signs in with Workload Identity Federation. No key file exists.
 Live deploys are manual. Actions > infra > Run workflow.
 - Setup only (default): enables APIs, checks Firestore is in FIRESTORE_LOCATION, deploys rules
   and indexes, turns on Firebase Auth (Identity Platform `initializeAuth` when not yet on).
-- With "deploy_app" ticked: also deploys hosting and functions, then calls the health check.
+- With "deploy_app" ticked: also writes the functions' settings from repository variables (stops
+  if one is missing), deploys hosting and functions, then calls the health check.
 - Budgets in `budgets.json`: functions run at most 60 seconds (global option, unit tested).
 - From a laptop, logged in with firebase: `npm run build && npx firebase deploy --project tax-co-pilot`.
 
@@ -139,6 +155,8 @@ call (returned by `src/models`), eval reports in CI summaries.
 - 2026-11 Client data only to Vertex AI EU, enforced in `src/models`.
 - 2026-11 Firestore default deny. Firestore `(default)` is in europe-west6 (permanent).
 - 2026-11-19 Repo public for free branch rules until SR-23. Keyless deploys.
+- 2026-11-21 Extraction: PDF text is made in her browser, so no server ever holds her Drive token
+  or a PDF. Client text goes to Vertex `eu` only through the `extract` function (Lucas approved).
 
 ## What breaks first
 1. Government form changes. Signal: nightly form check, fill errors.

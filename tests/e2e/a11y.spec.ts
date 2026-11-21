@@ -30,6 +30,20 @@ test("empty and filled queue have no WCAG 2.2 AA violations", async ({ page }) =
   await expectNoViolations(page);
 });
 
+test("queue with Extract all and a failed extraction has no WCAG 2.2 AA violations", async ({ page }) => {
+  await page.route("https://www.googleapis.com/drive/v3/files**", (route) => route.fulfill({ json: { files: [] } }));
+  await page.goto("/");
+  await signInWithGoogle(page);
+  await seedClient("c1", { ownerUid: await onlyUid(), displayName: "Ana Example", status: "documents_in", flagCount: 0, driveFolderId: "folder1" });
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Extract all (1)" })).toBeVisible();
+  await expectNoViolations(page);
+  await page.getByLabel("Tax year").selectOption({ index: 1 });
+  await page.getByRole("button", { name: "Extract all (1)" }).click();
+  await expect(page.getByRole("alert")).toContainText("No PDFs found");
+  await expectNoViolations(page);
+});
+
 test("new client form has no WCAG 2.2 AA violations", async ({ page }) => {
   await page.goto("/");
   await signInWithGoogle(page);

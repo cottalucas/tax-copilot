@@ -1,8 +1,11 @@
 // Login and home queue (SR-16). Screens and states from DESIGN.md.
 import { GoogleAuthProvider, onAuthStateChanged, reauthenticateWithPopup, signInWithCredential, signInWithPopup, signOut, type User } from "firebase/auth";
 import { addDoc, collection, getDocs, query, serverTimestamp, where } from "firebase/firestore";
-import { createFolder, DRIVE_SCOPE, uploadFile } from "./drive.js";
-import { auth, db } from "./firebase.js";
+import { httpsCallable } from "firebase/functions";
+import { MAX_FILES, pendingExtraction, runBatch, taxYearChoices, type BatchDeps } from "./batch.js";
+import { createFolder, downloadFile, DRIVE_SCOPE, listPdfs, saveJsonFile, uploadFile } from "./drive.js";
+import { auth, db, functions } from "./firebase.js";
+import { pdfPages } from "./pdf.js";
 import { checkFiles, folderName, hasPdfHeader, validateName } from "./intake.js";
 import { groupQueue, toQueueClient, type QueueClient } from "./queue.js";
 
@@ -183,7 +186,7 @@ function renderIntake(user: User) {
       for (const [i, f] of selection.entries()) {
         if (uploaded.has(i)) continue;
         status.textContent = `Uploading ${i + 1} of ${selection.length} to your Drive`;
-        await uploadFile(token, folderId, f);
+        await uploadFile(token, folderId, f, f.name, "application/pdf");
         uploaded.add(i);
       }
       status.textContent = "Saving the client";
@@ -212,17 +215,93 @@ function renderIntake(user: User) {
   name.focus();
 }
 
-function renderQueue(main: HTMLElement, clients: QueueClient[], user: User) {
+/** The callable functions' errors carry a message for her; anything else gets a generic one. */
+function callableMessage(err: unknown): string {
+  const e = err as { code?: string; message?: string };
+  return e.code?.startsWith("functions/") && e.message ? e.message : "Extraction failed. Try again.";
+}
+
+function batchDeps(token: string): BatchDeps {
+  const extract = httpsCallable<unknown, { data: unknown; model: string }>(functions, "extract", { timeout: 70_000 });
+  const save = httpsCallable(functions, "saveExtraction");
+  return {
+    // One more than the limit, so a folder over the limit is reported instead of cut short.
+    listPdfs: (folderId) => listPdfs(token, folderId, MAX_FILES + 1),
+    download: (fileId) => downloadFile(token, fileId),
+    pdfPages,
+    extract: async (input) => {
+      try {
+        return (await extract(input)).data;
+      } catch (err) {
+        throw new Error(callableMessage(err), { cause: err });
+      }
+    },
+    saveDataFile: (folderId, name, json) => saveJsonFile(token, folderId, name, json),
+    saveExtraction: async (input) => {
+      try {
+        await save(input);
+      } catch (err) {
+        throw new Error(callableMessage(err), { cause: err });
+      }
+    },
+    now: () => new Date(),
+  };
+}
+
+/** Extract all (SR-18): one data file per waiting client, saved in her Drive. */
+function extractAllControls(pending: QueueClient[], user: User, status: HTMLElement, errors: HTMLElement) {
+  const wrap = el("div", { class: "actions" });
+  const label = el("label", { for: "tax-year" }, "Tax year");
+  const year = el("select", { id: "tax-year" }) as HTMLSelectElement;
+  year.append(el("option", { value: "" }, "Choose"), ...taxYearChoices(new Date()).map((y) => el("option", { value: String(y) }, String(y))));
+  const b = el("button", { type: "button", class: "secondary" }, `Extract all (${pending.length})`);
+  wrap.append(label, year, b);
+  b.addEventListener("click", async () => {
+    errors.replaceChildren();
+    // She states the tax year. The app never guesses it.
+    const taxYear = Number(year.value);
+    if (!taxYear) {
+      errors.replaceChildren(el("p", {}, "Choose the tax year first."));
+      return year.focus();
+    }
+    b.setAttribute("disabled", "");
+    year.setAttribute("disabled", "");
+    try {
+      status.textContent = "Connecting to your Google Drive";
+      const token = await driveToken(user);
+      const outcome = await runBatch(pending, taxYear, batchDeps(token), (m) => (status.textContent = m));
+      if (outcome.failed.length === 0) return void (await loadQueue(user, `Data extracted for ${outcome.done.length} of ${pending.length} clients.`));
+      status.textContent = `Data extracted for ${outcome.done.length} of ${pending.length} clients.`;
+      errors.replaceChildren(...outcome.failed.map((f) => el("p", {}, `${f.name}: ${f.reason}`)));
+      const again = el("button", { type: "button", class: "secondary" }, "Refresh the queue");
+      again.addEventListener("click", () => void loadQueue(user));
+      errors.append(again);
+    } catch (err) {
+      const code = (err as { code?: string }).code;
+      status.textContent = "";
+      errors.replaceChildren(el("p", {}, code === "auth/user-mismatch" ? "Use the same Google account you signed in with." : (err as Error).message || "Something went wrong."));
+      b.removeAttribute("disabled");
+      year.removeAttribute("disabled");
+    }
+  });
+  return wrap;
+}
+
+function renderQueue(main: HTMLElement, clients: QueueClient[], user: User, notice?: string) {
   const wrap = el("section", { "aria-label": "Client queue" });
   const bar = el("div", { class: "actions" });
   bar.append(newClientButton(user));
-  wrap.append(bar);
+  const status = el("p", { class: "muted", role: "status" }, notice ?? "");
+  const errors = el("div", { role: "alert", class: "error" });
+  const pending = pendingExtraction(clients);
+  if (pending.length > 0) bar.append(extractAllControls(pending, user, status, errors));
+  wrap.append(bar, status, errors);
   for (const group of groupQueue(clients)) {
     const g = el("section", { class: "group", "aria-labelledby": `g-${group.status}` });
     g.append(el("h2", { id: `g-${group.status}` }, `${group.label} (${group.clients.length})`));
     const table = el("table");
     const head = el("tr");
-    for (const h of ["Client", "Status", "Flags"]) head.append(el("th", { scope: "col" }, h));
+    for (const h of ["Client", "Status", "Flags", "Data"]) head.append(el("th", { scope: "col" }, h));
     table.append(el("thead"), el("tbody"));
     table.tHead!.append(head);
     for (const c of group.clients) {
@@ -234,6 +313,7 @@ function renderQueue(main: HTMLElement, clients: QueueClient[], user: User) {
       const flags = el("td");
       flags.append(c.flagCount > 0 ? el("span", { class: "badge flag", "aria-label": `${c.flagCount} flags` }, String(c.flagCount)) : el("span", { class: "muted" }, "0"));
       row.append(flags);
+      row.append(el("td", { class: c.extracted ? "" : "muted" }, c.extracted ? "Extracted" : "Not yet"));
       table.tBodies[0]!.append(row);
     }
     g.append(table);
@@ -242,14 +322,14 @@ function renderQueue(main: HTMLElement, clients: QueueClient[], user: User) {
   main.replaceChildren(wrap);
 }
 
-async function loadQueue(user: User) {
+async function loadQueue(user: User, notice?: string) {
   const main = renderQueueShell(user);
   renderLoading(main);
   try {
     const snap = await getDocs(query(collection(db, "clients"), where("ownerUid", "==", user.uid)));
     const clients = snap.docs.map((d) => toQueueClient(d.id, d.data())).filter((c): c is QueueClient => !!c);
     if (clients.length === 0) renderEmpty(main, user);
-    else renderQueue(main, clients, user);
+    else renderQueue(main, clients, user, notice);
   } catch {
     renderError(main, user);
   }
