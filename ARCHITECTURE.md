@@ -16,7 +16,7 @@ Locked unless marked open.
 | Engine | Cloud Functions v2, europe-west6 (Zurich) | `src/functions/` |
 | Extraction | The `extract` callable function sends her documents (PDF, JPG, PNG) to the model as `gs://` file links through the adapter, so Gemini reads the files themselves; scan and photo accuracy is checked by the evals/media set on main. Fixed JSON schema, Zod validated, citations checked | `src/functions/extract.ts`, `src/extraction/`, `src/schema/`, `prompts/`, `web/src/batch.ts` |
 | Product AI | One adapter, Vertex Gemini on the EU endpoint only | `src/models/` |
-| Rules | Plain code with tests, not prompts | `rules/` |
+| Rules | Plain code with tests, not prompts. Run by the extract function after every extraction. Today: consistency checks on the documents and the year on year salary change; Zurich rules wait for the private repo (SR-23) | `rules/` |
 | Storage | Firestore: client status, flags, corrections, and extracted values while the return is open. No documents | `firestore.rules` |
 | Files | Cloud Storage, the project's default bucket `tax-co-pilot.firebasestorage.app` in europe-west6 (DOCUMENTS_BUCKET, set by infra.yml and the only bucket the functions and web app use). Uploaded from her browser into `users/{uid}/clients/{clientId}/`. Private, deleted on submit and after 30 days, no soft delete, no object versioning | `storage.rules`, `storage-lifecycle.json`, `web/src/main.ts` |
 | Filling | Claude in Chrome with one saved shortcut holding the form field map | TODO SR-21 |
@@ -45,7 +45,11 @@ background job, never behind a Hosting rewrite.
   source file and page), model, taxYear, sources (the file names), extractedAt, expireAt (27 days
   after the oldest document's upload; a Firestore TTL policy deletes the values then). She reads her own; only the `extract` function writes, in a
   transaction that refuses once the return is no longer Documents in.
-- `clients/{clientId}/flags/{flagId}`: ruleId, severity, field, reason, resolved.
+- Flags (SR-19) live in `extraction/current.flags`, next to the values they come from, so they are
+  deleted with them: ruleId, severity (critical first), field (dotted path, for the source page)
+  and a plain language reason. The extract function runs the rules (`rules/`) right after
+  extraction and, in the same transaction, sets the client's flagCount and status: Needs review
+  with any flag, otherwise Ready to fill. Re-extraction is allowed until the return is submitted.
 - `clients/{clientId}/corrections/{id}`: field, before, after, at. Feeds new golden cases.
 - File names: each upload gets one unique storage name (a repeat becomes `name (2).pdf`), and
   citations use that name, so a value always points at exactly one document.

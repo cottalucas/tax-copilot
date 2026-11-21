@@ -4,6 +4,7 @@ import budgets from "../../budgets.json" with { type: "json" };
 import { DOCUMENT_TYPES, extractReturn, type DocumentFile, type DocumentType, type ExtractOptions } from "../extraction/extract.js";
 import { BudgetExceededError, CostBudget, DataResidencyError, getModelConfig, ModelConfigError } from "../models/index.js";
 import type { ExtractedReturn } from "../schema/extraction.js";
+import { runRules, type Flag } from "../../rules/index.js";
 
 /**
  * Extraction for one client (SR-28). Her files sit in the Zurich bucket under
@@ -43,6 +44,10 @@ export interface StoredFile {
 
 export interface ExtractionRecord {
   data: ExtractedReturn;
+  /** Flags from the rules (SR-19), critical first. Stored with the values, deleted with them. */
+  flags: Flag[];
+  /** Status after the rules: Needs review with any flag, otherwise Ready to fill. */
+  status: "needs_review" | "ready_to_fill";
   model: string;
   taxYear: number;
   sources: string[];
@@ -57,9 +62,9 @@ export interface ExtractDeps {
   getClient(clientId: string): Promise<{ ownerUid?: unknown; taxYear?: unknown } | undefined>;
   listFiles(prefix: string): Promise<StoredFile[]>;
   /**
-   * Saves the values only while the return is still open (status Documents in), in one
-   * transaction, so an extraction that finishes after submit cannot bring values back.
-   * Resolves false when the return is no longer open.
+   * Saves the values and flags and moves the status, only while the return is not submitted, in
+   * one transaction, so an extraction that finishes after submit cannot bring values back.
+   * Resolves false when the return is submitted.
    */
   saveExtraction(clientId: string, record: ExtractionRecord): Promise<boolean>;
   /** Marks the return submitted first, then deletes its extracted values and files. */
@@ -172,7 +177,11 @@ export function toDocuments(files: StoredFile[], prefix: string, bucket: string)
   });
 }
 
-export async function handleExtract(caller: Caller | undefined, input: unknown, deps: ExtractDeps): Promise<{ ok: true; files: number }> {
+export async function handleExtract(
+  caller: Caller | undefined,
+  input: unknown,
+  deps: ExtractDeps,
+): Promise<{ ok: true; files: number; flags: number; status: ExtractionRecord["status"] }> {
   const { clientId, client, prefix } = await authorize(caller, input, deps);
   const taxYear = client.taxYear;
   if (typeof taxYear !== "number" || !Number.isInteger(taxYear)) throw new HttpsError("failed-precondition", "The client has no tax year.");
@@ -197,8 +206,12 @@ export async function handleExtract(caller: Caller | undefined, input: unknown, 
     throw new HttpsError("internal", "Extraction failed. Try again.");
   }
   const now = deps.now?.() ?? new Date();
+  // Rules are code, run on every extraction (SR-19). No previous year on file yet.
+  const { flags, status } = runRules({ current: data });
   const saved = await deps.saveExtraction(clientId, {
     data,
+    flags,
+    status,
     model,
     taxYear,
     sources: docs.map((d) => d.file),
@@ -210,8 +223,8 @@ export async function handleExtract(caller: Caller | undefined, input: unknown, 
     throw new HttpsError("failed-precondition", "This return is no longer open.");
   }
   // Counts only. Never document text or extracted values in logs.
-  deps.log?.("extract ok", { clientId, files: docs.length, costUsd: budget.spentUsd, ms: Date.now() - started });
-  return { ok: true, files: docs.length };
+  deps.log?.("extract ok", { clientId, files: docs.length, flags: flags.length, costUsd: budget.spentUsd, ms: Date.now() - started });
+  return { ok: true, files: docs.length, flags: flags.length, status };
 }
 
 /**

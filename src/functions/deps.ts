@@ -33,14 +33,14 @@ export function firebaseDeps(log?: ExtractDeps["log"]): ExtractDeps {
       const [files] = await bucket.getFiles({ prefix });
       return files.map(stored);
     },
-    // One transaction: values are saved only while the return is open, so an extraction that
-    // finishes after submit cannot bring them back.
+    // One transaction: values, flags and the new status are saved only while the return is not
+    // submitted, so an extraction that finishes after submit cannot bring them back.
     saveExtraction: (id, record) =>
       db.runTransaction(async (tx) => {
         const client = await tx.get(clients.doc(id));
-        if (!client.exists || client.get("status") !== "documents_in") return false;
+        if (!client.exists || client.get("status") === "submitted") return false;
         tx.set(clients.doc(id).collection("extraction").doc("current"), record);
-        tx.update(clients.doc(id), { extractedAt: record.extractedAt });
+        tx.update(clients.doc(id), { extractedAt: record.extractedAt, status: record.status, flagCount: record.flags.length });
         return true;
       }),
     // Submit closes the return first, so a running extraction cannot save after this point. Then
@@ -49,7 +49,7 @@ export function firebaseDeps(log?: ExtractDeps["log"]): ExtractDeps {
     submit: async (id, prefix) => {
       const client = await clients.doc(id).get();
       if (client.get("status") !== "submitted") {
-        await clients.doc(id).update({ status: "submitted", submittedAt: FieldValue.serverTimestamp(), extractedAt: FieldValue.delete() });
+        await clients.doc(id).update({ status: "submitted", submittedAt: FieldValue.serverTimestamp(), extractedAt: FieldValue.delete(), flagCount: 0 });
       }
       // Values and files are deleted independently: a failure in one never skips the other.
       const results = await Promise.allSettled([db.recursiveDelete(clients.doc(id).collection("extraction")), bucket.deleteFiles({ prefix })]);
@@ -85,13 +85,13 @@ export function cleanupDeps(log?: CleanupDeps["log"]): CleanupDeps {
         const at = snap.get("expireAt") as { toDate(): Date } | undefined;
         if (!snap.exists || (at && at.toDate().getTime() > now.getTime())) return false;
         tx.delete(ref);
-        tx.update(clients.doc(id), { extractedAt: FieldValue.delete() });
+        tx.update(clients.doc(id), { extractedAt: FieldValue.delete(), flagCount: 0 });
         return true;
       }),
     deleteValues: async (id) => {
       const had = (await clients.doc(id).collection("extraction").limit(1).get()).size > 0;
       await db.recursiveDelete(clients.doc(id).collection("extraction"));
-      await clients.doc(id).update({ extractedAt: FieldValue.delete() });
+      await clients.doc(id).update({ extractedAt: FieldValue.delete(), flagCount: 0 });
       return had;
     },
     listFiles: async (prefix) => (await bucket.getFiles({ prefix }))[0].map(stored),

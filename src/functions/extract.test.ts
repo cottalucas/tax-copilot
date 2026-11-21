@@ -108,7 +108,7 @@ describe("handleExtract", () => {
   it("sends her files from the Zurich bucket as links, as client data, and saves the values with a 30 day expiry", async () => {
     const extract = vi.fn((docs, options) => extractReturn(docs, { ...options, provider: provider() }));
     const { deps, saved, logs } = makeDeps({ extract });
-    expect(await handleExtract(her, { clientId: "c1" }, deps)).toEqual({ ok: true, files: 2 });
+    expect(await handleExtract(her, { clientId: "c1" }, deps)).toEqual({ ok: true, files: 2, flags: 0, status: "ready_to_fill" });
     const [docs, options] = extract.mock.calls[0]!;
     expect(docs).toEqual([
       { file: "salary-statement.pdf", mimeType: "application/pdf", uri: `gs://tax-co-pilot.firebasestorage.app/${prefix}salary-statement.pdf` },
@@ -123,7 +123,7 @@ describe("handleExtract", () => {
     // Values expire 27 days after the oldest upload, a day before the bucket deletes the documents.
     expect(record.expireAt).toEqual(new Date("2026-03-19T00:00:00Z"));
     // Logs hold counts and cost only, never document text, names or values.
-    expect(logs).toEqual([expect.objectContaining({ message: "extract ok", files: 2, costUsd: 0.001 })]);
+    expect(logs).toEqual([expect.objectContaining({ message: "extract ok", files: 2, flags: 0, costUsd: 0.001 })]);
     expect(JSON.stringify(logs)).not.toMatch(/98000|Example AG|salary-statement/);
   });
 
@@ -158,6 +158,25 @@ describe("handleExtract", () => {
       expect(logs[0]).toMatchObject({ message: "extract failed", error: category });
       expect(saved).toHaveLength(0);
     }
+  });
+});
+
+describe("rules after extraction (SR-19)", () => {
+  it("saves the flags with the values and moves a flagged return to Needs review", async () => {
+    const flagged = { ...result, employment: [{ ...result.employment[0]!, netSalary: { value: 99000, source: { file: "salary-statement.pdf", page: 2 } } }] };
+    const { deps, saved, logs } = makeDeps({}, provider(JSON.stringify(flagged)));
+    expect(await handleExtract(her, { clientId: "c1" }, deps)).toMatchObject({ flags: 1, status: "needs_review" });
+    const [, record] = saved[0]!;
+    expect(record.status).toBe("needs_review");
+    expect(record.flags).toEqual([expect.objectContaining({ ruleId: "net-above-gross", severity: "critical", field: "employment.0.netSalary" })]);
+    // The log holds the count, never the reason text (it names the employer).
+    expect(JSON.stringify(logs)).not.toContain("Example AG");
+  });
+
+  it("a clean return goes to Ready to fill with no flags", async () => {
+    const { deps, saved } = makeDeps();
+    await handleExtract(her, { clientId: "c1" }, deps);
+    expect(saved[0]![1]).toMatchObject({ flags: [], status: "ready_to_fill" });
   });
 });
 
