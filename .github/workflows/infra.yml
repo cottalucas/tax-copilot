@@ -146,7 +146,8 @@ jobs:
         if: inputs.deploy_app
         run: |
           gcloud services enable --project "$PROJECT" cloudfunctions.googleapis.com cloudbuild.googleapis.com \
-            artifactregistry.googleapis.com run.googleapis.com eventarc.googleapis.com
+            artifactregistry.googleapis.com run.googleapis.com eventarc.googleapis.com \
+            cloudscheduler.googleapis.com pubsub.googleapis.com
       # The web app's public config (not a secret) is written at deploy time, never committed.
       - name: Register the web app and write its public config
         if: inputs.deploy_app

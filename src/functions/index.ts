@@ -1,7 +1,9 @@
 import { logger, setGlobalOptions } from "firebase-functions/v2";
 import { onCall, onRequest, type CallableRequest } from "firebase-functions/v2/https";
 import budgets from "../../budgets.json" with { type: "json" };
-import { firebaseDeps } from "./deps.js";
+import { onSchedule } from "firebase-functions/v2/scheduler";
+import { runCleanup } from "./cleanup.js";
+import { cleanupDeps, firebaseDeps } from "./deps.js";
 import { handleExtract, handleSubmit, type Caller } from "./extract.js";
 
 // Stack is locked: Cloud Functions in europe-west6 (Zurich). See ARCHITECTURE.md.
@@ -29,3 +31,11 @@ export const extract = onCall(callable, (req) => handleExtract(caller(req), req.
 
 /** Marks a return submitted and deletes its documents and extracted values. */
 export const submitReturn = onCall(callable, (req) => handleSubmit(caller(req), req.data, deps()));
+
+/** Daily cleanup (SR-28): retries deletions after submit, removes expired values and documents. */
+export const dailyCleanup = onSchedule(
+  { schedule: "every day 02:30", timeZone: "Europe/Zurich", serviceAccount: "extract-fn@", maxInstances: 1, retryCount: 3 },
+  async () => {
+    await runCleanup(cleanupDeps((message, fields) => logger.info(message, fields)));
+  },
+);

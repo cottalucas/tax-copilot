@@ -58,6 +58,10 @@ background job, never behind a Hosting rewrite.
   regardless: Storage rules refuse reading a document 28 days after upload, Firestore rules refuse
   reading values past expireAt or once the return is submitted, and the extract function refuses documents older than 27 days.
   infra.yml stops the deploy unless the lifecycle and the TTL are in place.
+- Daily cleanup (`dailyCleanup`, Cloud Scheduler, 02:30 Zurich, runs as extract-fn): a second
+  deletion path. It deletes any documents or values left on a submitted return (so a failed submit
+  cleanup retries itself), values past expireAt, and documents 28 days old. Logs counts only.
+  Approved by Lucas on 2026-11-21 (new API: Cloud Scheduler, free tier).
 
 ## Data inventory and residency
 | Data | Lives in | Who reads it |

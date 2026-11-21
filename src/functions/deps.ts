@@ -1,7 +1,8 @@
 import { getApps, initializeApp } from "firebase-admin/app";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
-import type { ExtractDeps } from "./extract.js";
+import type { CleanupDeps } from "./cleanup.js";
+import type { ExtractDeps, StoredFile } from "./extract.js";
 
 /**
  * The live wiring for the extract and submitReturn functions: Firestore and the project's default
@@ -19,12 +20,7 @@ export function firebaseDeps(log?: ExtractDeps["log"]): ExtractDeps {
     getClient: async (id) => (await clients.doc(id).get()).data(),
     listFiles: async (prefix) => {
       const [files] = await bucket.getFiles({ prefix });
-      return files.map((f) => ({
-        name: f.name,
-        contentType: String(f.metadata.contentType ?? ""),
-        size: Number(f.metadata.size ?? 0),
-        created: new Date(String(f.metadata.timeCreated ?? 0)),
-      }));
+      return files.map(stored);
     },
     // One transaction: values are saved only while the return is open, so an extraction that
     // finishes after submit cannot bring them back.
@@ -46,6 +42,42 @@ export function firebaseDeps(log?: ExtractDeps["log"]): ExtractDeps {
       }
       await db.recursiveDelete(clients.doc(id).collection("extraction"));
       await bucket.deleteFiles({ prefix });
+    },
+    log,
+  };
+}
+
+function stored(f: { name: string; metadata: { contentType?: unknown; size?: unknown; timeCreated?: unknown } }): StoredFile {
+  return {
+    name: f.name,
+    contentType: String(f.metadata.contentType ?? ""),
+    size: Number(f.metadata.size ?? 0),
+    created: new Date(String(f.metadata.timeCreated ?? 0)),
+  };
+}
+
+/** The live wiring for the daily cleanup. Tested against the emulators. */
+export function cleanupDeps(log?: CleanupDeps["log"]): CleanupDeps {
+  if (getApps().length === 0) initializeApp();
+  const db = getFirestore();
+  const clients = db.collection("clients");
+  const bucket = getStorage().bucket();
+  return {
+    now: () => new Date(),
+    listClients: async () =>
+      (await clients.select("ownerUid", "status").get()).docs.map((d) => ({ id: d.id, ownerUid: String(d.get("ownerUid") ?? ""), status: String(d.get("status") ?? "") })),
+    getValuesExpiry: async (id) => {
+      const snap = await clients.doc(id).collection("extraction").doc("current").get();
+      const at = snap.get("expireAt") as { toDate(): Date } | undefined;
+      return snap.exists ? (at?.toDate() ?? new Date(0)) : undefined;
+    },
+    deleteValues: async (id) => {
+      await db.recursiveDelete(clients.doc(id).collection("extraction"));
+      await clients.doc(id).update({ extractedAt: FieldValue.delete() });
+    },
+    listFiles: async (prefix) => (await bucket.getFiles({ prefix }))[0].map(stored),
+    deleteFile: async (name) => {
+      await bucket.file(name).delete({ ignoreNotFound: true });
     },
     log,
   };

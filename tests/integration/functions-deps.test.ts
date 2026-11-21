@@ -2,7 +2,8 @@ import { deleteApp, getApps, initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { firebaseDeps } from "../../src/functions/deps.js";
+import { runCleanup } from "../../src/functions/cleanup.js";
+import { cleanupDeps, firebaseDeps } from "../../src/functions/deps.js";
 import { clientPrefix } from "../../src/functions/extract.js";
 
 // SR-28: the functions' real Firestore and Storage wiring, against the emulators
@@ -88,5 +89,17 @@ describe("functions wiring on the emulators", () => {
     expect((await getFirestore().doc("clients/c1").get()).get("submittedAt").isEqual(firstSubmit)).toBe(true);
     expect((await getFirestore().doc("clients/c1/extraction/current").get()).exists).toBe(false);
     expect((await getFirestore().doc("clients/c1").get()).get("extractedAt")).toBeUndefined();
+  });
+
+  it("the daily cleanup clears a submitted return's leftovers and expired values on the real wiring", async () => {
+    await getFirestore().doc("clients/c2").set({ ownerUid: "preparer", displayName: "Client B", status: "submitted", flagCount: 0, fileCount: 1, taxYear: 2025 });
+    await getFirestore().doc("clients/c2/extraction/current").set({ expireAt: new Date(Date.now() + 86_400_000) });
+    await getFirestore().doc("clients/c1/extraction/current").set({ expireAt: new Date(Date.now() - 1000) });
+    const result = await runCleanup(cleanupDeps());
+    expect(result).toMatchObject({ submittedFiles: 1, submittedValues: 1, expiredValues: 1, expiredFiles: 0 });
+    const [left] = await getStorage().bucket().getFiles({ prefix: "users/" });
+    expect(left.map((f) => f.name).sort()).toEqual([`${prefix}photo.jpg`, `${prefix}salary.pdf`]);
+    expect((await getFirestore().doc("clients/c1/extraction/current").get()).exists).toBe(false);
+    expect((await getFirestore().doc("clients/c2/extraction/current").get()).exists).toBe(false);
   });
 });

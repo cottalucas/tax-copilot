@@ -41,6 +41,8 @@ live-evals-pr (10 calls each, pull request code in a container without credentia
 injection cases. The scan and photo cases are proven after merge by live-evals.yml on main
 (github-evals identity); SR-28 stays In Progress until that run passes. Pull request live runs keep to golden and injection (main's verifier scores
 only those); main and nightly add `--media`.
+Daily cleanup (`dailyCleanup`, 02:30 Zurich, Cloud Scheduler, approved by Lucas): deletes
+leftovers of submitted returns, expired values and 28 day old documents; counts only in logs.
 Tests: 8 groups of function unit tests (flow, access, preconditions, invalid output, limits,
 citations, error categories, submit), 3 new Storage rules tests and 2 Firestore extraction rules
 tests on the emulators, 3 emulator tests of the functions' real wiring (`src/functions/deps.ts`:
@@ -265,6 +267,7 @@ Every block, so the reviewer can be tuned. Category is the tag the block would g
 calibrated rules (none means it would now be a comment).
 | Date | Pull request | Reason given | Category | Action |
 | --- | --- | --- | --- | --- |
+| 2026-11-21 | #13 runs 4 to 7 | Cleanup after a failed submit depends on a manual retry; background deletion has no deadline guarantee | CRITERION | Lucas approved a daily cleanup job (Cloud Scheduler): it retries leftover deletions on submitted returns and deletes expired values and 28 day old documents, as a second path next to the lifecycle and the TTL. Unit and emulator tests |
 | 2026-11-21 | #13 run 5 | Recordings were made by running pull request code with Lucas's Google login | NEVER | True, the agent's mistake. Reported to Lucas, logged as a breach. Lucas chose the trusted proxy: all laptop recordings deleted, the runner records unrecorded cases first so two live-evals-pr runs cover all 18. No more such runs |
 | 2026-11-21 | #13 run 5 | PROGRESS.md said 30 day lifecycle, infra.yml requires 28 | CRITERION | Fixed the PROGRESS.md line |
 | 2026-11-21 | #13 run 4 | Leftover values stay readable after submit; cleanup retry is manual; background deletion has no guaranteed deadline | CRITERION | Rules now hide values once the return is submitted (rules test). Automatic retry and the deletion guarantee go to Lucas: a scheduled cleanup needs a new Google Cloud API, and no Google background deletion has a deadline guarantee (third round on retention) |
