@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { extractReturn } from "../extraction/extract.js";
 import type { ModelProvider } from "../models/index.js";
 import { BudgetExceededError, DataResidencyError, ModelConfigError } from "../models/index.js";
-import { errorCategory, handleExtract, handleSave, isAllowed, LIMITS, type Caller, type ExtractDeps } from "./extract.js";
+import { badCitations, CitationError, errorCategory, handleExtract, handleSave, isAllowed, LIMITS, type Caller, type ExtractDeps } from "./extract.js";
 
 const her: Caller = { uid: "u1", email: "Preparer@Example.com", emailVerified: true };
 const env = { EXTRACT_PROVIDER: "vertex", EXTRACT_MODEL: "test-model", EXTRACT_ALLOWED_EMAILS: " preparer@example.com, other@example.com " };
@@ -125,11 +125,29 @@ describe("handleExtract", () => {
   });
 });
 
+describe("citations", () => {
+  const docs = [{ file: "a.pdf", pages: ["p1", "p2"] }];
+  it("accepts sources that point at a page that was sent", () => {
+    expect(badCitations({ x: [{ value: 1, source: { file: "a.pdf", page: 2 } }] }, docs)).toBe(0);
+  });
+  it("counts unknown files and pages out of range", () => {
+    const data = { a: { source: { file: "b.pdf", page: 1 } }, b: [{ source: { file: "a.pdf", page: 3 } }], c: { source: { file: "a.pdf", page: 0 } } };
+    expect(badCitations(data, docs)).toBe(3);
+  });
+  it("refuses an extraction that cites a page it was not sent", async () => {
+    const wrong = { ...result, employment: [{ ...result.employment[0]!, grossSalary: { value: 98000, source: { file: "salary-statement.pdf", page: 4 } } }] };
+    const { deps, logs } = makeDeps({}, provider(JSON.stringify(wrong)));
+    expect(await code(handleExtract(her, input, deps))).toBe("internal");
+    expect(logs[0]).toMatchObject({ message: "extract failed", error: "citation" });
+  });
+});
+
 describe("errorCategory", () => {
   it("logs a fixed category, never the message", () => {
     expect(errorCategory(new BudgetExceededError("cost 0.06 for Gross salary 98000"))).toBe("budget");
     expect(errorCategory(new DataResidencyError("x"))).toBe("residency");
     expect(errorCategory(new ModelConfigError("x"))).toBe("config");
+    expect(errorCategory(new CitationError("x"))).toBe("citation");
     expect(errorCategory(new Error("Model returned invalid JSON (vertex/m)."))).toBe("invalid-json");
     expect(errorCategory(new Error("Model output failed schema validation: employment.0"))).toBe("schema");
     expect(errorCategory(new Error("Vertex AI error 429: quota for Example AG 98000"))).toBe("provider-429");

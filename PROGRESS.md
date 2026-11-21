@@ -13,14 +13,14 @@ case (needs SR-23) and the canton land.
 ## Log
 
 ### 2026-11-21 SR-18 Extraction, part 1: batch extraction
-Done: "Extract all (n)" on the queue runs extraction for every client with documents in, a Drive
+Done: she chooses the tax year (nothing preselected), then "Extract all (n)" runs extraction for every client with documents in, a Drive
 folder and no data file. For each client her browser lists the PDFs in the client's Drive folder,
 downloads them with her own token and turns each page into text (pdf.js, loaded only when
 needed). The `extract` callable function (europe-west6, runs as `extract-fn`) checks the caller
 is on EXTRACT_ALLOWED_EMAILS with a verified email and owns the client, checks size limits (30
 files, 200 pages per file, 400,000 characters, at least some text), then calls
 `extractReturn` with `dataClass: "client"` and a cost budget of one call and 0.05 USD. The output
-is schema validated, every value with source file and page. The browser saves it as
+is schema validated, every value with source file and page, and every cited file and page must be one it was sent. The browser saves it as
 `tax-copilot-data.json` in the client's Drive folder and `saveExtraction` records the file id
 (dataFileId, extractedAt). The queue shows Data: Extracted or Not yet. One client failing does
 not stop the batch; failures are listed with the reason. Logs hold counts and cost, never text or
@@ -228,6 +228,7 @@ Every block, so the reviewer can be tuned. Category is the tag the block would g
 calibrated rules (none means it would now be a comment).
 | Date | Pull request | Reason given | Category | Action |
 | --- | --- | --- | --- | --- |
+| 2026-11-21 | #12 run 2 | The batch set the tax year to last calendar year without asking her | NEVER | She chooses the tax year (last three years, nothing preselected) before Extract all runs; the data file records it. Also: Drive listing follows nextPageToken, and the function rejects citations to a file or page it was not sent (comments) |
 | 2026-11-21 | #12 run 1 | Failed extraction logged the raw error message (truncated), which could echo document text | SECURITY | Log a fixed category (budget, residency, config, invalid JSON, schema, provider status code, unknown) and duration only. Also made the data file save safe to retry (comment) |
 | 2026-11-20 | #11 run 6 | Marker check is not a full PDF parse | CRITERION | Lead call: intake screens files, extraction (SR-18) parses them. Pull request body reworded to claim exactly that |
 | 2026-11-20 | #11 run 5 | Only the first five bytes were checked | CRITERION | Header %PDF- and the %%EOF end marker; full parsing stays with extraction (SR-18) |
@@ -301,7 +302,6 @@ calibrated rules (none means it would now be a comment).
 ## Assumptions
 | Date | Assumption | Confirm with |
 | --- | --- | --- |
-| 2026-11-21 | The return being prepared is for last year (tax year = current year minus 1) | Lucas |
 | 2026-11-21 | New budget `extractMaxCostUsd` 0.05 USD per client: the 400,000 character cap costs about 0.03 USD on `gemini-3.1-flash-lite` | Lucas |
 | 2026-11-21 | Scanned PDFs (no text layer) are refused with a clear message, no OCR yet | Lucas |
 | 2026-11-21 | Code comments in `src/models` and `src/extraction` still say residency is decided "at SR-18". Updating them changes model inputs and needs new recordings, so they change with the next model input pull request | Lucas |

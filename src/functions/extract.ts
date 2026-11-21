@@ -82,6 +82,29 @@ function parse<T>(schema: z.ZodType<T>, input: unknown): T {
   return parsed.data;
 }
 
+/** Raised when the model cites a file it was not sent or a page that file does not have. */
+export class CitationError extends Error {
+  override name = "CitationError";
+}
+
+/** Counts cited sources (`{ source: { file, page } }`) that do not point at a page it was sent. */
+export function badCitations(data: unknown, docs: DocumentText[]): number {
+  const pages = new Map(docs.map((d) => [d.file, d.pages.length]));
+  let bad = 0;
+  const walk = (node: unknown): void => {
+    if (Array.isArray(node)) return node.forEach(walk);
+    if (!node || typeof node !== "object") return;
+    const source = (node as { source?: { file?: unknown; page?: unknown } }).source;
+    if (source && typeof source === "object") {
+      const count = typeof source.file === "string" ? pages.get(source.file) : undefined;
+      if (count === undefined || typeof source.page !== "number" || source.page < 1 || source.page > count) bad += 1;
+    }
+    Object.values(node).forEach(walk);
+  };
+  walk(data);
+  return bad;
+}
+
 /**
  * A fixed category for a failed extraction. Logs get this, never the message: provider and
  * validation messages could echo document text or values.
@@ -90,6 +113,7 @@ export function errorCategory(err: unknown): string {
   if (err instanceof BudgetExceededError) return "budget";
   if (err instanceof DataResidencyError) return "residency";
   if (err instanceof ModelConfigError) return "config";
+  if (err instanceof CitationError) return "citation";
   const message = err instanceof Error ? err.message : "";
   if (message.startsWith("Model returned invalid JSON")) return "invalid-json";
   if (message.startsWith("Model output failed schema validation")) return "schema";
@@ -119,6 +143,8 @@ export async function handleExtract(caller: Caller | undefined, input: unknown, 
       env: deps.env,
       budget,
     });
+    // Every value must cite a file and page she sent (SR-18: source file and page).
+    if (badCitations(data, req.documents) > 0) throw new CitationError("A value cites a file or page that was not sent.");
     // Counts only. Never document text or extracted values in logs.
     deps.log?.("extract ok", { clientId: req.clientId, files: req.documents.length, chars, costUsd: budget.spentUsd, ms: Date.now() - started });
     return { data, model, costUsd: budget.spentUsd };

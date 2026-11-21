@@ -74,10 +74,19 @@ export async function saveJsonFile(token: string, folderId: string, name: string
   return (await ok(res, `Saving ${name}`)).id;
 }
 
-export async function listPdfs(token: string, folderId: string): Promise<{ id: string; name: string }[]> {
-  const params = new URLSearchParams({ q: pdfQuery(folderId), fields: "files(id,name)", pageSize: "100", orderBy: "name" });
-  const res = await fetch(`${API}?${params}`, { headers: { authorization: `Bearer ${token}` } });
-  return (await ok<{ files?: { id: string; name: string }[] }>(res, "Listing the client's files")).files ?? [];
+/** Lists the PDFs in a folder. Drive may return short pages, so it follows nextPageToken until `limit` files. */
+export async function listPdfs(token: string, folderId: string, limit = 100): Promise<{ id: string; name: string }[]> {
+  const files: { id: string; name: string }[] = [];
+  let pageToken: string | undefined;
+  do {
+    const params = new URLSearchParams({ q: pdfQuery(folderId), fields: "nextPageToken,files(id,name)", pageSize: "100", orderBy: "name" });
+    if (pageToken) params.set("pageToken", pageToken);
+    const res = await fetch(`${API}?${params}`, { headers: { authorization: `Bearer ${token}` } });
+    const page = await ok<{ files?: { id: string; name: string }[]; nextPageToken?: string }>(res, "Listing the client's files");
+    files.push(...(page.files ?? []));
+    pageToken = page.nextPageToken;
+  } while (pageToken && files.length < limit);
+  return files;
 }
 
 export async function downloadFile(token: string, fileId: string): Promise<ArrayBuffer> {

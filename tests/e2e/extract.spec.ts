@@ -3,6 +3,7 @@ import { markExtracted, onlyUid, resetEmulators, seedClient, signInWithGoogle } 
 import { textPdf } from "./pdf-fixture.js";
 
 // Synthetic documents only (AGENTS.md > Never do).
+const taxYear = new Date().getFullYear() - 2;
 const salary = textPdf([["Salary statement (synthetic)", "Employer Example AG"], ["Gross salary 98000.00"]]);
 const FUNCTIONS = "http://127.0.0.1:5001/demo-tax-copilot/europe-west6";
 const cors = { "access-control-allow-origin": "*", "access-control-allow-headers": "*", "access-control-allow-methods": "POST, OPTIONS" };
@@ -87,7 +88,12 @@ test("SR-18: extract all reads her PDFs, extracts through the function, saves on
   const row = page.locator("tbody tr", { hasText: "Ana Example" });
   await expect(row.locator("td").nth(3)).toHaveText("Not yet");
   await expect(page.locator("tbody tr", { hasText: "Bo Example" }).locator("td").nth(3)).toHaveText("Extracted");
+  // She must state the tax year: the app never guesses it.
+  await page.getByRole("button", { name: "Extract all (1)" }).click();
+  await expect(page.getByRole("alert")).toHaveText("Choose the tax year first.");
+  expect(extractCalls).toHaveLength(0);
   // Only clients without a data file are waiting.
+  await page.getByLabel("Tax year").selectOption(String(taxYear));
   await page.getByRole("button", { name: "Extract all (1)" }).click();
 
   await expect(page.getByRole("status")).toHaveText("Data extracted for 1 of 1 clients.");
@@ -99,7 +105,7 @@ test("SR-18: extract all reads her PDFs, extracts through the function, saves on
   expect(extractCalls[0]!.auth).toMatch(/^Bearer /);
   expect(extractCalls[0]!.data).toEqual({
     clientId: "c1",
-    taxYear: new Date().getFullYear() - 1,
+    taxYear,
     documents: [{ file: "salary-statement.pdf", pages: ["Salary statement (synthetic)\nEmployer Example AG", "Gross salary 98000.00"] }],
   });
   // Drive: listed only that client's folder, and saved one data file into it with her token.
@@ -110,6 +116,7 @@ test("SR-18: extract all reads her PDFs, extracts through the function, saves on
   expect(drive.uploads[0]!.body).toContain('{"name":"tax-copilot-data.json","parents":["folder1"]}');
   expect(drive.uploads[0]!.body).toContain('"model": "test-model"');
   expect(drive.uploads[0]!.body).toContain('"page": 2');
+  expect(drive.uploads[0]!.body).toContain(`"taxYear": ${taxYear}`);
   expect(saveCalls.map((c) => c.data)).toEqual([{ clientId: "c1", dataFileId: "data1" }]);
   expect(outside).toEqual([]);
 });
@@ -123,6 +130,7 @@ test("SR-18: a failed extraction is reported and nothing is saved", async ({ pag
   await signInWithGoogle(page);
   await seedClient("c1", { ownerUid: await onlyUid(), displayName: "Ana Example", status: "documents_in", flagCount: 0, driveFolderId: "folder1" });
   await page.reload();
+  await page.getByLabel("Tax year").selectOption(String(taxYear));
   await page.getByRole("button", { name: "Extract all (1)" }).click();
 
   await expect(page.getByRole("status")).toHaveText("Data extracted for 0 of 1 clients.");
@@ -145,6 +153,7 @@ test("SR-18: a retry overwrites the data file from an earlier try instead of add
   await signInWithGoogle(page);
   await seedClient("c1", { ownerUid: await onlyUid(), displayName: "Ana Example", status: "documents_in", flagCount: 0, driveFolderId: "folder1" });
   await page.reload();
+  await page.getByLabel("Tax year").selectOption(String(taxYear));
   await page.getByRole("button", { name: "Extract all (1)" }).click();
 
   await expect(page.getByRole("status")).toHaveText("Data extracted for 1 of 1 clients.");

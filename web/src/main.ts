@@ -2,7 +2,7 @@
 import { GoogleAuthProvider, onAuthStateChanged, reauthenticateWithPopup, signInWithCredential, signInWithPopup, signOut, type User } from "firebase/auth";
 import { addDoc, collection, getDocs, query, serverTimestamp, where } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
-import { pendingExtraction, runBatch, type BatchDeps } from "./batch.js";
+import { MAX_FILES, pendingExtraction, runBatch, taxYearChoices, type BatchDeps } from "./batch.js";
 import { createFolder, downloadFile, DRIVE_SCOPE, listPdfs, saveJsonFile, uploadFile } from "./drive.js";
 import { auth, db, functions } from "./firebase.js";
 import { pdfPages } from "./pdf.js";
@@ -225,7 +225,8 @@ function batchDeps(token: string): BatchDeps {
   const extract = httpsCallable<unknown, { data: unknown; model: string }>(functions, "extract", { timeout: 70_000 });
   const save = httpsCallable(functions, "saveExtraction");
   return {
-    listPdfs: (folderId) => listPdfs(token, folderId),
+    // One more than the limit, so a folder over the limit is reported instead of cut short.
+    listPdfs: (folderId) => listPdfs(token, folderId, MAX_FILES + 1),
     download: (fileId) => downloadFile(token, fileId),
     pdfPages,
     extract: async (input) => {
@@ -248,15 +249,27 @@ function batchDeps(token: string): BatchDeps {
 }
 
 /** Extract all (SR-18): one data file per waiting client, saved in her Drive. */
-function extractAllButton(pending: QueueClient[], user: User, status: HTMLElement, errors: HTMLElement) {
+function extractAllControls(pending: QueueClient[], user: User, status: HTMLElement, errors: HTMLElement) {
+  const wrap = el("div", { class: "actions" });
+  const label = el("label", { for: "tax-year" }, "Tax year");
+  const year = el("select", { id: "tax-year" }) as HTMLSelectElement;
+  year.append(el("option", { value: "" }, "Choose"), ...taxYearChoices(new Date()).map((y) => el("option", { value: String(y) }, String(y))));
   const b = el("button", { type: "button", class: "secondary" }, `Extract all (${pending.length})`);
+  wrap.append(label, year, b);
   b.addEventListener("click", async () => {
-    b.setAttribute("disabled", "");
     errors.replaceChildren();
+    // She states the tax year. The app never guesses it.
+    const taxYear = Number(year.value);
+    if (!taxYear) {
+      errors.replaceChildren(el("p", {}, "Choose the tax year first."));
+      return year.focus();
+    }
+    b.setAttribute("disabled", "");
+    year.setAttribute("disabled", "");
     try {
       status.textContent = "Connecting to your Google Drive";
       const token = await driveToken(user);
-      const outcome = await runBatch(pending, batchDeps(token), (m) => (status.textContent = m));
+      const outcome = await runBatch(pending, taxYear, batchDeps(token), (m) => (status.textContent = m));
       if (outcome.failed.length === 0) return void (await loadQueue(user, `Data extracted for ${outcome.done.length} of ${pending.length} clients.`));
       status.textContent = `Data extracted for ${outcome.done.length} of ${pending.length} clients.`;
       errors.replaceChildren(...outcome.failed.map((f) => el("p", {}, `${f.name}: ${f.reason}`)));
@@ -268,9 +281,10 @@ function extractAllButton(pending: QueueClient[], user: User, status: HTMLElemen
       status.textContent = "";
       errors.replaceChildren(el("p", {}, code === "auth/user-mismatch" ? "Use the same Google account you signed in with." : (err as Error).message || "Something went wrong."));
       b.removeAttribute("disabled");
+      year.removeAttribute("disabled");
     }
   });
-  return b;
+  return wrap;
 }
 
 function renderQueue(main: HTMLElement, clients: QueueClient[], user: User, notice?: string) {
@@ -280,7 +294,7 @@ function renderQueue(main: HTMLElement, clients: QueueClient[], user: User, noti
   const status = el("p", { class: "muted", role: "status" }, notice ?? "");
   const errors = el("div", { role: "alert", class: "error" });
   const pending = pendingExtraction(clients);
-  if (pending.length > 0) bar.append(extractAllButton(pending, user, status, errors));
+  if (pending.length > 0) bar.append(extractAllControls(pending, user, status, errors));
   wrap.append(bar, status, errors);
   for (const group of groupQueue(clients)) {
     const g = el("section", { class: "group", "aria-labelledby": `g-${group.status}` });

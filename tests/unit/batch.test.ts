@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DATA_FILE_NAME, MAX_FILES, pendingExtraction, runBatch, taxYearFor, type BatchDeps } from "../../web/src/batch.js";
+import { DATA_FILE_NAME, MAX_FILES, pendingExtraction, runBatch, taxYearChoices, type BatchDeps } from "../../web/src/batch.js";
 import { nameQuery, pdfQuery } from "../../web/src/drive.js";
 import { joinTextItems } from "../../web/src/pdf.js";
 import type { QueueClient } from "../../web/src/queue.js";
@@ -46,19 +46,19 @@ describe("batch extraction", () => {
     expect(pendingExtraction(list).map((c) => c.id)).toEqual(["1"]);
   });
 
-  it("prepares last year's return", () => {
-    expect(taxYearFor(new Date("2026-03-01"))).toBe(2025);
+  it("offers the last three tax years to choose from", () => {
+    expect(taxYearChoices(new Date("2026-03-01"))).toEqual([2025, 2024, 2023]);
   });
 
   it("extracts each client from its PDFs and saves one data file next to them", async () => {
     const { deps, saved, recorded, extracted } = fakeDeps();
     const progress: string[] = [];
-    const out = await runBatch([client("1"), client("2")], deps, (m) => progress.push(m));
+    const out = await runBatch([client("1"), client("2")], 2024, deps, (m) => progress.push(m));
     expect(out).toEqual({ done: ["Client 1", "Client 2"], failed: [] });
     expect(progress).toEqual(["Extracting Client 1 (1 of 2)", "Extracting Client 2 (2 of 2)"]);
     expect(extracted[0]).toEqual({
       clientId: "1",
-      taxYear: 2025,
+      taxYear: 2024,
       documents: [
         { file: "salary-statement.pdf", pages: ["text of folder-1-a"] },
         { file: "bank-statement.pdf", pages: ["text of folder-1-b"] },
@@ -70,6 +70,7 @@ describe("batch extraction", () => {
     ]);
     expect(JSON.parse(saved[0]!.json)).toMatchObject({
       schemaVersion: 1,
+      taxYear: 2024,
       model: "test-model",
       extractedAt: "2026-03-01T10:00:00.000Z",
       sources: ["salary-statement.pdf", "bank-statement.pdf"],
@@ -88,7 +89,7 @@ describe("batch extraction", () => {
         return { data: {}, model: "m" };
       },
     });
-    const out = await runBatch([client("1"), client("2")], deps);
+    const out = await runBatch([client("1"), client("2")], 2024, deps);
     expect(out).toEqual({ done: ["Client 2"], failed: [{ name: "Client 1", reason: "Extraction failed. Try again." }] });
     expect(saved.map((s) => s.folderId)).toEqual(["folder-2"]);
     expect(recorded.map((r) => r.clientId)).toEqual(["2"]);
@@ -103,7 +104,7 @@ describe("batch extraction", () => {
     ];
     for (const [over, reason] of cases) {
       const { deps, extracted } = fakeDeps(over);
-      const out = await runBatch([client("1")], deps);
+      const out = await runBatch([client("1")], 2024, deps);
       expect(out.failed[0]?.reason).toContain(reason);
       expect(extracted).toHaveLength(0);
     }

@@ -38,6 +38,7 @@ test("queue with Extract all and a failed extraction has no WCAG 2.2 AA violatio
   await page.reload();
   await expect(page.getByRole("button", { name: "Extract all (1)" })).toBeVisible();
   await expectNoViolations(page);
+  await page.getByLabel("Tax year").selectOption({ index: 1 });
   await page.getByRole("button", { name: "Extract all (1)" }).click();
   await expect(page.getByRole("alert")).toContainText("No PDFs found");
   await expectNoViolations(page);

@@ -35,12 +35,13 @@ export function pendingExtraction(clients: QueueClient[]): QueueClient[] {
   return clients.filter((c) => c.status === "documents_in" && c.driveFolderId && !c.extracted);
 }
 
-/** The return being prepared is for last year. */
-export function taxYearFor(now: Date): number {
-  return now.getFullYear() - 1;
+/** Tax years she can choose from: the last three. She always picks one, nothing is preselected. */
+export function taxYearChoices(now: Date): number[] {
+  const y = now.getFullYear();
+  return [y - 1, y - 2, y - 3];
 }
 
-async function extractOne(client: QueueClient, deps: BatchDeps): Promise<void> {
+async function extractOne(client: QueueClient, taxYear: number, deps: BatchDeps): Promise<void> {
   const folderId = client.driveFolderId!;
   const files = await deps.listPdfs(folderId);
   if (files.length === 0) throw new Error("No PDFs found in the client's Drive folder.");
@@ -56,15 +57,15 @@ async function extractOne(client: QueueClient, deps: BatchDeps): Promise<void> {
   if (documents.every((d) => d.pages.every((p) => p.trim() === ""))) {
     throw new Error("No text found in these PDFs. Scanned PDFs are not supported yet.");
   }
-  const taxYear = taxYearFor(deps.now());
   const result = await deps.extract({ clientId: client.id, taxYear, documents });
-  const file = { schemaVersion: 1, extractedAt: deps.now().toISOString(), model: result.model, sources: files.map((f) => f.name), data: result.data };
+  const file = { schemaVersion: 1, taxYear, extractedAt: deps.now().toISOString(), model: result.model, sources: files.map((f) => f.name), data: result.data };
   const dataFileId = await deps.saveDataFile(folderId, DATA_FILE_NAME, JSON.stringify(file, null, 2));
   await deps.saveExtraction({ clientId: client.id, dataFileId });
 }
 
 export async function runBatch(
   clients: QueueClient[],
+  taxYear: number,
   deps: BatchDeps,
   progress: (message: string) => void = () => {},
 ): Promise<BatchOutcome> {
@@ -72,7 +73,7 @@ export async function runBatch(
   for (const [i, client] of clients.entries()) {
     progress(`Extracting ${client.displayName} (${i + 1} of ${clients.length})`);
     try {
-      await extractOne(client, deps);
+      await extractOne(client, taxYear, deps);
       outcome.done.push(client.displayName);
     } catch (err) {
       outcome.failed.push({ name: client.displayName, reason: (err as Error).message || "Something went wrong." });
