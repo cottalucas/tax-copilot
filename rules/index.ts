@@ -1,10 +1,14 @@
+import { duplicateEmployer, netAboveGross, noSalaryStatement } from "./data-checks.js";
 import { largeSalaryChange } from "./large-salary-change.js";
 import type { Flag, Rule, RuleContext, Status } from "./types.js";
 
 export * from "./types.js";
 
-/** All active rules. Real tax rules wait for the canton decision (PRD.md, Open questions). */
-export const RULES: readonly Rule[] = [largeSalaryChange];
+/**
+ * All active rules. Today: consistency checks on the documents and the year on year salary change.
+ * Real canton rules (Zurich, SR-21) land only once the repo is private (SR-23, AGENTS.md).
+ */
+export const RULES: readonly Rule[] = [noSalaryStatement, netAboveGross, duplicateEmployer, largeSalaryChange];
 
 export interface RulesResult {
   flags: Flag[];

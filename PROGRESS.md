@@ -1,8 +1,8 @@
 # PROGRESS.md
 
 ## Current focus
-SR-28: documents into the app, extraction on the server. Next: SR-19 (rules and flags, Zurich)
-once the repo is private (SR-23).
+SR-28 (#13) waits on #14 and Lucas's retention call. SR-19 part 1 (rules engine wired in,
+consistency checks) is stacked on it. Zurich rules wait for the private repo (SR-23).
 
 ## Next up
 1. SR-24: gates, auto merge, proof pull requests, infra.
@@ -11,6 +11,18 @@ once the repo is private (SR-23).
 4. Move the review job to `pull_request_target` (read the diff only, never run pull request code).
 
 ## Log
+
+### 2026-11-21 SR-19 Rules and flags, part 1: engine wired in, consistency checks
+Done: the extract function runs every rule in `rules/` right after a successful extraction and
+saves the flags with the values (`extraction/current.flags`, critical first), then sets the
+client's flagCount and status in the same transaction: Needs review with any flag, otherwise
+Ready to fill. Flags are deleted with the values (submit, expiry, daily cleanup). New rules, each
+with tests and a plain language reason that points at a field: no salary statement found,
+net salary above gross (critical, likely misread), the same employer on two statements. They are
+consistency checks on the documents, not tax know-how, so they are allowed while the repo is
+public. Re-extraction is allowed until the return is submitted. Logs hold the flag count only.
+Not done: Zurich deduction rules (need the private repo, SR-23), resolving flags (SR-20).
+Stacked on #13 (SR-28); retargets to main after #13 merges.
 
 ### 2026-11-21 SR-28 Upload into the app, extract on the server
 Done: the new client form takes a name, the tax year (she chooses, nothing preselected) and up to

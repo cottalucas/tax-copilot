@@ -44,17 +44,24 @@ describe("functions wiring on the emulators", () => {
     const extractedAt = new Date("2026-03-01T00:00:00Z");
     const expireAt = new Date("2026-03-31T00:00:00Z");
     const data = { schemaVersion: 1 as const, taxpayer: { clientId: "c1", taxYear: 2025 }, employment: [], deductions: {}, bankAccounts: [], cantonSpecific: {} };
-    expect(await firebaseDeps().saveExtraction("c1", { data, model: "m", taxYear: 2025, sources: ["salary.pdf"], extractedAt, expireAt })).toBe(true);
+    const flags = [{ ruleId: "no-salary-statement", severity: "warning" as const, field: "employment", reason: "No salary statement was found." }];
+    expect(await firebaseDeps().saveExtraction("c1", { data, flags, status: "needs_review", model: "m", taxYear: 2025, sources: ["salary.pdf"], extractedAt, expireAt })).toBe(true);
     const saved = (await getFirestore().doc("clients/c1/extraction/current").get()).data()!;
     expect(saved.expireAt.toDate()).toEqual(expireAt);
     expect(saved.data.taxpayer).toEqual({ clientId: "c1", taxYear: 2025 });
-    expect((await getFirestore().doc("clients/c1").get()).get("extractedAt").toDate()).toEqual(extractedAt);
+    const client = (await getFirestore().doc("clients/c1").get()).data()!;
+    expect(client.extractedAt.toDate()).toEqual(extractedAt);
+    // The rules' result: flags next to the values, the count and the status on the client.
+    expect(saved.flags).toEqual(flags);
+    expect(client).toMatchObject({ status: "needs_review", flagCount: 1 });
   });
 
   it("submitting deletes the client's documents and extracted values, and nobody else's", async () => {
     const deps = firebaseDeps();
     await deps.saveExtraction("c1", {
       data: { schemaVersion: 1, taxpayer: { clientId: "c1", taxYear: 2025 }, employment: [], deductions: {}, bankAccounts: [], cantonSpecific: {} },
+      flags: [],
+      status: "ready_to_fill",
       model: "m",
       taxYear: 2025,
       sources: [],
@@ -72,6 +79,8 @@ describe("functions wiring on the emulators", () => {
     // An extraction that finishes after submit cannot bring the values back.
     const late = await deps.saveExtraction("c1", {
       data: { schemaVersion: 1, taxpayer: { clientId: "c1", taxYear: 2025 }, employment: [], deductions: {}, bankAccounts: [], cantonSpecific: {} },
+      flags: [],
+      status: "ready_to_fill",
       model: "m",
       taxYear: 2025,
       sources: [],
