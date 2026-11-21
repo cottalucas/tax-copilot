@@ -15,6 +15,11 @@ describe("retention", () => {
     expect(expiryFor([{ created: upload }], new Date("2026-03-02T00:00:00Z"))).toEqual(new Date("2026-03-28T00:00:00Z"));
   });
 
+  it("rules cut access on schedule, whatever the background jobs do", () => {
+    expect(readFileSync("storage.rules", "utf8")).toContain(`request.time < resource.timeCreated + duration.value(${FILES_DELETE_AFTER_DAYS}, 'd')`);
+    expect(readFileSync("firestore.rules", "utf8")).toContain("resource.data.expireAt > request.time");
+  });
+
   it("infra.yml checks the bucket and turns on the Firestore expiry for extracted values", () => {
     const infra = readFileSync(".github/workflows/infra.yml", "utf8");
     expect(infra).toContain("storage-lifecycle.json");

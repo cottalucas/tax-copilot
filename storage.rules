@@ -7,7 +7,10 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     match /users/{uid}/clients/{clientId}/{file} {
-      allow read: if request.auth != null && request.auth.uid == uid;
+      // Readable for 28 days after upload, the day the bucket lifecycle deletes it, so access
+      // ends on time even while the background deletion is still running.
+      allow read: if request.auth != null && request.auth.uid == uid
+        && request.time < resource.timeCreated + duration.value(28, 'd');
       allow create: if request.auth != null && request.auth.uid == uid && resource == null
         && request.resource.size <= 25 * 1024 * 1024
         && request.resource.contentType.matches('application/pdf|image/jpeg|image/png');

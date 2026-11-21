@@ -168,6 +168,13 @@ describe("expiry and closed returns", () => {
     expect(expiryFor([{ created: new Date("2026-04-01T00:00:00Z") }], now)).toEqual(new Date("2026-03-28T00:00:00Z"));
   });
 
+  it("refuses documents so old that their values would expire at once, before any model call", async () => {
+    const old = stored.map((f) => ({ ...f, created: new Date("2026-01-01T00:00:00Z") }));
+    const { deps, p } = makeDeps({ listFiles: async () => old });
+    expect(await code(handleExtract(her, { clientId: "c1" }, deps))).toBe("failed-precondition");
+    expect(p.calls).toBe(0);
+  });
+
   it("an extraction that finishes after submit saves nothing and says the return is closed", async () => {
     const { deps, logs } = makeDeps({ saveExtraction: async () => false });
     expect(await code(handleExtract(her, { clientId: "c1" }, deps))).toBe("failed-precondition");

@@ -80,14 +80,22 @@ describe("firestore.rules: creating a client (SR-28)", () => {
 describe("firestore.rules: extracted values (SR-28)", () => {
   beforeEach(async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
-      await setDoc(doc(ctx.firestore(), "clients/c1/extraction/current"), { taxYear: 2025, data: { schemaVersion: 1 } });
-      await setDoc(doc(ctx.firestore(), "clients/c2/extraction/current"), { taxYear: 2025, data: { schemaVersion: 1 } });
+      const future = new Date(Date.now() + 24 * 3600 * 1000);
+      await setDoc(doc(ctx.firestore(), "clients/c1/extraction/current"), { taxYear: 2025, data: { schemaVersion: 1 }, expireAt: future });
+      await setDoc(doc(ctx.firestore(), "clients/c2/extraction/current"), { taxYear: 2025, data: { schemaVersion: 1 }, expireAt: future });
     });
   });
 
   it("lets her read the values of her own client", async () => {
     const db = env.authenticatedContext("preparer").firestore();
     await assertSucceeds(getDoc(doc(db, "clients/c1/extraction/current")));
+  });
+
+  it("hides values once they expire, before the TTL deletes them", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "clients/c1/extraction/current"), { taxYear: 2025, data: { schemaVersion: 1 }, expireAt: new Date(Date.now() - 1000) });
+    });
+    await assertFails(getDoc(doc(env.authenticatedContext("preparer").firestore(), "clients/c1/extraction/current")));
   });
 
   it("does not let another user read them, and nobody writes them from a browser", async () => {

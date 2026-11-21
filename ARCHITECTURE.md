@@ -54,8 +54,10 @@ background job, never behind a Hosting rewrite.
   to try again; repeating it deletes what is left. The button comes with SR-22.
 - Deadline: documents and values are gone 30 days after upload at the latest. The bucket
   lifecycle (28 days) and the Firestore TTL (27 days) both delete in the background, usually within
-  a day, so each is scheduled early and values go before their documents. infra.yml stops the
-  deploy unless both are in place.
+  a day, so each is scheduled early and values go before their documents. Access ends on schedule
+  regardless: Storage rules refuse reading a document 28 days after upload, Firestore rules refuse
+  reading values past expireAt, and the extract function refuses documents older than 27 days.
+  infra.yml stops the deploy unless the lifecycle and the TTL are in place.
 
 ## Data inventory and residency
 | Data | Lives in | Who reads it |

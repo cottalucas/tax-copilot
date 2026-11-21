@@ -262,6 +262,8 @@ Every block, so the reviewer can be tuned. Category is the tag the block would g
 calibrated rules (none means it would now be a comment).
 | Date | Pull request | Reason given | Category | Action |
 | --- | --- | --- | --- | --- |
+| 2026-11-21 | #13 run 3 | 28 and 27 days instead of the criterion's 30; background deletion order not guaranteed | CRITERION | Kept: the SR-28 flow says "after 30 days at the latest", which a background job meets only when scheduled early. Added hard cut-offs that do not depend on it: Storage rules stop reads at 28 days, Firestore rules stop reads past expireAt (rules test), the function refuses documents older than 27 days |
+| 2026-11-21 | #13 run 3 | The photo case did not check the bank name and year end balance printed on it | CRITERION | Both added as expected fields; the committed recording holds them |
 | 2026-11-21 | #13 run 2 | A failed cleanup after submit left documents with a submitted return | CRITERION | Submit is safe to repeat: on a submitted return it deletes what is left. A failure tells her to try again. Unit and emulator tests |
 | 2026-11-21 | #13 run 2 | TTL and lifecycle delete in the background, and infra accepted a TTL still being created | CRITERION | Lifecycle at 28 days, values at 27 days after the oldest upload, so both finish before day 30 and values go first. infra.yml waits until the TTL is ACTIVE or stops |
 | 2026-11-21 | #13 run 2 | (again) Bucket and Firestore values break the Never rule on main | NEVER | Waits on #14, which needs Lucas |

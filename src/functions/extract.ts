@@ -178,6 +178,10 @@ export async function handleExtract(caller: Caller | undefined, input: unknown, 
   if (typeof taxYear !== "number" || !Number.isInteger(taxYear)) throw new HttpsError("failed-precondition", "The client has no tax year.");
   const files = await deps.listFiles(prefix);
   const docs = toDocuments(files, prefix, deps.bucket);
+  // Values would expire at once: the oldest document is about to be deleted.
+  if (expiryFor(files, deps.now?.() ?? new Date()) <= (deps.now?.() ?? new Date())) {
+    throw new HttpsError("failed-precondition", `Some documents are older than ${VALUES_EXPIRE_AFTER_DAYS} days and are being deleted. Upload them again in a new client.`);
+  }
 
   const model = getModelConfig("extract", deps.env).model;
   const budget = new CostBudget(budgets.extractMaxCostUsd, { requireCost: true, maxCalls: 1 });
