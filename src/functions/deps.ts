@@ -51,8 +51,9 @@ export function firebaseDeps(log?: ExtractDeps["log"]): ExtractDeps {
       if (client.get("status") !== "submitted") {
         await clients.doc(id).update({ status: "submitted", submittedAt: FieldValue.serverTimestamp(), extractedAt: FieldValue.delete() });
       }
-      await db.recursiveDelete(clients.doc(id).collection("extraction"));
-      await bucket.deleteFiles({ prefix });
+      // Values and files are deleted independently: a failure in one never skips the other.
+      const results = await Promise.allSettled([db.recursiveDelete(clients.doc(id).collection("extraction")), bucket.deleteFiles({ prefix })]);
+      if (results.some((r) => r.status === "rejected")) throw new Error("Deleting the return's values or documents failed.");
     },
     log,
   };
