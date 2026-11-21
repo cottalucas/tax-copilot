@@ -19,18 +19,19 @@
     "evals": "tsx evals/run.ts",
     "build": "npm run build:web && npm run build:functions",
     "build:web": "vite build",
-    "build:functions": "tsc -p tsconfig.build.json",
+    "build:functions": "tsc -p tsconfig.build.json && rm -rf lib/prompts && cp -R prompts lib/prompts",
     "dev": "vite",
     "check:design": "design.md lint DESIGN.md > /dev/null",
     "evals:live": "tsx evals/run.ts --live"
   },
   "dependencies": {
+    "firebase": "^13.4.0",
     "firebase-admin": "^14.5.1",
     "firebase-functions": "^7.4.0",
     "google-auth-library": "^10.9.1",
     "openai": "^7.61.0",
-    "zod": "^4.6.7",
-    "firebase": "^13.4.0"
+    "pdfjs-dist": "^6.5.438",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",

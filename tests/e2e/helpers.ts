@@ -25,7 +25,10 @@ export async function onlyUid(): Promise<string> {
 }
 
 /** Writes a client document, bypassing rules (emulator owner token). */
-export async function seedClient(id: string, fields: { ownerUid: string; displayName: string; status: string; flagCount: number }) {
+export async function seedClient(
+  id: string,
+  fields: { ownerUid: string; displayName: string; status: string; flagCount: number; driveFolderId?: string; dataFileId?: string },
+) {
   await fetch(`${FIRESTORE}/v1/projects/${PROJECT}/databases/(default)/documents/clients/${id}`, {
     method: "PATCH",
     headers: { ...OWNER, "content-type": "application/json" },
@@ -35,6 +38,8 @@ export async function seedClient(id: string, fields: { ownerUid: string; display
         displayName: { stringValue: fields.displayName },
         status: { stringValue: fields.status },
         flagCount: { integerValue: String(fields.flagCount) },
+        ...(fields.driveFolderId ? { driveFolderId: { stringValue: fields.driveFolderId } } : {}),
+        ...(fields.dataFileId ? { dataFileId: { stringValue: fields.dataFileId } } : {}),
       },
     }),
   });
@@ -45,4 +50,13 @@ export async function readClients(): Promise<Record<string, unknown>[]> {
   const res = await fetch(`${FIRESTORE}/v1/projects/${PROJECT}/databases/(default)/documents/clients`, { headers: OWNER });
   const json = (await res.json()) as { documents?: { fields: Record<string, Record<string, unknown>> }[] };
   return (json.documents ?? []).map((d) => Object.fromEntries(Object.entries(d.fields).map(([k, v]) => [k, Object.values(v)[0]])));
+}
+
+/** What the extract function would record: the data file id, written as the server does (bypassing rules). */
+export async function markExtracted(id: string, dataFileId: string) {
+  await fetch(`${FIRESTORE}/v1/projects/${PROJECT}/databases/(default)/documents/clients/${id}?updateMask.fieldPaths=dataFileId&updateMask.fieldPaths=extractedAt`, {
+    method: "PATCH",
+    headers: { ...OWNER, "content-type": "application/json" },
+    body: JSON.stringify({ fields: { dataFileId: { stringValue: dataFileId }, extractedAt: { timestampValue: new Date().toISOString() } } }),
+  });
 }

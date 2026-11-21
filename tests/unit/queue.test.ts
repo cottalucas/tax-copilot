@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { groupQueue, toQueueClient, type QueueClient } from "../../web/src/queue.js";
 
-const c = (id: string, displayName: string, status: QueueClient["status"], flagCount = 0): QueueClient => ({ id, displayName, status, flagCount });
+const c = (id: string, displayName: string, status: QueueClient["status"], flagCount = 0): QueueClient => ({ id, displayName, status, flagCount, extracted: false });
 
 describe("home queue", () => {
   it("groups by status in the order she works, flagged first, then by name", () => {
@@ -22,6 +22,11 @@ describe("home queue", () => {
   it("drops malformed documents and clamps flag counts", () => {
     expect(toQueueClient("x", { displayName: "Ana", status: "nope" })).toBeUndefined();
     expect(toQueueClient("x", { status: "submitted" })).toBeUndefined();
-    expect(toQueueClient("x", { displayName: "Ana", status: "submitted", flagCount: -3 })).toEqual({ id: "x", displayName: "Ana", status: "submitted", flagCount: 0 });
+    expect(toQueueClient("x", { displayName: "Ana", status: "submitted", flagCount: -3 })).toEqual({ id: "x", displayName: "Ana", status: "submitted", flagCount: 0, extracted: false });
+  });
+
+  it("carries the Drive folder and whether the data file is saved", () => {
+    expect(toQueueClient("x", { displayName: "Ana", status: "documents_in", driveFolderId: "f1", dataFileId: "d1" })).toMatchObject({ driveFolderId: "f1", extracted: true });
+    expect(toQueueClient("x", { displayName: "Ana", status: "documents_in", driveFolderId: "", dataFileId: "" })).toEqual({ id: "x", displayName: "Ana", status: "documents_in", flagCount: 0, extracted: false });
   });
 });

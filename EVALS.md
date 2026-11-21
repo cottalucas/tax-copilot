@@ -38,7 +38,8 @@ text, covered by unit tests.
 ## Cost budget
 Live runs stop and fail at `liveEvalMaxCalls` (10) model calls or `liveEvalMaxCostUsd` (0.25 USD)
 in `budgets.json`. Every call is priced from `config/model-prices.json`; a call without a price
-fails the run. Extraction asks for at most 2000 output tokens.
+fails the run. Extraction asks for at most 2000 output tokens. In the app, one client's extraction
+is one call, capped at `extractMaxCostUsd` (0.05 USD); an unpriced call fails.
 
 ## Judge
 Never for numbers. An LLM judge is allowed later only for free text such as flag explanations,

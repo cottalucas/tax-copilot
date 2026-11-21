@@ -112,6 +112,22 @@ jobs:
           fi
           npx firebase apps:sdkconfig WEB "$id" --project "$PROJECT" --json | jq -r '.result.sdkConfig |
             "VITE_FIREBASE_API_KEY=\(.apiKey)\nVITE_FIREBASE_AUTH_DOMAIN=\(.authDomain)\nVITE_FIREBASE_PROJECT_ID=\(.projectId)\nVITE_FIREBASE_APP_ID=\(.appId)"' > web/.env.production.local
+      # Product AI settings for the functions, from repository variables (names only in the repo).
+      # EXTRACT_ALLOWED_EMAILS: the only accounts that may run extraction. Missing stops the deploy.
+      - name: Write the functions' settings
+        if: inputs.deploy_app
+        env:
+          EXTRACT_PROVIDER: ${{ vars.EXTRACT_PROVIDER }}
+          EXTRACT_MODEL: ${{ vars.EXTRACT_MODEL }}
+          VERTEX_PROJECT_ID: ${{ vars.VERTEX_PROJECT_ID }}
+          VERTEX_REGION: ${{ vars.VERTEX_REGION }}
+          EXTRACT_ALLOWED_EMAILS: ${{ vars.EXTRACT_ALLOWED_EMAILS }}
+        run: |
+          : > ".env.$PROJECT"
+          for v in EXTRACT_PROVIDER EXTRACT_MODEL VERTEX_PROJECT_ID VERTEX_REGION EXTRACT_ALLOWED_EMAILS; do
+            if [ -z "${!v}" ]; then echo "::error title=functions settings::Repository variable $v is not set."; exit 1; fi
+            printf '%s=%s\n' "$v" "${!v}" >> ".env.$PROJECT"
+          done
       - name: Deploy hosting and functions (live)
         if: inputs.deploy_app
         run: npx firebase deploy --only hosting,functions --project "$PROJECT" --non-interactive --force
