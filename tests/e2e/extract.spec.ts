@@ -22,23 +22,30 @@ async function mockCallable(page: Page, name: string, reply: (call: Call) => Pro
   return calls;
 }
 
-/** Mocks her Drive: one folder with one PDF; records the data file upload. */
-async function mockDrive(page: Page) {
-  const uploads: { auth: string | null; type: string; body: string }[] = [];
+/** Mocks her Drive: one folder with one PDF, and optionally a data file from an earlier try. */
+async function mockDrive(page: Page, existingDataFile?: string) {
+  const uploads: { method: string; path: string; auth: string | null; type: string; body: string }[] = [];
   const reads: string[] = [];
   await page.route("https://www.googleapis.com/drive/v3/files**", async (route) => {
     const url = new URL(route.request().url());
     reads.push(url.pathname + url.search);
     if ((await route.request().headerValue("authorization")) !== "Bearer emulator-drive-token") return route.fulfill({ status: 401, json: {} });
-    if (url.pathname.endsWith("/files")) return route.fulfill({ json: { files: [{ id: "pdf1", name: "salary-statement.pdf" }] } });
+    const query = url.searchParams.get("q") ?? "";
+    if (url.pathname.endsWith("/files") && query.includes("name='tax-copilot-data.json'")) {
+      return route.fulfill({ json: { files: existingDataFile ? [{ id: existingDataFile }] : [] } });
+    }
+    if (url.pathname.endsWith("/files") && query.includes("mimeType='application/pdf'")) {
+      return route.fulfill({ json: { files: [{ id: "pdf1", name: "salary-statement.pdf" }] } });
+    }
     if (url.pathname.endsWith("/files/pdf1") && url.searchParams.get("alt") === "media") return route.fulfill({ body: salary, contentType: "application/pdf" });
     return route.fulfill({ status: 404, json: {} });
   });
   await page.route("https://www.googleapis.com/upload/drive/v3/files**", async (route) => {
     const type = (await route.request().headerValue("content-type")) ?? "";
     if (!type.startsWith("multipart/related; boundary=")) return route.fulfill({ status: 400, json: { error: "bad content type" } });
-    uploads.push({ auth: await route.request().headerValue("authorization"), type, body: route.request().postData() ?? "" });
-    await route.fulfill({ json: { id: "data1" } });
+    const path = new URL(route.request().url()).pathname;
+    uploads.push({ method: route.request().method(), path, auth: await route.request().headerValue("authorization"), type, body: route.request().postData() ?? "" });
+    await route.fulfill({ json: { id: existingDataFile ?? "data1" } });
   });
   return { uploads, reads };
 }
@@ -98,6 +105,7 @@ test("SR-18: extract all reads her PDFs, extracts through the function, saves on
   // Drive: listed only that client's folder, and saved one data file into it with her token.
   expect(drive.reads.some((r) => r.includes("folder2"))).toBe(false);
   expect(drive.uploads).toHaveLength(1);
+  expect(drive.uploads[0]!.method).toBe("POST");
   expect(drive.uploads[0]!.auth).toBe("Bearer emulator-drive-token");
   expect(drive.uploads[0]!.body).toContain('{"name":"tax-copilot-data.json","parents":["folder1"]}');
   expect(drive.uploads[0]!.body).toContain('"model": "test-model"');
@@ -123,4 +131,23 @@ test("SR-18: a failed extraction is reported and nothing is saved", async ({ pag
   expect(saveCalls).toHaveLength(0);
   await page.getByRole("button", { name: "Refresh the queue" }).click();
   await expect(page.locator("tbody tr", { hasText: "Ana Example" }).locator("td").nth(3)).toHaveText("Not yet");
+});
+
+test("SR-18: a retry overwrites the data file from an earlier try instead of adding a second one", async ({ page }) => {
+  const drive = await mockDrive(page, "data0");
+  await mockCallable(page, "extract", async () => ({ json: { result: { data: extracted, model: "test-model" } } }));
+  const saveCalls = await mockCallable(page, "saveExtraction", async (call) => {
+    await markExtracted(String(call.data.clientId), String(call.data.dataFileId));
+    return { json: { result: { ok: true } } };
+  });
+
+  await page.goto("/");
+  await signInWithGoogle(page);
+  await seedClient("c1", { ownerUid: await onlyUid(), displayName: "Ana Example", status: "documents_in", flagCount: 0, driveFolderId: "folder1" });
+  await page.reload();
+  await page.getByRole("button", { name: "Extract all (1)" }).click();
+
+  await expect(page.getByRole("status")).toHaveText("Data extracted for 1 of 1 clients.");
+  expect(drive.uploads.map((u) => [u.method, u.path])).toEqual([["PATCH", "/upload/drive/v3/files/data0"]]);
+  expect(saveCalls.map((c) => c.data)).toEqual([{ clientId: "c1", dataFileId: "data0" }]);
 });

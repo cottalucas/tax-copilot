@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DATA_FILE_NAME, MAX_FILES, pendingExtraction, runBatch, taxYearFor, type BatchDeps } from "../../web/src/batch.js";
-import { pdfQuery } from "../../web/src/drive.js";
+import { nameQuery, pdfQuery } from "../../web/src/drive.js";
 import { joinTextItems } from "../../web/src/pdf.js";
 import type { QueueClient } from "../../web/src/queue.js";
 
@@ -120,5 +120,6 @@ describe("drive query", () => {
   it("lists only PDFs in the folder and escapes quotes", () => {
     expect(pdfQuery("abc")).toBe("'abc' in parents and mimeType='application/pdf' and trashed=false");
     expect(pdfQuery("a'b")).toBe("'a\\'b' in parents and mimeType='application/pdf' and trashed=false");
+    expect(nameQuery("abc", "tax-copilot-data.json")).toBe("'abc' in parents and name='tax-copilot-data.json' and trashed=false");
   });
 });

@@ -2,7 +2,8 @@ import { HttpsError } from "firebase-functions/v2/https";
 import { describe, expect, it, vi } from "vitest";
 import { extractReturn } from "../extraction/extract.js";
 import type { ModelProvider } from "../models/index.js";
-import { handleExtract, handleSave, isAllowed, LIMITS, type Caller, type ExtractDeps } from "./extract.js";
+import { BudgetExceededError, DataResidencyError, ModelConfigError } from "../models/index.js";
+import { errorCategory, handleExtract, handleSave, isAllowed, LIMITS, type Caller, type ExtractDeps } from "./extract.js";
 
 const her: Caller = { uid: "u1", email: "Preparer@Example.com", emailVerified: true };
 const env = { EXTRACT_PROVIDER: "vertex", EXTRACT_MODEL: "test-model", EXTRACT_ALLOWED_EMAILS: " preparer@example.com, other@example.com " };
@@ -118,9 +119,22 @@ describe("handleExtract", () => {
   it("fails without leaking details when the model output is invalid or unpriced", async () => {
     const bad = makeDeps({}, provider('{"schemaVersion":1}'));
     expect(await code(handleExtract(her, input, bad.deps))).toBe("internal");
-    expect(bad.logs[0]).toMatchObject({ message: "extract failed" });
+    expect(bad.logs[0]).toMatchObject({ message: "extract failed", error: "schema" });
     const unpriced = makeDeps({}, provider(JSON.stringify(result), null));
     expect(await code(handleExtract(her, input, unpriced.deps))).toBe("internal");
+  });
+});
+
+describe("errorCategory", () => {
+  it("logs a fixed category, never the message", () => {
+    expect(errorCategory(new BudgetExceededError("cost 0.06 for Gross salary 98000"))).toBe("budget");
+    expect(errorCategory(new DataResidencyError("x"))).toBe("residency");
+    expect(errorCategory(new ModelConfigError("x"))).toBe("config");
+    expect(errorCategory(new Error("Model returned invalid JSON (vertex/m)."))).toBe("invalid-json");
+    expect(errorCategory(new Error("Model output failed schema validation: employment.0"))).toBe("schema");
+    expect(errorCategory(new Error("Vertex AI error 429: quota for Example AG 98000"))).toBe("provider-429");
+    expect(errorCategory(new Error("Example AG 98000"))).toBe("unknown");
+    expect(errorCategory("Example AG")).toBe("unknown");
   });
 });
 

@@ -3,7 +3,7 @@ import { GoogleAuthProvider, onAuthStateChanged, reauthenticateWithPopup, signIn
 import { addDoc, collection, getDocs, query, serverTimestamp, where } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { pendingExtraction, runBatch, type BatchDeps } from "./batch.js";
-import { createFolder, downloadFile, DRIVE_SCOPE, listPdfs, uploadFile } from "./drive.js";
+import { createFolder, downloadFile, DRIVE_SCOPE, listPdfs, saveJsonFile, uploadFile } from "./drive.js";
 import { auth, db, functions } from "./firebase.js";
 import { pdfPages } from "./pdf.js";
 import { checkFiles, folderName, hasPdfHeader, validateName } from "./intake.js";
@@ -235,7 +235,7 @@ function batchDeps(token: string): BatchDeps {
         throw new Error(callableMessage(err), { cause: err });
       }
     },
-    saveDataFile: (folderId, name, json) => uploadFile(token, folderId, new Blob([json], { type: "application/json" }), name, "application/json"),
+    saveDataFile: (folderId, name, json) => saveJsonFile(token, folderId, name, json),
     saveExtraction: async (input) => {
       try {
         await save(input);

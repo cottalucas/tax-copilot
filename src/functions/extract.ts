@@ -2,7 +2,7 @@ import { HttpsError } from "firebase-functions/v2/https";
 import { z } from "zod";
 import budgets from "../../budgets.json" with { type: "json" };
 import { extractReturn, type DocumentText, type ExtractOptions } from "../extraction/extract.js";
-import { CostBudget, getModelConfig } from "../models/index.js";
+import { BudgetExceededError, CostBudget, DataResidencyError, getModelConfig, ModelConfigError } from "../models/index.js";
 import type { ExtractedReturn } from "../schema/extraction.js";
 
 /**
@@ -82,6 +82,22 @@ function parse<T>(schema: z.ZodType<T>, input: unknown): T {
   return parsed.data;
 }
 
+/**
+ * A fixed category for a failed extraction. Logs get this, never the message: provider and
+ * validation messages could echo document text or values.
+ */
+export function errorCategory(err: unknown): string {
+  if (err instanceof BudgetExceededError) return "budget";
+  if (err instanceof DataResidencyError) return "residency";
+  if (err instanceof ModelConfigError) return "config";
+  const message = err instanceof Error ? err.message : "";
+  if (message.startsWith("Model returned invalid JSON")) return "invalid-json";
+  if (message.startsWith("Model output failed schema validation")) return "schema";
+  const status = /^Vertex AI error (\d{3})\b/.exec(message)?.[1];
+  if (status) return `provider-${status}`;
+  return "unknown";
+}
+
 export async function handleExtract(caller: Caller | undefined, input: unknown, deps: ExtractDeps): Promise<ExtractResult> {
   const req = parse(ExtractInput, input);
   await authorize(caller, req.clientId, deps);
@@ -107,8 +123,7 @@ export async function handleExtract(caller: Caller | undefined, input: unknown, 
     deps.log?.("extract ok", { clientId: req.clientId, files: req.documents.length, chars, costUsd: budget.spentUsd, ms: Date.now() - started });
     return { data, model, costUsd: budget.spentUsd };
   } catch (err) {
-    deps.log?.("extract failed", { clientId: req.clientId, // Adapter and schema errors name fields and status codes, never values.
-      error: String((err as Error).message ?? err).slice(0, 200), ms: Date.now() - started });
+    deps.log?.("extract failed", { clientId: req.clientId, error: errorCategory(err), ms: Date.now() - started });
     throw new HttpsError("internal", "Extraction failed. Try again.");
   }
 }
