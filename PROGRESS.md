@@ -12,6 +12,14 @@ case (needs SR-23) and the canton land.
 
 ## Log
 
+### 2026-11-21 SR-28 Never rule updated first (rules only)
+Lucas decided on 2026-11-21 (Linear SR-28, Agent notes) that client documents may sit in a private
+bucket in europe-west6 while a return is open, and that extracted values may live in Firestore.
+The reviewer judges every pull request against AGENTS.md on main, so the code for SR-28 (#13)
+could not pass while main still said "Drive only". This pull request changes only the rule text
+in AGENTS.md and PRD.md, worded so it holds for main today (documents in her Drive) and after
+#13 (documents in the bucket). No code changes. #13 follows on top of it.
+
 ### 2026-11-21 SR-18 Extraction, part 1: batch extraction
 Done: she chooses the tax year (nothing preselected), then "Extract all (n)" runs extraction for every client with documents in, a Drive
 folder and no data file. For each client her browser lists the PDFs in the client's Drive folder,

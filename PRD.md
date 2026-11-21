@@ -53,7 +53,8 @@ TODO (gap, see PROGRESS.md > Open gaps). From the Product Doc stages: own Chrome
 flags on the page, source PDF side panel. End user portal as a second door to the same engine.
 
 ## Never
-- Store client documents outside her Drive.
+- Store client documents anywhere but her own Drive or the Zurich documents bucket, and in the
+  bucket only while the return is open (deleted on submit, 30 days at the latest).
 - Store client government credentials.
 - Submit without her final review.
 
