@@ -22,8 +22,11 @@ test("SR-28: upload, then the real extract function reads the documents and save
   await expect(page.getByRole("status")).toHaveText("Ana Example: documents read.", { timeout: 30_000 });
   const row = page.locator("tbody tr", { hasText: "Ana Example" });
   await expect(row.locator("td").nth(3)).toHaveText("Extracted");
+  // SR-19: the rules ran on the server; no flags, so Ready to fill.
+  await expect(row.locator("td").nth(1)).toHaveText("Ready to fill");
   const [client] = await readClients();
   expect(client!.extractedAt).toBeDefined();
+  expect(client).toMatchObject({ status: "ready_to_fill", flagCount: "0" });
   // The values, as the function saved them (read bypassing rules).
   const res = await fetch(`http://127.0.0.1:8080/v1/projects/demo-tax-copilot/databases/(default)/documents/clients/${encodeURIComponent(await clientId())}/extraction/current`, { headers: { Authorization: "Bearer owner" } });
   const doc = (await res.json()) as { fields: Record<string, unknown> };
