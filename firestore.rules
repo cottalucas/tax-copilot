@@ -26,9 +26,11 @@ service cloud.firestore {
 
       // SR-28: extracted values, written only by the extract function. She reads her own.
       match /extraction/{doc} {
-        // Unreadable once expireAt passes, even before the TTL deletes it in the background.
+        // Unreadable once the return is submitted or expireAt passes, even before the deletion
+        // finishes in the background.
         allow read: if request.auth != null
           && get(/databases/$(database)/documents/clients/$(clientId)).data.ownerUid == request.auth.uid
+          && get(/databases/$(database)/documents/clients/$(clientId)).data.status != 'submitted'
           && resource.data.expireAt > request.time;
       }
     }

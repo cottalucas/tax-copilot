@@ -98,6 +98,13 @@ describe("firestore.rules: extracted values (SR-28)", () => {
     await assertFails(getDoc(doc(env.authenticatedContext("preparer").firestore(), "clients/c1/extraction/current")));
   });
 
+  it("hides values once the return is submitted, even if deletion has not finished", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), "clients/c1"), { status: "submitted" });
+    });
+    await assertFails(getDoc(doc(env.authenticatedContext("preparer").firestore(), "clients/c1/extraction/current")));
+  });
+
   it("does not let another user read them, and nobody writes them from a browser", async () => {
     const db = env.authenticatedContext("preparer").firestore();
     await assertFails(getDoc(doc(db, "clients/c2/extraction/current")));

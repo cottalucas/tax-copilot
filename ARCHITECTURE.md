@@ -56,7 +56,7 @@ background job, never behind a Hosting rewrite.
   lifecycle (28 days) and the Firestore TTL (27 days) both delete in the background, usually within
   a day, so each is scheduled early and values go before their documents. Access ends on schedule
   regardless: Storage rules refuse reading a document 28 days after upload, Firestore rules refuse
-  reading values past expireAt, and the extract function refuses documents older than 27 days.
+  reading values past expireAt or once the return is submitted, and the extract function refuses documents older than 27 days.
   infra.yml stops the deploy unless the lifecycle and the TTL are in place.
 
 ## Data inventory and residency

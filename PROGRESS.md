@@ -262,6 +262,7 @@ Every block, so the reviewer can be tuned. Category is the tag the block would g
 calibrated rules (none means it would now be a comment).
 | Date | Pull request | Reason given | Category | Action |
 | --- | --- | --- | --- | --- |
+| 2026-11-21 | #13 run 4 | Leftover values stay readable after submit; cleanup retry is manual; background deletion has no guaranteed deadline | CRITERION | Rules now hide values once the return is submitted (rules test). Automatic retry and the deletion guarantee go to Lucas: a scheduled cleanup needs a new Google Cloud API, and no Google background deletion has a deadline guarantee (third round on retention) |
 | 2026-11-21 | #13 run 3 | 28 and 27 days instead of the criterion's 30; background deletion order not guaranteed | CRITERION | Kept: the SR-28 flow says "after 30 days at the latest", which a background job meets only when scheduled early. Added hard cut-offs that do not depend on it: Storage rules stop reads at 28 days, Firestore rules stop reads past expireAt (rules test), the function refuses documents older than 27 days |
 | 2026-11-21 | #13 run 3 | The photo case did not check the bank name and year end balance printed on it | CRITERION | Both added as expected fields; the committed recording holds them |
 | 2026-11-21 | #13 run 2 | A failed cleanup after submit left documents with a submitted return | CRITERION | Submit is safe to repeat: on a submitted return it deletes what is left. A failure tells her to try again. Unit and emulator tests |
