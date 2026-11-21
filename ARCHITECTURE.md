@@ -14,7 +14,7 @@ Locked unless marked open.
 | --- | --- | --- |
 | Portal | Web app on Firebase Hosting, Firebase Auth | `web/` (Vite, TypeScript) |
 | Engine | Cloud Functions v2, europe-west6 (Zurich) | `src/functions/` |
-| Extraction | The `extract` callable function sends her documents to the model as `gs://` links through the adapter; Gemini reads PDFs, scans and photos itself. Fixed JSON schema, Zod validated, citations checked | `src/functions/extract.ts`, `src/extraction/`, `src/schema/`, `prompts/`, `web/src/batch.ts` |
+| Extraction | The `extract` callable function sends her documents (PDF, JPG, PNG) to the model as `gs://` file links through the adapter, so Gemini reads the files themselves; scan and photo accuracy is checked by the evals/media set on main. Fixed JSON schema, Zod validated, citations checked | `src/functions/extract.ts`, `src/extraction/`, `src/schema/`, `prompts/`, `web/src/batch.ts` |
 | Product AI | One adapter, Vertex Gemini on the EU endpoint only | `src/models/` |
 | Rules | Plain code with tests, not prompts | `rules/` |
 | Storage | Firestore: client status, flags, corrections, and extracted values while the return is open. No documents | `firestore.rules` |
@@ -174,7 +174,8 @@ call (returned by `src/models`), eval reports in CI summaries.
 - 2026-11 Firestore default deny. Firestore `(default)` is in europe-west6 (permanent).
 - 2026-11-19 Repo public for free branch rules until SR-23. Keyless deploys.
 - 2026-11-21 SR-28 (Lucas): documents go into the app, not her Drive. Zurich bucket, the model
-  reads them itself (scans and photos work), values in Firestore, all deleted on submit or after
+  gets the files themselves (meant for scans and photos too; verified by the evals/media set on
+  main, live-evals.yml), values in Firestore, all deleted on submit or after
   30 days. Replaces the Drive intake and the in-browser text step.
 
 ## What breaks first

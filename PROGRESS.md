@@ -267,6 +267,9 @@ Every block, so the reviewer can be tuned. Category is the tag the block would g
 calibrated rules (none means it would now be a comment).
 | Date | Pull request | Reason given | Category | Action |
 | --- | --- | --- | --- | --- |
+| 2026-11-21 | #13 run 11 | Unrecorded first selection could pin nightly runs to the same cases | SECURITY | Applies only when EVAL_OFFSET is unset (pull request and manual runs); nightly keeps pure rotation |
+| 2026-11-21 | #13 run 11 | ARCHITECTURE.md said scans and photos work before that is verified | CRITERION | Reworded: meant for scans and photos, verified by the evals/media set on main |
+| 2026-11-21 | #13 run 11 | (fifth time) No proof of physical deletion by day 30 | CRITERION | Not fixable in code: no Google deletion has a deadline guarantee. Lucas already chose the daily job; back to Lucas |
 | 2026-11-21 | #13 run 10 | One failed listing of users/ skipped every old document; infra checked a bucket by name the functions did not use | CRITERION | Old documents are swept per client folder, then a last pass over users/ (unit test). infra.yml sets DOCUMENTS_BUCKET, checks that bucket, gives it to the functions (which refuse to run without it) and checks the web app uses the same one |
 | 2026-11-21 | #13 run 9 | On a submitted return, one failed lookup or listing skipped the other deletion | CRITERION | Files and values are separate steps; values on a submitted return are deleted without an expiry lookup (unit test) |
 | 2026-11-21 | #13 run 8 | One failed step stopped the whole cleanup sweep; infra accepted a bucket with object versioning | CRITERION | Each step is caught, the sweep goes on, then fails so the scheduler retries (unit test). infra.yml refuses a bucket with versioning on |

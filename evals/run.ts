@@ -151,7 +151,10 @@ async function main() {
       const first = media ? mediaSet.cases : [];
       // Cases without a current recording go first, so a pull request that changes model inputs
       // gets every case recorded by the trusted proxy across a few pushes (10 calls each).
-      const unrecorded = (c: GoldenCase) => recordedOutput(c, inputsHash) === undefined;
+      // Not on rotating runs (nightly sets EVAL_OFFSET): they never commit recordings, so stale
+      // ones would pin every night to the same cases.
+      const rotating = process.env.EVAL_OFFSET !== undefined;
+      const unrecorded = (c: GoldenCase) => !rotating && recordedOutput(c, inputsHash) === undefined;
       const picked = [...first, ...pickLive([...golden.cases, ...injection.cases], budgets.liveEvalMaxCalls - first.length, offset, unrecorded)];
       for (const c of picked) {
         let output: unknown;
