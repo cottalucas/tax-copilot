@@ -18,7 +18,7 @@ Locked unless marked open.
 | Product AI | One adapter, Vertex Gemini on the EU endpoint only | `src/models/` |
 | Rules | Plain code with tests, not prompts. Run by the extract function after every extraction. Today: consistency checks on the documents and the year on year salary change; Zurich rules wait for the private repo (SR-23) | `rules/` |
 | Storage | Firestore: client status, flags, corrections, and extracted values while the return is open. No documents | `firestore.rules` |
-| Files | Cloud Storage, the project's default bucket `tax-co-pilot.firebasestorage.app` in europe-west6 (DOCUMENTS_BUCKET, set by infra.yml and the only bucket the functions and web app use). Uploaded from her browser into `users/{uid}/clients/{clientId}/`. Private, deleted on submit and after 30 days, no soft delete, no object versioning | `storage.rules`, `storage-lifecycle.json`, `web/src/main.ts` |
+| Files | Cloud Storage, the project's default bucket `tax-co-pilot.firebasestorage.app` in europe-west6 (DOCUMENTS_BUCKET, set by infra.yml and the only bucket the functions and web app use). Uploaded from her browser into `users/{uid}/clients/{clientId}/`. Private, no soft delete, no object versioning. Readable until submit or 28 days after upload; deletion on submit and scheduled at 28 days (see Retention) | `storage.rules`, `storage-lifecycle.json`, `web/src/main.ts` |
 | Filling | Claude in Chrome with one saved shortcut holding the form field map | TODO SR-21 |
 | Pipeline | GitHub Actions | `.github/workflows/`, AGENTS.md > Pipeline |
 
@@ -64,10 +64,11 @@ background job, never behind a Hosting rewrite.
   afterwards), then deletes the extracted values and the files. If the deletion fails she is told
   to try again; repeating it deletes what is left. The review screen offers "Mark as submitted"
   on a Ready to fill return, behind a confirm step, then "Next client" (SR-22).
-- Deadline: documents and values are gone 30 days after upload at the latest. The bucket
-  lifecycle (28 days) and the Firestore TTL (27 days) both delete in the background, usually within
-  a day, so each is scheduled early and values go before their documents. Access ends on schedule
-  regardless: Storage rules refuse reading a document 28 days after upload, Firestore rules refuse
+- Retention (accepted by Lucas on 2026-11-21): access ends on schedule; physical deletion is
+  scheduled early and normally done before day 30, but no Google mechanism guarantees when it
+  happens. The bucket lifecycle (28 days) and the Firestore TTL (27 days) delete in the background,
+  usually within a day, and the nightly cleanup is a third path with retries. Access ends on
+  schedule regardless: Storage rules refuse reading a document 28 days after upload, Firestore rules refuse
   reading values past expireAt or once the return is submitted, and the extract function refuses documents older than 27 days.
   infra.yml stops the deploy unless the lifecycle and the TTL are in place.
 - Daily cleanup (`dailyCleanup`, Cloud Scheduler, 02:30 Zurich, runs as extract-fn): a second
@@ -79,8 +80,8 @@ background job, never behind a Hosting rewrite.
 ## Data inventory and residency
 | Data | Lives in | Who reads it |
 | --- | --- | --- |
-| Client documents (PDF, JPG, PNG) | Default bucket, europe-west6, `users/{uid}/clients/{clientId}/`. Until submit, 30 days at the latest | Her (Storage rules), the extract function, Vertex `eu` through a `gs://` link |
-| Extracted values | Firestore `clients/{id}/extraction/current`, europe-west6. Until submit, 30 days at the latest | Her, the extract function, later the fill step |
+| Client documents (PDF, JPG, PNG) | Default bucket, europe-west6, `users/{uid}/clients/{clientId}/`. Readable until submit or 28 days after upload; deletion scheduled then (see Retention) | Her (Storage rules), the extract function, Vertex `eu` through a `gs://` link |
+| Extracted values | Firestore `clients/{id}/extraction/current`, europe-west6. Readable until submit or 27 days after the oldest upload; deletion scheduled then (see Retention) | Her, the extract function, later the fill step |
 | Status, flags, corrections | Firestore `(default)`, europe-west6 | Her only |
 | Government credentials | Nowhere. She types them per session | Nobody |
 | Golden cases | `evals/golden/`, anonymized. None while the repo is public (SR-23) | Pipeline, live evals on Vertex `eu` |

@@ -13,3 +13,4 @@ evals/runs/
 service-account*.json
 *-credentials.json
 .DS_Store
+!.env.demo-tax-copilot

@@ -306,6 +306,10 @@ Every block, so the reviewer can be tuned. Category is the tag the block would g
 calibrated rules (none means it would now be a comment).
 | Date | Pull request | Reason given | Category | Action |
 | --- | --- | --- | --- | --- |
+| 2026-11-21 | #13 run 16 | Mocked callables meant no test of the real browser to server extraction | SECURITY | New end to end test runs the real functions on the emulator; only the model is a fake Vertex endpoint behind VERTEX_PROXY_URL (`tests/e2e/fake-vertex.ts`, test settings in `.env.demo-tax-copilot`) |
+| 2026-11-21 | #13 run 16 | ARCHITECTURE.md Files row still said deleted after 30 days | CRITERION | Reworded to the accepted retention policy |
+| 2026-11-21 | #13 run 15 | Docs and pull request body still claimed deletion by day 30 | CRITERION | Reworded to the accepted policy: access ends on schedule, deletion scheduled early without a deadline guarantee |
+| 2026-11-21 | #13 runs 14 and later | Physical deletion by day 30 not guaranteed; deletion order of background jobs not guaranteed | CRITERION | Accepted by Lucas on 2026-11-21 as the design's known limit: reads stop on schedule (28 days, expiry, submit), three independent deletion paths (lifecycle 28 days, TTL 27 days, nightly cleanup with retries). No Google mechanism guarantees physical deletion time. Owner merge past this reason only |
 | 2026-11-21 | #13 run 13 | Cleanup could delete values a new extraction had just saved | CRITERION | Expiry is checked and the values deleted in one transaction (emulator test) |
 | 2026-11-21 | #13 run 12 | On submit, files were deleted only after the values were | CRITERION | Both deletions run independently, then any failure is reported (she is told to try again, the nightly job retries) |
 | 2026-11-21 | #13 run 11 | Unrecorded first selection could pin nightly runs to the same cases | SECURITY | Applies only when EVAL_OFFSET is unset (pull request and manual runs); nightly keeps pure rotation |
@@ -401,6 +405,7 @@ calibrated rules (none means it would now be a comment).
 ## Assumptions
 | Date | Assumption | Confirm with |
 | --- | --- | --- |
+| 2026-11-21 | Retention: access ends on schedule; physical deletion relies on the bucket lifecycle, Firestore TTL and the nightly cleanup, none with a deadline guarantee | Lucas, accepted 2026-11-21 |
 | 2026-11-21 | A client whose documents and values expired after 30 days still shows Data Extracted until SR-22 adds an expired state | Lucas |
 | 2026-11-21 | The per client budget stays 0.05 USD: about 258 tokens per page, measured 0.001 USD per synthetic case | Lucas |
 | 2026-11-21 | New budget `extractMaxCostUsd` 0.05 USD per client: the 400,000 character cap costs about 0.03 USD on `gemini-3.1-flash-lite` | Lucas |
