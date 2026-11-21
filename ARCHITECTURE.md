@@ -43,13 +43,15 @@ background job, never behind a Hosting rewrite.
   after checking she owns the client) write extractedAt, status and submittedAt.
 - `clients/{clientId}/extraction/current`: data (the schema validated extraction, every value with
   source file and page), model, taxYear, sources (the file names), extractedAt, expireAt (30 days
-  later; a Firestore TTL policy deletes it). She reads her own; only the `extract` function writes.
+  after the oldest document's upload, when the bucket deletes that document; a Firestore TTL policy
+  deletes the values then). She reads her own; only the `extract` function writes, in a
+  transaction that refuses once the return is no longer Documents in.
 - `clients/{clientId}/flags/{flagId}`: ruleId, severity, field, reason, resolved.
 - `clients/{clientId}/corrections/{id}`: field, before, after, at. Feeds new golden cases.
 - File names: each upload gets one unique storage name (a repeat becomes `name (2).pdf`), and
   citations use that name, so a value always points at exactly one document.
-- Submitting (`submitReturn`) deletes the client's files and extracted values and sets status
-  `submitted`. The button comes with SR-22.
+- Submitting (`submitReturn`) first sets status `submitted` (so a running extraction cannot save
+  afterwards), then deletes the extracted values and the files. The button comes with SR-22.
 
 ## Data inventory and residency
 | Data | Lives in | Who reads it |

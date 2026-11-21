@@ -20,8 +20,9 @@ saved first, then each file goes to `users/{uid}/clients/{clientId}/` in the def
 every waiting client. The function checks the allow list and the owner, sends the files to Gemini
 on Vertex `eu` as `gs://` links (it reads text PDFs, scans and photos itself), validates the
 schema, checks the client, tax year and every citation, and saves the values in Firestore
-`clients/{id}/extraction/current` with expireAt 30 days later. `submitReturn` deletes the files
-and values and sets status Submitted (button in SR-22). Storage rules: only her uid writes and
+`clients/{id}/extraction/current` with expireAt 30 days after the oldest upload, in a transaction
+that refuses once the return is closed. `submitReturn` sets status Submitted first, then deletes
+the values and files (button in SR-22). Storage rules: only her uid writes and
 reads her folder, PDF, JPG or PNG up to 25 MB, no overwrite, no browser delete. Firestore rules:
 create with the tax year, no Drive folder; she reads her own extracted values, nobody writes them
 from a browser. infra.yml checks the bucket (europe-west6, public access prevention, the 30 day
@@ -260,6 +261,9 @@ Every block, so the reviewer can be tuned. Category is the tag the block would g
 calibrated rules (none means it would now be a comment).
 | Date | Pull request | Reason given | Category | Action |
 | --- | --- | --- | --- | --- |
+| 2026-11-21 | #13 run 1 | Documents in a bucket and values in Firestore break the Never rule on main | NEVER | Not a code fix: Lucas changed the rule in SR-28. The rule text goes to main first in its own pull request (#14), through every gate; #13 is then judged against it |
+| 2026-11-21 | #13 run 1 | An extraction finishing after submit could save values again | CRITERION | Save in a transaction that refuses unless the return is still Documents in; submit sets Submitted first, then deletes. Emulator test |
+| 2026-11-21 | #13 run 1 | Values expired 30 days after extraction, so they could outlive the files | CRITERION | expireAt is 30 days after the oldest document's upload, the same moment the bucket deletes it |
 | 2026-11-21 | #12 run 3 | Two PDFs with the same name in one folder made citations ambiguous, and the page check kept only one of them | CRITERION | Each PDF gets a unique label (a repeat becomes `name (2).pdf`), the data file maps label to Drive file id, the function refuses duplicate names. Also checks the model's tax year and client id match the request (comment) |
 | 2026-11-21 | #12 run 2 | The batch set the tax year to last calendar year without asking her | NEVER | She chooses the tax year (last three years, nothing preselected) before Extract all runs; the data file records it. Also: Drive listing follows nextPageToken, and the function rejects citations to a file or page it was not sent (comments) |
 | 2026-11-21 | #12 run 1 | Failed extraction logged the raw error message (truncated), which could echo document text | SECURITY | Log a fixed category (budget, residency, config, invalid JSON, schema, provider status code, unknown) and duration only. Also made the data file save safe to retry (comment) |
@@ -335,7 +339,7 @@ calibrated rules (none means it would now be a comment).
 ## Assumptions
 | Date | Assumption | Confirm with |
 | --- | --- | --- |
-| 2026-11-21 | 30 days count from upload (bucket lifecycle) and from extraction (Firestore TTL). A client whose values expired still shows Data Extracted until SR-22 adds the expired state | Lucas |
+| 2026-11-21 | A client whose documents and values expired after 30 days still shows Data Extracted until SR-22 adds an expired state | Lucas |
 | 2026-11-21 | The per client budget stays 0.05 USD: about 258 tokens per page, measured 0.001 USD per synthetic case | Lucas |
 | 2026-11-21 | New budget `extractMaxCostUsd` 0.05 USD per client: the 400,000 character cap costs about 0.03 USD on `gemini-3.1-flash-lite` | Lucas |
 | 2026-11-21 | Scanned PDFs (no text layer) are refused with a clear message, no OCR yet | Lucas |

@@ -30,6 +30,8 @@ export interface StoredFile {
   name: string;
   contentType: string;
   size: number;
+  /** Upload time. The bucket lifecycle deletes the file 30 days after it. */
+  created: Date;
 }
 
 export interface ExtractionRecord {
@@ -47,8 +49,13 @@ export interface ExtractDeps {
   /** The client document, or undefined when it does not exist. */
   getClient(clientId: string): Promise<{ ownerUid?: unknown; taxYear?: unknown } | undefined>;
   listFiles(prefix: string): Promise<StoredFile[]>;
-  saveExtraction(clientId: string, record: ExtractionRecord): Promise<void>;
-  /** Deletes the client's files and extracted values, and marks the return submitted. */
+  /**
+   * Saves the values only while the return is still open (status Documents in), in one
+   * transaction, so an extraction that finishes after submit cannot bring values back.
+   * Resolves false when the return is no longer open.
+   */
+  saveExtraction(clientId: string, record: ExtractionRecord): Promise<boolean>;
+  /** Marks the return submitted first, then deletes its extracted values and files. */
   submit(clientId: string, prefix: string): Promise<void>;
   now?: () => Date;
   extract?: (docs: DocumentFile[], options: ExtractOptions) => Promise<ExtractedReturn>;
@@ -135,6 +142,16 @@ export function errorCategory(err: unknown): string {
   return "unknown";
 }
 
+/**
+ * Values never outlive the documents they came from: they expire with the oldest document,
+ * 30 days after its upload (the bucket lifecycle deletes it then). Never later than 30 days from now.
+ */
+export function expiryFor(files: Pick<StoredFile, "created">[], now: Date): Date {
+  const day = 24 * 3600 * 1000;
+  const oldest = Math.min(now.getTime(), ...files.map((f) => f.created.getTime()));
+  return new Date(oldest + RETENTION_DAYS * day);
+}
+
 /** Checks the stored files and turns them into documents for the model. */
 export function toDocuments(files: StoredFile[], prefix: string, bucket: string): DocumentFile[] {
   if (files.length === 0) throw new HttpsError("failed-precondition", "No documents uploaded for this client.");
@@ -152,7 +169,8 @@ export async function handleExtract(caller: Caller | undefined, input: unknown, 
   const { clientId, client, prefix } = await authorize(caller, input, deps);
   const taxYear = client.taxYear;
   if (typeof taxYear !== "number" || !Number.isInteger(taxYear)) throw new HttpsError("failed-precondition", "The client has no tax year.");
-  const docs = toDocuments(await deps.listFiles(prefix), prefix, deps.bucket);
+  const files = await deps.listFiles(prefix);
+  const docs = toDocuments(files, prefix, deps.bucket);
 
   const model = getModelConfig("extract", deps.env).model;
   const budget = new CostBudget(budgets.extractMaxCostUsd, { requireCost: true, maxCalls: 1 });
@@ -168,14 +186,18 @@ export async function handleExtract(caller: Caller | undefined, input: unknown, 
     throw new HttpsError("internal", "Extraction failed. Try again.");
   }
   const now = deps.now?.() ?? new Date();
-  await deps.saveExtraction(clientId, {
+  const saved = await deps.saveExtraction(clientId, {
     data,
     model,
     taxYear,
     sources: docs.map((d) => d.file),
     extractedAt: now,
-    expireAt: new Date(now.getTime() + RETENTION_DAYS * 24 * 3600 * 1000),
+    expireAt: expiryFor(files, now),
   });
+  if (!saved) {
+    deps.log?.("extract discarded", { clientId, reason: "return no longer open" });
+    throw new HttpsError("failed-precondition", "This return is no longer open.");
+  }
   // Counts only. Never document text or extracted values in logs.
   deps.log?.("extract ok", { clientId, files: docs.length, costUsd: budget.spentUsd, ms: Date.now() - started });
   return { ok: true, files: docs.length };

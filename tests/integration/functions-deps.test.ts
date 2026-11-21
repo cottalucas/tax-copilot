@@ -35,13 +35,15 @@ describe("functions wiring on the emulators", () => {
       [`${prefix}salary.pdf`, "application/pdf"],
     ]);
     expect(files.every((f) => f.size > 0)).toBe(true);
+    // Upload time, which the values' expiry follows.
+    expect(files.every((f) => Math.abs(f.created.getTime() - Date.now()) < 60_000)).toBe(true);
   });
 
   it("saves the extracted values with their expiry, and marks the client extracted", async () => {
     const extractedAt = new Date("2026-03-01T00:00:00Z");
     const expireAt = new Date("2026-03-31T00:00:00Z");
     const data = { schemaVersion: 1 as const, taxpayer: { clientId: "c1", taxYear: 2025 }, employment: [], deductions: {}, bankAccounts: [], cantonSpecific: {} };
-    await firebaseDeps().saveExtraction("c1", { data, model: "m", taxYear: 2025, sources: ["salary.pdf"], extractedAt, expireAt });
+    expect(await firebaseDeps().saveExtraction("c1", { data, model: "m", taxYear: 2025, sources: ["salary.pdf"], extractedAt, expireAt })).toBe(true);
     const saved = (await getFirestore().doc("clients/c1/extraction/current").get()).data()!;
     expect(saved.expireAt.toDate()).toEqual(expireAt);
     expect(saved.data.taxpayer).toEqual({ clientId: "c1", taxYear: 2025 });
@@ -66,5 +68,17 @@ describe("functions wiring on the emulators", () => {
     expect(client.status).toBe("submitted");
     expect(client.submittedAt).toBeDefined();
     expect(client.extractedAt).toBeUndefined();
+    // An extraction that finishes after submit cannot bring the values back.
+    const late = await deps.saveExtraction("c1", {
+      data: { schemaVersion: 1, taxpayer: { clientId: "c1", taxYear: 2025 }, employment: [], deductions: {}, bankAccounts: [], cantonSpecific: {} },
+      model: "m",
+      taxYear: 2025,
+      sources: [],
+      extractedAt: new Date(),
+      expireAt: new Date(),
+    });
+    expect(late).toBe(false);
+    expect((await getFirestore().doc("clients/c1/extraction/current").get()).exists).toBe(false);
+    expect((await getFirestore().doc("clients/c1").get()).get("extractedAt")).toBeUndefined();
   });
 });

@@ -7,6 +7,7 @@ import {
   CitationError,
   clientPrefix,
   errorCategory,
+  expiryFor,
   handleExtract,
   handleSubmit,
   isAllowed,
@@ -23,8 +24,8 @@ const her: Caller = { uid: "u1", email: "Preparer@Example.com", emailVerified: t
 const env = { EXTRACT_PROVIDER: "vertex", EXTRACT_MODEL: "test-model", EXTRACT_ALLOWED_EMAILS: " preparer@example.com, other@example.com " };
 const prefix = clientPrefix("u1", "c1");
 const stored: StoredFile[] = [
-  { name: `${prefix}salary-statement.pdf`, contentType: "application/pdf", size: 1000 },
-  { name: `${prefix}receipt.jpg`, contentType: "image/jpeg", size: 2000 },
+  { name: `${prefix}salary-statement.pdf`, contentType: "application/pdf", size: 1000, created: new Date("2026-02-20T00:00:00Z") },
+  { name: `${prefix}receipt.jpg`, contentType: "image/jpeg", size: 2000, created: new Date("2026-02-25T00:00:00Z") },
 ];
 const result = {
   schemaVersion: 1,
@@ -65,7 +66,10 @@ function makeDeps(over: Partial<ExtractDeps> = {}, p = provider()) {
     bucket: "tax-co-pilot.firebasestorage.app",
     getClient: async (id) => clients[id],
     listFiles: async (pre) => stored.filter((f) => f.name.startsWith(pre)),
-    saveExtraction: async (id, record) => void saved.push([id, record]),
+    saveExtraction: async (id, record) => {
+      saved.push([id, record]);
+      return true;
+    },
     submit: async (id, pre) => void submitted.push([id, pre]),
     now: () => new Date("2026-03-01T00:00:00Z"),
     extract: (docs, options) => extractReturn(docs, { ...options, provider: p }),
@@ -116,7 +120,8 @@ describe("handleExtract", () => {
     expect(id).toBe("c1");
     expect(record.data.employment[0]?.grossSalary).toEqual({ value: 98000, source: { file: "salary-statement.pdf", page: 2 } });
     expect(record).toMatchObject({ model: "test-model", taxYear: 2025, sources: ["salary-statement.pdf", "receipt.jpg"] });
-    expect(record.expireAt.getTime() - record.extractedAt.getTime()).toBe(30 * 24 * 3600 * 1000);
+    // Values expire with the oldest document: 30 days after its upload, never later.
+    expect(record.expireAt).toEqual(new Date("2026-03-22T00:00:00Z"));
     // Logs hold counts and cost only, never document text, names or values.
     expect(logs).toEqual([expect.objectContaining({ message: "extract ok", files: 2, costUsd: 0.001 })]);
     expect(JSON.stringify(logs)).not.toMatch(/98000|Example AG|salary-statement/);
@@ -156,13 +161,27 @@ describe("handleExtract", () => {
   });
 });
 
+describe("expiry and closed returns", () => {
+  it("values expire 30 days after the oldest upload, and never more than 30 days from now", () => {
+    const now = new Date("2026-03-01T00:00:00Z");
+    expect(expiryFor([{ created: new Date("2026-02-10T00:00:00Z") }, { created: new Date("2026-02-28T00:00:00Z") }], now)).toEqual(new Date("2026-03-12T00:00:00Z"));
+    expect(expiryFor([{ created: new Date("2026-04-01T00:00:00Z") }], now)).toEqual(new Date("2026-03-31T00:00:00Z"));
+  });
+
+  it("an extraction that finishes after submit saves nothing and says the return is closed", async () => {
+    const { deps, logs } = makeDeps({ saveExtraction: async () => false });
+    expect(await code(handleExtract(her, { clientId: "c1" }, deps))).toBe("failed-precondition");
+    expect(logs.at(-1)).toMatchObject({ message: "extract discarded" });
+  });
+});
+
 describe("toDocuments", () => {
   it("refuses too many, wrong type, too large, or misplaced files", () => {
-    const many = Array.from({ length: LIMITS.files + 1 }, (_, i) => ({ name: `${prefix}f${i}.pdf`, contentType: "application/pdf", size: 1 }));
+    const many = Array.from({ length: LIMITS.files + 1 }, (_, i) => ({ name: `${prefix}f${i}.pdf`, contentType: "application/pdf", size: 1, created: new Date() }));
     expect(() => toDocuments(many, prefix, "b")).toThrow(/More than 30/);
-    expect(() => toDocuments([{ name: `${prefix}a.gif`, contentType: "image/gif", size: 1 }], prefix, "b")).toThrow(/only PDF, JPG and PNG/);
-    expect(() => toDocuments([{ name: `${prefix}a.pdf`, contentType: "application/pdf", size: LIMITS.bytesPerFile + 1 }], prefix, "b")).toThrow(/25 MB/);
-    expect(() => toDocuments([{ name: `${prefix}sub/a.pdf`, contentType: "application/pdf", size: 1 }], prefix, "b")).toThrow(/wrong place/);
+    expect(() => toDocuments([{ name: `${prefix}a.gif`, contentType: "image/gif", size: 1, created: new Date() }], prefix, "b")).toThrow(/only PDF, JPG and PNG/);
+    expect(() => toDocuments([{ name: `${prefix}a.pdf`, contentType: "application/pdf", size: LIMITS.bytesPerFile + 1, created: new Date() }], prefix, "b")).toThrow(/25 MB/);
+    expect(() => toDocuments([{ name: `${prefix}sub/a.pdf`, contentType: "application/pdf", size: 1, created: new Date() }], prefix, "b")).toThrow(/wrong place/);
   });
 });
 
