@@ -55,6 +55,46 @@ describe("vertex", () => {
     expect(vertex(fakeFetch({}), "europe-west4").url("m")).toBe("https://europe-west4-aiplatform.googleapis.com/v1/projects/p/locations/europe-west4/publishers/google/models/m:generateContent");
   });
 
+  it("retries a busy answer twice with backoff, then gives up", async () => {
+    const busy = () => new Response(JSON.stringify({ error: { message: "Resource exhausted" } }), { status: 429 });
+    const ok = () => new Response(JSON.stringify(vertexResponse), { status: 200 });
+    const waits: number[] = [];
+    const sleep = async (ms: number) => void waits.push(ms);
+    const once = vi.fn<typeof globalThis.fetch>().mockResolvedValueOnce(busy()).mockResolvedValueOnce(ok());
+    const p1 = new VertexProvider({ projectId: "p", region: "eu", getAccessToken: async () => "t", fetch: once, sleep });
+    expect((await p1.complete({ model: "m", dataClass: "anonymized", messages: [] })).text).toBe('{"ok":true}');
+    expect(waits).toEqual([2000]);
+    const always = vi.fn<typeof globalThis.fetch>(async () => busy());
+    const p2 = new VertexProvider({ projectId: "p", region: "eu", getAccessToken: async () => "t", fetch: always, sleep });
+    await expect(p2.complete({ model: "m", dataClass: "anonymized", messages: [] })).rejects.toThrow(/429/);
+    expect(always).toHaveBeenCalledTimes(3);
+    const denied = vi.fn<typeof globalThis.fetch>(async () => new Response(JSON.stringify({ error: { message: "denied" } }), { status: 403 }));
+    const p3 = new VertexProvider({ projectId: "p", region: "eu", getAccessToken: async () => "t", fetch: denied, sleep });
+    await expect(p3.complete({ model: "m", dataClass: "anonymized", messages: [] })).rejects.toThrow(/403/);
+    expect(denied).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends documents inline or as a Cloud Storage link", async () => {
+    const fetch = fakeFetch(vertexResponse);
+    await vertex(fetch).complete({
+      model: "m",
+      dataClass: "anonymized",
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "file", mimeType: "application/pdf", data: "JVBERi0=" },
+            { type: "file", mimeType: "image/jpeg", uri: "gs://bucket/users/u/clients/c/photo.jpg" },
+          ],
+        },
+      ],
+    });
+    expect(sent(fetch).contents[0].parts).toEqual([
+      { inlineData: { mimeType: "application/pdf", data: "JVBERi0=" } },
+      { fileData: { mimeType: "image/jpeg", fileUri: "gs://bucket/users/u/clients/c/photo.jpg" } },
+    ]);
+  });
+
   it("sends images as inline data", async () => {
     const fetch = fakeFetch(vertexResponse);
     await complete(

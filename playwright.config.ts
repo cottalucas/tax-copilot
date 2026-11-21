@@ -4,6 +4,8 @@ const port = 4173;
 
 export default defineConfig({
   testDir: "tests/e2e",
+  // A fake Vertex endpoint, so the real functions run on the emulator without a model.
+  globalSetup: "./tests/e2e/global-setup.ts",
   // The tests share the Auth and Firestore emulators: one at a time.
   workers: 1,
   fullyParallel: false,

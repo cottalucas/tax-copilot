@@ -5,9 +5,7 @@ export interface QueueClient {
   displayName: string;
   status: Status;
   flagCount: number;
-  /** Her Drive folder for this client (SR-17). */
-  driveFolderId?: string;
-  /** True once the data file is saved in her Drive (SR-18). */
+  /** True once the extract function saved values for this client (SR-28). */
   extracted: boolean;
 }
 
@@ -25,9 +23,8 @@ export function toQueueClient(id: string, data: Record<string, unknown>): QueueC
   const status = data.status as Status;
   if (typeof data.displayName !== "string" || !STATUSES.includes(status)) return undefined;
   const flags = typeof data.flagCount === "number" && data.flagCount > 0 ? Math.floor(data.flagCount) : 0;
-  const folder = typeof data.driveFolderId === "string" && data.driveFolderId ? data.driveFolderId : undefined;
-  const extracted = typeof data.dataFileId === "string" && data.dataFileId.length > 0;
-  return { id, displayName: data.displayName, status, flagCount: flags, ...(folder ? { driveFolderId: folder } : {}), extracted };
+  const extracted = data.extractedAt !== undefined && data.extractedAt !== null;
+  return { id, displayName: data.displayName, status, flagCount: flags, extracted };
 }
 
 /** Groups clients by status, flagged clients first in each group, then by name. Empty groups are left out. */

@@ -1,0 +1,22 @@
+rules_version = '2';
+
+// SR-28: client documents, in the Zurich bucket only while the return is open. She uploads into
+// her own folder and only she can read it. No overwrite, no browser deletes: the functions delete
+// on submit and the bucket lifecycle deletes after 30 days. Default deny for everything else.
+// Tests: tests/integration/storage.rules.test.ts.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /users/{uid}/clients/{clientId}/{file} {
+      // Readable for 28 days after upload, the day the bucket lifecycle deletes it, so access
+      // ends on time even while the background deletion is still running.
+      allow read: if request.auth != null && request.auth.uid == uid
+        && request.time < resource.timeCreated + duration.value(28, 'd');
+      allow create: if request.auth != null && request.auth.uid == uid && resource == null
+        && request.resource.size <= 25 * 1024 * 1024
+        && request.resource.contentType.matches('application/pdf|image/jpeg|image/png');
+    }
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,27 +1,38 @@
 rules_version = '2';
 
-// Default deny. Firestore holds status, flags and corrections only (ARCHITECTURE.md).
-// No client documents, no government credentials, ever (AGENTS.md > Never do).
+// Default deny. Firestore holds client status, flags, corrections, and extracted values while a
+// return is open (ARCHITECTURE.md). No documents, no government credentials, ever (AGENTS.md).
 // Each allow rule has a test in tests/integration/firestore.rules.test.ts.
 service cloud.firestore {
   match /databases/{database}/documents {
     // SR-16: she reads her own clients. Queries must filter on ownerUid.
-    // SR-17: she creates a client after its files are in her Drive. Only these fields, status
-    // Documents in, no flags. No updates or deletes yet.
+    // SR-28: she creates a client with only these fields, status Documents in, no flags, the
+    // tax year she chose. Files go to the Zurich bucket afterwards. No updates or deletes from
+    // the browser: status changes and extraction results come from the functions.
     match /clients/{clientId} {
       allow read: if request.auth != null && resource.data.ownerUid == request.auth.uid;
       allow create: if request.auth != null
-        && request.resource.data.keys().hasOnly(['ownerUid', 'displayName', 'status', 'flagCount', 'driveFolderId', 'fileCount', 'createdAt'])
+        && request.resource.data.keys().hasOnly(['ownerUid', 'displayName', 'status', 'flagCount', 'fileCount', 'taxYear', 'createdAt'])
         && request.resource.data.ownerUid == request.auth.uid
         && request.resource.data.displayName is string
         && request.resource.data.displayName.size() > 0 && request.resource.data.displayName.size() <= 80
         && request.resource.data.status == 'documents_in'
         && request.resource.data.flagCount == 0
-        && request.resource.data.driveFolderId is string
-        && request.resource.data.driveFolderId.size() > 0 && request.resource.data.driveFolderId.size() <= 200
         && request.resource.data.fileCount is int
         && request.resource.data.fileCount > 0 && request.resource.data.fileCount <= 30
+        && request.resource.data.taxYear is int
+        && request.resource.data.taxYear >= 2000 && request.resource.data.taxYear <= 2100
         && request.resource.data.createdAt == request.time;
+
+      // SR-28: extracted values, written only by the extract function. She reads her own.
+      match /extraction/{doc} {
+        // Unreadable once the return is submitted or expireAt passes, even before the deletion
+        // finishes in the background.
+        allow read: if request.auth != null
+          && get(/databases/$(database)/documents/clients/$(clientId)).data.ownerUid == request.auth.uid
+          && get(/databases/$(database)/documents/clients/$(clientId)).data.status != 'submitted'
+          && resource.data.expireAt > request.time;
+      }
     }
     match /{document=**} {
       allow read, write: if false;

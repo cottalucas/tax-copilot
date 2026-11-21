@@ -1,6 +1,12 @@
 export type Role = "system" | "user" | "assistant";
 
-export type ContentPart = { type: "text"; text: string } | { type: "image"; dataUrl: string };
+/**
+ * A document for the model to read itself (PDF, JPG, PNG): inline bytes (base64) for small
+ * synthetic files, or a gs:// link to a file in the project's EU bucket.
+ */
+export type FilePart = { type: "file"; mimeType: string } & ({ data: string; uri?: never } | { uri: string; data?: never });
+
+export type ContentPart = { type: "text"; text: string } | { type: "image"; dataUrl: string } | FilePart;
 
 export interface ChatMessage {
   role: Role;
@@ -11,7 +17,7 @@ export interface ChatMessage {
 /**
  * What kind of data a call carries.
  * - "anonymized": synthetic or anonymized data.
- * - "client": real client data. Only vertex on an EU endpoint (final residency decided at SR-18).
+ * - "client": real client data. Only vertex on an EU endpoint (decided by Lucas, 2026-11-21).
  */
 export type DataClass = "anonymized" | "client";
 

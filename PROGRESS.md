@@ -1,8 +1,8 @@
 # PROGRESS.md
 
 ## Current focus
-SR-18 part 1 (batch extraction on synthetic PDFs). SR-18 stays In Progress until the first golden
-case (needs SR-23) and the canton land.
+SR-28: documents into the app, extraction on the server. Next: SR-19 (rules and flags, Zurich)
+once the repo is private (SR-23).
 
 ## Next up
 1. SR-24: gates, auto merge, proof pull requests, infra.
@@ -11,6 +11,45 @@ case (needs SR-23) and the canton land.
 4. Move the review job to `pull_request_target` (read the diff only, never run pull request code).
 
 ## Log
+
+### 2026-11-21 SR-28 Upload into the app, extract on the server
+Done: the new client form takes a name, the tax year (she chooses, nothing preselected) and up to
+30 PDFs, JPGs or PNGs of at most 25 MB, checked by type and file signature. The client record is
+saved first, then each file goes to `users/{uid}/clients/{clientId}/` in the default bucket
+(europe-west6) under one unique name, then the `extract` function reads them. Extract all retries
+every waiting client. The function checks the allow list and the owner, sends the files to Gemini
+on Vertex `eu` as `gs://` links (it reads text PDFs, scans and photos itself), validates the
+schema, checks the client, tax year and every citation, and saves the values in Firestore
+`clients/{id}/extraction/current` with expireAt 27 days after the oldest upload, in a transaction
+that refuses once the return is closed. `submitReturn` sets status Submitted first, then deletes
+the values and files, and is safe to repeat after a failed cleanup (button in SR-22). The bucket
+deletes documents at 28 days; both background deletions finish before the 30 day deadline. Storage rules: only her uid writes and
+reads her folder, PDF, JPG or PNG up to 25 MB, no overwrite, no browser delete. Firestore rules:
+create with the tax year, no Drive folder; she reads her own extracted values, nobody writes them
+from a browser. infra.yml checks the bucket (europe-west6, public access prevention, the 28 day
+lifecycle in `storage-lifecycle.json`, no soft delete), turns on the Firestore TTL on
+`extraction.expireAt` and waits until it is ACTIVE, and deploys the Storage rules. Drive code, pdf.js and `saveExtraction` are
+gone; Drive import is SR-27. The adapter gained a file part (inline or `gs://`) and retries 429
+and 503 twice with backoff (rate limits hit during recording).
+Evals: text cases are sent as generated PDFs. New scan and photo set (`evals/media/`, synthetic):
+an image-only scanned salary statement and a tilted phone photo of a pillar 3a certificate.
+Recordings: an earlier attempt ran this pull request's code on a laptop with Lucas's Google
+identity (83 calls, about 0.09 USD, synthetic data). That breaks AGENTS.md > Never do; it was
+reported to Lucas, and every recording from it was deleted. Lucas chose the trusted proxy: the
+runner now picks cases without a current recording first, so two pull request runs of
+live-evals-pr (10 calls each, pull request code in a container without credentials) record all 18
+injection cases. The scan and photo cases are proven after merge by live-evals.yml on main
+(github-evals identity); SR-28 stays In Progress until that run passes. Pull request live runs keep to golden and injection (main's verifier scores
+only those); main and nightly add `--media`.
+Daily cleanup (`dailyCleanup`, 02:30 Zurich, Cloud Scheduler, approved by Lucas): deletes
+leftovers of submitted returns, expired values and 28 day old documents; counts only in logs.
+Tests: 8 groups of function unit tests (flow, access, preconditions, invalid output, limits,
+citations, error categories, submit), 3 new Storage rules tests and 2 Firestore extraction rules
+tests on the emulators, 3 emulator tests of the functions' real wiring (`src/functions/deps.ts`:
+lists one client's files, saves values with their expiry, submit deletes that client's files and
+values and nobody else's), retention test, 4 end to end tests on the real Storage emulator (upload
+into her folder only, unique names, retry after a failed read, batch with a failure, validation),
+axe on every state. Logs hold counts and cost only.
 
 ### 2026-11-21 SR-18 Extraction, part 1: batch extraction
 Done: she chooses the tax year (nothing preselected), then "Extract all (n)" runs extraction for every client with documents in, a Drive
@@ -228,6 +267,31 @@ Every block, so the reviewer can be tuned. Category is the tag the block would g
 calibrated rules (none means it would now be a comment).
 | Date | Pull request | Reason given | Category | Action |
 | --- | --- | --- | --- | --- |
+| 2026-11-21 | #13 run 17 | Decision history and PRD.md Never line still promised deletion by day 30 | CRITERION | Reworded to the accepted policy, in #14 too (the rule text on main), so #13 does not change the rule text |
+| 2026-11-21 | #13 run 16 | Mocked callables meant no test of the real browser to server extraction | SECURITY | New end to end test runs the real functions on the emulator; only the model is a fake Vertex endpoint behind VERTEX_PROXY_URL (`tests/e2e/fake-vertex.ts`, test settings in `.env.demo-tax-copilot`) |
+| 2026-11-21 | #13 run 16 | ARCHITECTURE.md Files row still said deleted after 30 days | CRITERION | Reworded to the accepted retention policy |
+| 2026-11-21 | #13 run 15 | Docs and pull request body still claimed deletion by day 30 | CRITERION | Reworded to the accepted policy: access ends on schedule, deletion scheduled early without a deadline guarantee |
+| 2026-11-21 | #13 runs 14 and later | Physical deletion by day 30 not guaranteed; deletion order of background jobs not guaranteed | CRITERION | Accepted by Lucas on 2026-11-21 as the design's known limit: reads stop on schedule (28 days, expiry, submit), three independent deletion paths (lifecycle 28 days, TTL 27 days, nightly cleanup with retries). No Google mechanism guarantees physical deletion time. Owner merge past this reason only |
+| 2026-11-21 | #13 run 13 | Cleanup could delete values a new extraction had just saved | CRITERION | Expiry is checked and the values deleted in one transaction (emulator test) |
+| 2026-11-21 | #13 run 12 | On submit, files were deleted only after the values were | CRITERION | Both deletions run independently, then any failure is reported (she is told to try again, the nightly job retries) |
+| 2026-11-21 | #13 run 11 | Unrecorded first selection could pin nightly runs to the same cases | SECURITY | Applies only when EVAL_OFFSET is unset (pull request and manual runs); nightly keeps pure rotation |
+| 2026-11-21 | #13 run 11 | ARCHITECTURE.md said scans and photos work before that is verified | CRITERION | Reworded: meant for scans and photos, verified by the evals/media set on main |
+| 2026-11-21 | #13 run 11 | (fifth time) No proof of physical deletion by day 30 | CRITERION | Not fixable in code: no Google deletion has a deadline guarantee. Lucas already chose the daily job; back to Lucas |
+| 2026-11-21 | #13 run 10 | One failed listing of users/ skipped every old document; infra checked a bucket by name the functions did not use | CRITERION | Old documents are swept per client folder, then a last pass over users/ (unit test). infra.yml sets DOCUMENTS_BUCKET, checks that bucket, gives it to the functions (which refuse to run without it) and checks the web app uses the same one |
+| 2026-11-21 | #13 run 9 | On a submitted return, one failed lookup or listing skipped the other deletion | CRITERION | Files and values are separate steps; values on a submitted return are deleted without an expiry lookup (unit test) |
+| 2026-11-21 | #13 run 8 | One failed step stopped the whole cleanup sweep; infra accepted a bucket with object versioning | CRITERION | Each step is caught, the sweep goes on, then fails so the scheduler retries (unit test). infra.yml refuses a bucket with versioning on |
+| 2026-11-21 | #13 runs 4 to 7 | Cleanup after a failed submit depends on a manual retry; background deletion has no deadline guarantee | CRITERION | Lucas approved a daily cleanup job (Cloud Scheduler): it retries leftover deletions on submitted returns and deletes expired values and 28 day old documents, as a second path next to the lifecycle and the TTL. Unit and emulator tests |
+| 2026-11-21 | #13 run 5 | Recordings were made by running pull request code with Lucas's Google login | NEVER | True, the agent's mistake. Reported to Lucas, logged as a breach. Lucas chose the trusted proxy: all laptop recordings deleted, the runner records unrecorded cases first so two live-evals-pr runs cover all 18. No more such runs |
+| 2026-11-21 | #13 run 5 | PROGRESS.md said 30 day lifecycle, infra.yml requires 28 | CRITERION | Fixed the PROGRESS.md line |
+| 2026-11-21 | #13 run 4 | Leftover values stay readable after submit; cleanup retry is manual; background deletion has no guaranteed deadline | CRITERION | Rules now hide values once the return is submitted (rules test). Automatic retry and the deletion guarantee go to Lucas: a scheduled cleanup needs a new Google Cloud API, and no Google background deletion has a deadline guarantee (third round on retention) |
+| 2026-11-21 | #13 run 3 | 28 and 27 days instead of the criterion's 30; background deletion order not guaranteed | CRITERION | Kept: the SR-28 flow says "after 30 days at the latest", which a background job meets only when scheduled early. Added hard cut-offs that do not depend on it: Storage rules stop reads at 28 days, Firestore rules stop reads past expireAt (rules test), the function refuses documents older than 27 days |
+| 2026-11-21 | #13 run 3 | The photo case did not check the bank name and year end balance printed on it | CRITERION | Both added as expected fields; the committed recording holds them |
+| 2026-11-21 | #13 run 2 | A failed cleanup after submit left documents with a submitted return | CRITERION | Submit is safe to repeat: on a submitted return it deletes what is left. A failure tells her to try again. Unit and emulator tests |
+| 2026-11-21 | #13 run 2 | TTL and lifecycle delete in the background, and infra accepted a TTL still being created | CRITERION | Lifecycle at 28 days, values at 27 days after the oldest upload, so both finish before day 30 and values go first. infra.yml waits until the TTL is ACTIVE or stops |
+| 2026-11-21 | #13 run 2 | (again) Bucket and Firestore values break the Never rule on main | NEVER | Waits on #14, which needs Lucas |
+| 2026-11-21 | #13 run 1 | Documents in a bucket and values in Firestore break the Never rule on main | NEVER | Not a code fix: Lucas changed the rule in SR-28. The rule text goes to main first in its own pull request (#14), through every gate; #13 is then judged against it |
+| 2026-11-21 | #13 run 1 | An extraction finishing after submit could save values again | CRITERION | Save in a transaction that refuses unless the return is still Documents in; submit sets Submitted first, then deletes. Emulator test |
+| 2026-11-21 | #13 run 1 | Values expired 30 days after extraction, so they could outlive the files | CRITERION | expireAt is 30 days after the oldest document's upload, the same moment the bucket deletes it |
 | 2026-11-21 | #12 run 3 | Two PDFs with the same name in one folder made citations ambiguous, and the page check kept only one of them | CRITERION | Each PDF gets a unique label (a repeat becomes `name (2).pdf`), the data file maps label to Drive file id, the function refuses duplicate names. Also checks the model's tax year and client id match the request (comment) |
 | 2026-11-21 | #12 run 2 | The batch set the tax year to last calendar year without asking her | NEVER | She chooses the tax year (last three years, nothing preselected) before Extract all runs; the data file records it. Also: Drive listing follows nextPageToken, and the function rejects citations to a file or page it was not sent (comments) |
 | 2026-11-21 | #12 run 1 | Failed extraction logged the raw error message (truncated), which could echo document text | SECURITY | Log a fixed category (budget, residency, config, invalid JSON, schema, provider status code, unknown) and duration only. Also made the data file save safe to retry (comment) |
@@ -303,9 +367,11 @@ calibrated rules (none means it would now be a comment).
 ## Assumptions
 | Date | Assumption | Confirm with |
 | --- | --- | --- |
+| 2026-11-21 | Retention: access ends on schedule; physical deletion relies on the bucket lifecycle, Firestore TTL and the nightly cleanup, none with a deadline guarantee | Lucas, accepted 2026-11-21 |
+| 2026-11-21 | A client whose documents and values expired after 30 days still shows Data Extracted until SR-22 adds an expired state | Lucas |
+| 2026-11-21 | The per client budget stays 0.05 USD: about 258 tokens per page, measured 0.001 USD per synthetic case | Lucas |
 | 2026-11-21 | New budget `extractMaxCostUsd` 0.05 USD per client: the 400,000 character cap costs about 0.03 USD on `gemini-3.1-flash-lite` | Lucas |
 | 2026-11-21 | Scanned PDFs (no text layer) are refused with a clear message, no OCR yet | Lucas |
-| 2026-11-21 | Code comments in `src/models` and `src/extraction` still say residency is decided "at SR-18". Updating them changes model inputs and needs new recordings, so they change with the next model input pull request | Lucas |
 | 2026-11-20 | SR-25's "adapter keeps the openrouter provider, unused" is replaced by Lucas's later instruction to remove it | Lucas |
 | 2026-11-20 | Recorded outputs for offline scoring come from the first live run (step 9) and land in the follow-up pull request | Lucas |
 | 2026-11-20 | Live evals pick 10 of 18 cases: hand written injection first, then BIPIA in order | Lucas |

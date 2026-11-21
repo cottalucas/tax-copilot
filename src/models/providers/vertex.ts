@@ -18,11 +18,17 @@ export interface VertexOptions {
   fetch?: typeof globalThis.fetch;
   /** Base URL override, used only for the trusted live eval proxy. */
   endpoint?: string;
+  /** Waits between retries. Injected in tests. */
+  sleep?: (ms: number) => Promise<void>;
 }
+
+/** Busy answers worth a retry: rate limit (429) and unavailable (503). At most 2 retries, 2 s then 6 s. */
+export const RETRY_STATUSES = [429, 503];
+export const RETRY_DELAYS_MS = [2000, 6000];
 
 /**
  * Gemini on Vertex AI, EU multi-region or an EU regional endpoint only. The only provider allowed to see
- * real client data today; the final residency choice is made at SR-18 (ARCHITECTURE.md).
+ * real client data, as decided on 2026-11-21 (ARCHITECTURE.md > Data inventory and residency).
  * Gemini caches repeated prompt prefixes on its own and reports cached tokens.
  */
 export class VertexProvider implements ModelProvider {
@@ -81,11 +87,18 @@ export class VertexProvider implements ModelProvider {
         ...(request.json ? { responseMimeType: "application/json" } : {}),
       },
     };
-    const res = await this.fetchImpl(this.url(request.model), {
-      method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${await this.getToken()}` },
-      body: JSON.stringify(body),
-    });
+    const sleep = this.options.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+    let res: Response;
+    for (let attempt = 0; ; attempt++) {
+      res = await this.fetchImpl(this.url(request.model), {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${await this.getToken()}` },
+        body: JSON.stringify(body),
+      });
+      const delay = RETRY_DELAYS_MS[attempt];
+      if (!RETRY_STATUSES.includes(res.status) || delay === undefined) break;
+      await sleep(delay);
+    }
     const json = (await res.json()) as {
       candidates?: { content?: { parts?: { text?: string }[] } }[];
       usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; cachedContentTokenCount?: number; thoughtsTokenCount?: number };
@@ -120,6 +133,7 @@ function toParts(content: ChatMessage["content"]) {
   if (typeof content === "string") return [{ text: content }];
   return content.map((p) => {
     if (p.type === "text") return { text: p.text };
+    if (p.type === "file") return p.uri ? { fileData: { mimeType: p.mimeType, fileUri: p.uri } } : { inlineData: { mimeType: p.mimeType, data: p.data } };
     const [, mimeType = "image/png", data = ""] = /^data:([^;]+);base64,(.*)$/.exec(p.dataUrl) ?? [];
     return { inlineData: { mimeType, data } };
   });

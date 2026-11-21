@@ -30,6 +30,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PROJECT: ${{ vars.FIREBASE_PROJECT_ID }}
+      # The one documents bucket: checked below, given to the functions and the web app.
+      DOCUMENTS_BUCKET: ${{ vars.FIREBASE_PROJECT_ID }}.firebasestorage.app
       FIRESTORE_LOCATION: ${{ vars.FIRESTORE_LOCATION }}
       WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER }}
       DEPLOY_SA: ${{ vars.GCP_DEPLOY_SA }}
@@ -61,7 +63,8 @@ jobs:
         run: |
           gcloud services enable --project "$PROJECT" \
             firestore.googleapis.com firebase.googleapis.com firebaserules.googleapis.com \
-            firebasehosting.googleapis.com identitytoolkit.googleapis.com drive.googleapis.com
+            firebasehosting.googleapis.com identitytoolkit.googleapis.com storage.googleapis.com \
+            firebasestorage.googleapis.com
       - name: Firestore in the expected location
         run: |
           loc=$(gcloud firestore databases describe --database="(default)" --project "$PROJECT" --format="value(locationId)" 2>/dev/null || true)
@@ -75,8 +78,53 @@ jobs:
           fi
           echo "Firestore (default) is in $loc."
           echo "### Firestore: \`(default)\` in $loc" >> "$GITHUB_STEP_SUMMARY"
-      - name: Deploy Firestore rules and indexes
-        run: npx firebase deploy --only firestore:rules,firestore:indexes --project "$PROJECT" --non-interactive
+      # SR-28: client documents stay in the default bucket only while a return is open. Lucas creates
+      # it once in europe-west6 with the 28 day rule (ARCHITECTURE.md > Files). Checked every run.
+      - name: Documents bucket in Zurich, private, deleting after 28 days
+        run: |
+          bucket="gs://${DOCUMENTS_BUCKET}"
+          if ! gcloud storage buckets describe "$bucket" --format=json > bucket.json 2> bucket.err; then
+            echo "::error title=bucket::$bucket is missing or not readable. Lucas creates it (ARCHITECTURE.md > Files)."
+            cat bucket.err; exit 1
+          fi
+          python3 - <<'PY'
+          import json, sys
+          b = json.load(open("bucket.json"))
+          want = json.load(open("storage-lifecycle.json"))["rule"]
+          got = (b.get("lifecycle_config") or b.get("lifecycle") or {}).get("rule", [])
+          errors = []
+          if b.get("location", "").lower() != "europe-west6": errors.append(f"location is {b.get('location')}, expected europe-west6")
+          if b.get("public_access_prevention") != "enforced": errors.append("public access prevention is not enforced")
+          if got != want: errors.append(f"lifecycle is {got}, expected {want} (storage-lifecycle.json)")
+          # Deleted means gone: no soft delete window that keeps documents recoverable.
+          if int((b.get("soft_delete_policy") or {}).get("retentionDurationSeconds", 0) or 0) != 0: errors.append("soft delete is on; deleted documents would stay recoverable")
+          if b.get("versioning_enabled"): errors.append("object versioning is on; deleted documents would stay as old versions")
+          for e in errors: print(f"::error title=bucket::{e}")
+          if errors: sys.exit(1)
+          print("Bucket: europe-west6, private, deletes documents after 28 days, no soft delete, no versioning.")
+          PY
+          echo "### Documents bucket: europe-west6, private, 28 day deletion, no soft delete, no versioning" >> "$GITHUB_STEP_SUMMARY"
+      # Extracted values expire 27 days after the oldest upload (src/functions/extract.ts). The
+      # deploy goes on only once the TTL policy is ACTIVE, so no values are saved without it.
+      - name: Extracted values expire (Firestore TTL active)
+        run: |
+          ttl_state() { gcloud firestore fields ttls list --project "$PROJECT" --format="value(name,ttlConfig.state)" 2>/dev/null | grep "collectionGroups/extraction/fields/expireAt" | awk '{print $2}' || true; }
+          state=$(ttl_state)
+          if [ "$state" != "ACTIVE" ] && [ "$state" != "CREATING" ]; then
+            gcloud firestore fields ttls update expireAt --collection-group=extraction --enable-ttl --project "$PROJECT" --async
+          fi
+          for _ in $(seq 1 60); do
+            state=$(ttl_state)
+            [ "$state" = "ACTIVE" ] && break
+            sleep 15
+          done
+          if [ "$state" != "ACTIVE" ]; then
+            echo "::error title=firestore ttl::The TTL policy on extraction.expireAt is $state, not ACTIVE, after 15 minutes. Run infra again."
+            exit 1
+          fi
+          echo "### Firestore TTL on extraction.expireAt: ACTIVE" >> "$GITHUB_STEP_SUMMARY"
+      - name: Deploy Firestore and Storage rules, Firestore indexes
+        run: npx firebase deploy --only firestore:rules,firestore:indexes,storage --project "$PROJECT" --non-interactive
       - name: Turn on Firebase Auth
         run: |
           token=$(gcloud auth print-access-token)
@@ -101,7 +149,8 @@ jobs:
         if: inputs.deploy_app
         run: |
           gcloud services enable --project "$PROJECT" cloudfunctions.googleapis.com cloudbuild.googleapis.com \
-            artifactregistry.googleapis.com run.googleapis.com eventarc.googleapis.com
+            artifactregistry.googleapis.com run.googleapis.com eventarc.googleapis.com \
+            cloudscheduler.googleapis.com pubsub.googleapis.com
       # The web app's public config (not a secret) is written at deploy time, never committed.
       - name: Register the web app and write its public config
         if: inputs.deploy_app
@@ -111,7 +160,13 @@ jobs:
             id=$(npx firebase apps:create WEB tax-copilot-web --project "$PROJECT" --json | jq -r '.result.appId')
           fi
           npx firebase apps:sdkconfig WEB "$id" --project "$PROJECT" --json | jq -r '.result.sdkConfig |
-            "VITE_FIREBASE_API_KEY=\(.apiKey)\nVITE_FIREBASE_AUTH_DOMAIN=\(.authDomain)\nVITE_FIREBASE_PROJECT_ID=\(.projectId)\nVITE_FIREBASE_APP_ID=\(.appId)"' > web/.env.production.local
+            "VITE_FIREBASE_API_KEY=\(.apiKey)\nVITE_FIREBASE_AUTH_DOMAIN=\(.authDomain)\nVITE_FIREBASE_PROJECT_ID=\(.projectId)\nVITE_FIREBASE_APP_ID=\(.appId)\nVITE_FIREBASE_STORAGE_BUCKET=\(.storageBucket)"' > web/.env.production.local
+          # The web app must upload to the bucket checked above, nowhere else.
+          web_bucket=$(grep '^VITE_FIREBASE_STORAGE_BUCKET=' web/.env.production.local | cut -d= -f2)
+          if [ "$web_bucket" != "$DOCUMENTS_BUCKET" ]; then
+            echo "::error title=bucket::The web app's bucket is '$web_bucket', expected $DOCUMENTS_BUCKET."
+            exit 1
+          fi
       # Product AI settings for the functions, from repository variables (names only in the repo).
       # EXTRACT_ALLOWED_EMAILS: the only accounts that may run extraction. Missing stops the deploy.
       - name: Write the functions' settings
@@ -124,7 +179,7 @@ jobs:
           EXTRACT_ALLOWED_EMAILS: ${{ vars.EXTRACT_ALLOWED_EMAILS }}
         run: |
           : > ".env.$PROJECT"
-          for v in EXTRACT_PROVIDER EXTRACT_MODEL VERTEX_PROJECT_ID VERTEX_REGION EXTRACT_ALLOWED_EMAILS; do
+          for v in EXTRACT_PROVIDER EXTRACT_MODEL VERTEX_PROJECT_ID VERTEX_REGION EXTRACT_ALLOWED_EMAILS DOCUMENTS_BUCKET; do
             if [ -z "${!v}" ]; then echo "::error title=functions settings::Repository variable $v is not set."; exit 1; fi
             printf '%s=%s\n' "$v" "${!v}" >> ".env.$PROJECT"
           done
