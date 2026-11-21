@@ -4,7 +4,7 @@ import budgets from "../../budgets.json" with { type: "json" };
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { runCleanup } from "./cleanup.js";
 import { cleanupDeps, firebaseDeps } from "./deps.js";
-import { handleExtract, handleSubmit, type Caller } from "./extract.js";
+import { handleApprove, handleExtract, handleSubmit, type Caller } from "./extract.js";
 
 // Stack is locked: Cloud Functions in europe-west6 (Zurich). See ARCHITECTURE.md.
 export const REGION = "europe-west6";
@@ -28,6 +28,9 @@ const callable = { serviceAccount: "extract-fn@", maxInstances: 2 } as const;
 
 /** Extracts one client's return from the documents she uploaded (SR-28). */
 export const extract = onCall(callable, (req) => handleExtract(caller(req), req.data, deps()));
+
+/** She approves the return after review: status Ready to fill (SR-20). */
+export const approveReturn = onCall(callable, (req) => handleApprove(caller(req), req.data, deps()));
 
 /** Marks a return submitted and deletes its documents and extracted values. */
 export const submitReturn = onCall(callable, (req) => handleSubmit(caller(req), req.data, deps()));

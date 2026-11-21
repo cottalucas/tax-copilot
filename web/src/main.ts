@@ -1,12 +1,15 @@
 // Login, home queue and intake (SR-16, SR-28). Screens and states from DESIGN.md.
 import { GoogleAuthProvider, onAuthStateChanged, signInWithCredential, signInWithPopup, signOut, type User } from "firebase/auth";
-import { addDoc, collection, getDocs, query, serverTimestamp, where } from "firebase/firestore";
+import { addDoc, collection, doc, getDoc, getDocs, query, serverTimestamp, where } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
-import { ref, uploadBytes } from "firebase/storage";
+import { getBlob, ref, uploadBytes } from "firebase/storage";
+import type { Flag } from "../../rules/types.js";
+import type { ExtractedReturn, Source } from "../../src/schema/extraction.js";
 import { pendingExtraction, runBatch } from "./batch.js";
 import { auth, db, functions, storage } from "./firebase.js";
 import { checkFiles, hasValidHeader, storageNames, taxYearChoices, validateName, type DocumentType } from "./intake.js";
 import { groupQueue, toQueueClient, type QueueClient } from "./queue.js";
+import { buildReview } from "./review.js";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 
@@ -247,6 +250,124 @@ function extractAllButton(pending: QueueClient[], user: User, status: HTMLElemen
   return b;
 }
 
+const approveCall = httpsCallable<{ clientId: string }, { ok: true }>(functions, "approveReturn");
+
+/** Opens a document at its source page. The file comes through Storage with her own sign-in: no shareable link. */
+async function openSource(user: User, clientId: string, source: Source, status: HTMLElement) {
+  // Open the tab first, while the click still counts as hers, then load the file into it.
+  const tab = window.open("", "_blank");
+  try {
+    const blob = await getBlob(ref(storage, `users/${user.uid}/clients/${clientId}/${source.file}`));
+    const url = URL.createObjectURL(blob);
+    const target = blob.type === "application/pdf" ? `${url}#page=${source.page}` : url;
+    if (tab) tab.location.href = target;
+    else window.location.assign(target);
+  } catch {
+    tab?.close();
+    status.textContent = `Could not open ${source.file}. It may have been deleted after 28 days.`;
+  }
+}
+
+function sourceButton(user: User, clientId: string, source: Source, status: HTMLElement) {
+  const b = el("button", { type: "button", class: "link" }, `${source.file}, page ${source.page}`);
+  b.addEventListener("click", () => void openSource(user, clientId, source, status));
+  return b;
+}
+
+/** Review (SR-20): flags first, then key totals, then changes from last year. Approve sets Ready to fill. */
+async function renderReview(user: User, clientId: string) {
+  const main = renderQueueShell(user);
+  const loading = el("section", { "aria-busy": "true", "aria-label": "Return" });
+  loading.append(el("p", { class: "muted" }, "Loading the return"));
+  for (let i = 0; i < 3; i++) loading.append(el("div", { class: "skeleton" }));
+  main.replaceChildren(loading);
+  const back = () => {
+    const b = el("button", { type: "button", class: "secondary" }, "Back to clients");
+    b.addEventListener("click", () => void loadQueue(user));
+    return b;
+  };
+  let client: Record<string, unknown> | undefined;
+  let values: { data: ExtractedReturn; flags?: Flag[] } | undefined;
+  try {
+    client = (await getDoc(doc(db, "clients", clientId))).data();
+    const snap = await getDoc(doc(db, "clients", clientId, "extraction", "current"));
+    values = snap.exists() ? (snap.data() as { data: ExtractedReturn; flags?: Flag[] }) : undefined;
+  } catch {
+    const s = el("section", { role: "alert", class: "panel" });
+    s.append(el("h2", {}, "Could not load this return."));
+    const retry = el("button", { type: "button" }, "Retry");
+    retry.addEventListener("click", () => void renderReview(user, clientId));
+    s.append(retry, back());
+    return void main.replaceChildren(s);
+  }
+  const name = String(client?.displayName ?? "Client");
+  const wrap = el("div", { class: "review" });
+  const head = el("section", { "aria-labelledby": "review-title" });
+  head.append(el("h2", { id: "review-title", tabindex: "-1" }, `${name}, tax year ${String(client?.taxYear ?? "")}`));
+  const status = el("p", { class: "muted", role: "status" });
+  const errors = el("div", { role: "alert", class: "error" });
+  wrap.append(head);
+  if (!values) {
+    head.append(el("p", {}, "The documents have not been read yet. Use Extract all on the queue."), back());
+    return void main.replaceChildren(wrap);
+  }
+  const review = buildReview(values.data, values.flags ?? []);
+
+  const flags = el("section", { "aria-labelledby": "flags-title" });
+  flags.append(el("h2", { id: "flags-title" }, `Flags (${review.flags.length})`));
+  if (review.flags.length === 0) flags.append(el("p", {}, "No flags. Check totals and approve."));
+  for (const f of review.flags) {
+    const card = el("article", { class: `flag-card ${f.severity}` });
+    card.append(el("span", { class: `badge ${f.severity === "critical" ? "critical" : "warning"}` }, f.severity === "critical" ? "Critical" : "Warning"));
+    card.append(el("p", {}, f.reason));
+    if (f.source) card.append(sourceButton(user, clientId, f.source, status));
+    flags.append(card);
+  }
+
+  const totals = el("section", { "aria-labelledby": "totals-title" });
+  totals.append(el("h2", { id: "totals-title" }, "Key totals"));
+  const table = el("table");
+  const headRow = el("tr");
+  for (const h of ["Item", "Amount", "Source"]) headRow.append(el("th", { scope: "col" }, h));
+  table.append(el("thead"), el("tbody"));
+  table.tHead!.append(headRow);
+  for (const r of review.totals) {
+    const row = el("tr");
+    row.append(el("td", {}, r.label), el("td", {}, r.value));
+    const src = el("td");
+    if (r.source) src.append(sourceButton(user, clientId, r.source, status));
+    row.append(src);
+    table.tBodies[0]!.append(row);
+  }
+  totals.append(table);
+  if (review.notFound.length) totals.append(el("p", { class: "muted" }, `Not found in the documents: ${review.notFound.join(", ")}.`));
+
+  const changes = el("section", { "aria-labelledby": "changes-title" });
+  changes.append(el("h2", { id: "changes-title" }, "Changes from last year"));
+  changes.append(el("p", { class: "muted" }, "No previous year return on file yet."));
+
+  const actions = el("div", { class: "actions" });
+  if (client?.status === "needs_review" || client?.status === "ready_to_fill") {
+    const approve = el("button", { type: "button" }, client.status === "ready_to_fill" ? "Approve again" : "Approve");
+    approve.addEventListener("click", async () => {
+      approve.setAttribute("disabled", "");
+      errors.replaceChildren();
+      try {
+        await approveCall({ clientId });
+        await loadQueue(user, `${name}: approved, ready to fill.`);
+      } catch (err) {
+        errors.replaceChildren(el("p", {}, callableMessage(err)));
+        approve.removeAttribute("disabled");
+      }
+    });
+    actions.append(approve);
+  }
+  actions.append(back());
+  wrap.append(flags, totals, changes, status, errors, actions);
+  main.replaceChildren(wrap);
+  document.getElementById("review-title")?.focus();
+}
+
 function renderQueue(main: HTMLElement, clients: QueueClient[], user: User, notice?: string) {
   const wrap = el("section", { "aria-label": "Client queue" });
   const bar = el("div", { class: "actions" });
@@ -266,7 +387,14 @@ function renderQueue(main: HTMLElement, clients: QueueClient[], user: User, noti
     table.tHead!.append(head);
     for (const c of group.clients) {
       const row = el("tr", { "data-client": c.id });
-      row.append(el("td", {}, c.displayName));
+      const nameCell = el("td");
+      if (c.extracted) {
+        // Opens the review screen (SR-20).
+        const open = el("button", { type: "button", class: "link" }, c.displayName);
+        open.addEventListener("click", () => void renderReview(user, c.id));
+        nameCell.append(open);
+      } else nameCell.textContent = c.displayName;
+      row.append(nameCell);
       const status = el("td");
       status.append(el("span", { class: "badge" }, group.label));
       row.append(status);
