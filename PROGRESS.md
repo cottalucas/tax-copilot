@@ -267,6 +267,7 @@ Every block, so the reviewer can be tuned. Category is the tag the block would g
 calibrated rules (none means it would now be a comment).
 | Date | Pull request | Reason given | Category | Action |
 | --- | --- | --- | --- | --- |
+| 2026-11-21 | #13 run 8 | One failed step stopped the whole cleanup sweep; infra accepted a bucket with object versioning | CRITERION | Each step is caught, the sweep goes on, then fails so the scheduler retries (unit test). infra.yml refuses a bucket with versioning on |
 | 2026-11-21 | #13 runs 4 to 7 | Cleanup after a failed submit depends on a manual retry; background deletion has no deadline guarantee | CRITERION | Lucas approved a daily cleanup job (Cloud Scheduler): it retries leftover deletions on submitted returns and deletes expired values and 28 day old documents, as a second path next to the lifecycle and the TTL. Unit and emulator tests |
 | 2026-11-21 | #13 run 5 | Recordings were made by running pull request code with Lucas's Google login | NEVER | True, the agent's mistake. Reported to Lucas, logged as a breach. Lucas chose the trusted proxy: all laptop recordings deleted, the runner records unrecorded cases first so two live-evals-pr runs cover all 18. No more such runs |
 | 2026-11-21 | #13 run 5 | PROGRESS.md said 30 day lifecycle, infra.yml requires 28 | CRITERION | Fixed the PROGRESS.md line |

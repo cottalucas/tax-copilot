@@ -18,7 +18,7 @@ Locked unless marked open.
 | Product AI | One adapter, Vertex Gemini on the EU endpoint only | `src/models/` |
 | Rules | Plain code with tests, not prompts | `rules/` |
 | Storage | Firestore: client status, flags, corrections, and extracted values while the return is open. No documents | `firestore.rules` |
-| Files | Cloud Storage, the project's default bucket `tax-co-pilot.firebasestorage.app` in europe-west6. Uploaded from her browser into `users/{uid}/clients/{clientId}/`. Private, deleted on submit and after 30 days, no soft delete | `storage.rules`, `storage-lifecycle.json`, `web/src/main.ts` |
+| Files | Cloud Storage, the project's default bucket `tax-co-pilot.firebasestorage.app` in europe-west6. Uploaded from her browser into `users/{uid}/clients/{clientId}/`. Private, deleted on submit and after 30 days, no soft delete, no object versioning | `storage.rules`, `storage-lifecycle.json`, `web/src/main.ts` |
 | Filling | Claude in Chrome with one saved shortcut holding the form field map | TODO SR-21 |
 | Pipeline | GitHub Actions | `.github/workflows/`, AGENTS.md > Pipeline |
 
@@ -60,7 +60,8 @@ background job, never behind a Hosting rewrite.
   infra.yml stops the deploy unless the lifecycle and the TTL are in place.
 - Daily cleanup (`dailyCleanup`, Cloud Scheduler, 02:30 Zurich, runs as extract-fn): a second
   deletion path. It deletes any documents or values left on a submitted return (so a failed submit
-  cleanup retries itself), values past expireAt, and documents 28 days old. Logs counts only.
+  cleanup retries itself), values past expireAt, and documents 28 days old. A failed step never
+  stops the rest; the run then fails so Cloud Scheduler retries it (3 times). Logs counts only.
   Approved by Lucas on 2026-11-21 (new API: Cloud Scheduler, free tier).
 
 ## Data inventory and residency

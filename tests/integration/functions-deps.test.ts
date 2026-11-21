@@ -96,7 +96,7 @@ describe("functions wiring on the emulators", () => {
     await getFirestore().doc("clients/c2/extraction/current").set({ expireAt: new Date(Date.now() + 86_400_000) });
     await getFirestore().doc("clients/c1/extraction/current").set({ expireAt: new Date(Date.now() - 1000) });
     const result = await runCleanup(cleanupDeps());
-    expect(result).toMatchObject({ submittedFiles: 1, submittedValues: 1, expiredValues: 1, expiredFiles: 0 });
+    expect(result).toMatchObject({ submittedFiles: 1, submittedValues: 1, expiredValues: 1, expiredFiles: 0, failures: 0 });
     const [left] = await getStorage().bucket().getFiles({ prefix: "users/" });
     expect(left.map((f) => f.name).sort()).toEqual([`${prefix}photo.jpg`, `${prefix}salary.pdf`]);
     expect((await getFirestore().doc("clients/c1/extraction/current").get()).exists).toBe(false);

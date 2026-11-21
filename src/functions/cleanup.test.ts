@@ -44,16 +44,36 @@ function fake() {
 describe("daily cleanup", () => {
   it("clears submitted returns, expired values and documents 28 days old, and nothing else", async () => {
     const { deps, deletedFiles, deletedValues, logs } = fake();
-    expect(await runCleanup(deps)).toEqual({ submittedFiles: 1, submittedValues: 1, expiredValues: 1, expiredFiles: 2 });
+    expect(await runCleanup(deps)).toEqual({ submittedFiles: 1, submittedValues: 1, expiredValues: 1, expiredFiles: 2, failures: 0 });
     expect(deletedValues.sort()).toEqual(["done", "expired"]);
     expect(deletedFiles.sort()).toEqual([`${clientPrefix("u1", "done")}d.pdf`, `${clientPrefix("u1", "old")}b.pdf`, `${clientPrefix("u1", "old")}c.pdf`].sort());
     // Counts only in the log.
-    expect(logs).toEqual([{ message: "cleanup", submittedFiles: 1, submittedValues: 1, expiredValues: 1, expiredFiles: 2 }]);
+    expect(logs).toEqual([{ message: "cleanup", submittedFiles: 1, submittedValues: 1, expiredValues: 1, expiredFiles: 2, failures: 0 }]);
   });
 
   it("does nothing on a second run", async () => {
     const { deps } = fake();
     await runCleanup(deps);
-    expect(await runCleanup(deps)).toEqual({ submittedFiles: 0, submittedValues: 0, expiredValues: 0, expiredFiles: 0 });
+    expect(await runCleanup(deps)).toEqual({ submittedFiles: 0, submittedValues: 0, expiredValues: 0, expiredFiles: 0, failures: 0 });
+  });
+
+  it("goes on past a failed step, then fails so the scheduler retries", async () => {
+    const { deps, deletedFiles, deletedValues, logs } = fake();
+    const failing: CleanupDeps = {
+      ...deps,
+      getValuesExpiry: async (id) => {
+        if (id === "open") throw new Error("firestore unavailable");
+        return deps.getValuesExpiry(id);
+      },
+      deleteFile: async (name) => {
+        if (name.endsWith("b.pdf")) throw new Error("storage unavailable");
+        return deps.deleteFile(name);
+      },
+    };
+    await expect(runCleanup(failing)).rejects.toThrow(/2 failed steps/);
+    // Later clients and expired files were still handled.
+    expect(deletedValues.sort()).toEqual(["done", "expired"]);
+    expect(deletedFiles.some((f) => f.endsWith("c.pdf"))).toBe(true);
+    expect(logs.at(-1)).toMatchObject({ message: "cleanup", failures: 2 });
   });
 });

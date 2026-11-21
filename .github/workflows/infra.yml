@@ -96,11 +96,12 @@ jobs:
           if got != want: errors.append(f"lifecycle is {got}, expected {want} (storage-lifecycle.json)")
           # Deleted means gone: no soft delete window that keeps documents recoverable.
           if int((b.get("soft_delete_policy") or {}).get("retentionDurationSeconds", 0) or 0) != 0: errors.append("soft delete is on; deleted documents would stay recoverable")
+          if b.get("versioning_enabled"): errors.append("object versioning is on; deleted documents would stay as old versions")
           for e in errors: print(f"::error title=bucket::{e}")
           if errors: sys.exit(1)
-          print("Bucket: europe-west6, private, deletes documents after 28 days, no soft delete.")
+          print("Bucket: europe-west6, private, deletes documents after 28 days, no soft delete, no versioning.")
           PY
-          echo "### Documents bucket: europe-west6, private, 28 day deletion, no soft delete" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Documents bucket: europe-west6, private, 28 day deletion, no soft delete, no versioning" >> "$GITHUB_STEP_SUMMARY"
       # Extracted values expire 27 days after the oldest upload (src/functions/extract.ts). The
       # deploy goes on only once the TTL policy is ACTIVE, so no values are saved without it.
       - name: Extracted values expire (Firestore TTL active)

@@ -24,36 +24,59 @@ export interface CleanupResult {
   submittedValues: number;
   expiredValues: number;
   expiredFiles: number;
+  /** Steps that failed. The run goes on past them, then fails so the scheduler retries it. */
+  failures: number;
 }
 
 const DAY = 24 * 3600 * 1000;
 
 export async function runCleanup(deps: CleanupDeps): Promise<CleanupResult> {
   const now = deps.now();
-  const result: CleanupResult = { submittedFiles: 0, submittedValues: 0, expiredValues: 0, expiredFiles: 0 };
-  for (const client of await deps.listClients()) {
-    const expiry = await deps.getValuesExpiry(client.id);
-    if (client.status === "submitted") {
-      for (const f of await deps.listFiles(clientPrefix(client.ownerUid, client.id))) {
-        await deps.deleteFile(f.name);
-        result.submittedFiles += 1;
-      }
-      if (expiry) {
-        await deps.deleteValues(client.id);
-        result.submittedValues += 1;
-      }
-    } else if (expiry && expiry.getTime() <= now.getTime()) {
-      await deps.deleteValues(client.id);
-      result.expiredValues += 1;
+  const result: CleanupResult = { submittedFiles: 0, submittedValues: 0, expiredValues: 0, expiredFiles: 0, failures: 0 };
+  // One failed step never stops the rest of the sweep.
+  const attempt = async (step: () => Promise<void>) => {
+    try {
+      await step();
+    } catch {
+      result.failures += 1;
     }
+  };
+  let clients: Awaited<ReturnType<CleanupDeps["listClients"]>> = [];
+  await attempt(async () => {
+    clients = await deps.listClients();
+  });
+  for (const client of clients) {
+    await attempt(async () => {
+      const expiry = await deps.getValuesExpiry(client.id);
+      if (client.status === "submitted") {
+        for (const f of await deps.listFiles(clientPrefix(client.ownerUid, client.id))) {
+          await attempt(async () => {
+            await deps.deleteFile(f.name);
+            result.submittedFiles += 1;
+          });
+        }
+        if (expiry) {
+          await deps.deleteValues(client.id);
+          result.submittedValues += 1;
+        }
+      } else if (expiry && expiry.getTime() <= now.getTime()) {
+        await deps.deleteValues(client.id);
+        result.expiredValues += 1;
+      }
+    });
   }
   const cutoff = now.getTime() - FILES_DELETE_AFTER_DAYS * DAY;
-  for (const f of await deps.listFiles("users/")) {
-    if (f.created.getTime() <= cutoff) {
+  let files: StoredFile[] = [];
+  await attempt(async () => {
+    files = await deps.listFiles("users/");
+  });
+  for (const f of files.filter((x) => x.created.getTime() <= cutoff)) {
+    await attempt(async () => {
       await deps.deleteFile(f.name);
       result.expiredFiles += 1;
-    }
+    });
   }
   deps.log?.("cleanup", { ...result });
+  if (result.failures > 0) throw new Error(`Cleanup had ${result.failures} failed steps; the scheduler retries it.`);
   return result;
 }
