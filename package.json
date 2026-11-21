@@ -14,8 +14,8 @@
     "check:lint": "eslint .",
     "check:secrets": "node scripts/check-secrets.mjs",
     "test:unit": "vitest run -c vitest.config.ts --coverage && node scripts/coverage-floor.mjs",
-    "test:integration": "firebase emulators:exec --only firestore --project demo-tax-copilot \"vitest run -c vitest.integration.config.ts\"",
-    "test:e2e": "firebase emulators:exec --only auth,firestore --project demo-tax-copilot \"playwright test\"",
+    "test:integration": "firebase emulators:exec --only firestore,storage --project demo-tax-copilot \"vitest run -c vitest.integration.config.ts\"",
+    "test:e2e": "firebase emulators:exec --only auth,firestore,storage --project demo-tax-copilot \"playwright test\"",
     "evals": "tsx evals/run.ts",
     "build": "npm run build:web && npm run build:functions",
     "build:web": "vite build",
@@ -30,7 +30,6 @@
     "firebase-functions": "^7.4.0",
     "google-auth-library": "^10.9.1",
     "openai": "^7.61.0",
-    "pdfjs-dist": "^6.5.438",
     "zod": "^4.6.7"
   },
   "devDependencies": {

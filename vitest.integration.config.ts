@@ -5,5 +5,7 @@ export default defineConfig({
     include: ["tests/integration/**/*.test.ts"],
     environment: "node",
     testTimeout: 20000,
+    // The test files share one set of emulators and each clears it: run them one at a time.
+    fileParallelism: false,
   },
 });

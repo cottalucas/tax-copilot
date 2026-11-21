@@ -18,7 +18,7 @@ export interface AdapterDeps {
   budget?: CostBudget;
 }
 
-/** Providers allowed to receive real client data: EU endpoint only (final choice at SR-18). */
+/** Providers allowed to receive real client data: Vertex on an EU endpoint only (decided 2026-11-21). */
 const CLIENT_DATA_PROVIDERS: readonly ProviderName[] = ["vertex"];
 
 export function createProvider(name: ProviderName, env: NodeJS.ProcessEnv = process.env): ModelProvider {

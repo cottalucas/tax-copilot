@@ -33,7 +33,7 @@ jobs:
         with:
           workload_identity_provider: ${{ vars.GCP_WIF_EVALS_PROVIDER }}
           service_account: ${{ vars.GCP_EVALS_SA }}
-      - run: npm run evals:live
+      - run: npm run evals:live -- --media
       - uses: actions/upload-artifact@v7
         if: always()
         with:

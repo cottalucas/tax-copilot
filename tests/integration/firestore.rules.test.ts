@@ -47,21 +47,26 @@ describe("firestore.rules: clients (SR-16)", () => {
   });
 });
 
-describe("firestore.rules: creating a client (SR-17)", () => {
-  const valid = () => ({ ownerUid: "preparer", displayName: "Client C", status: "documents_in", flagCount: 0, driveFolderId: "folder123", fileCount: 3, createdAt: serverTimestamp() });
+describe("firestore.rules: creating a client (SR-28)", () => {
+  const valid = () => ({ ownerUid: "preparer", displayName: "Client C", status: "documents_in", flagCount: 0, fileCount: 3, taxYear: 2025, createdAt: serverTimestamp() });
 
-  it("lets her create her own client in Documents in, after the files are in Drive", async () => {
+  it("lets her create her own client in Documents in, with the tax year she chose", async () => {
     const db = env.authenticatedContext("preparer").firestore();
     await assertSucceeds(setDoc(doc(db, "clients/c3"), valid()));
   });
 
-  it("rejects clients for someone else, other statuses, flags, extra fields or no Drive folder", async () => {
+  it("rejects clients for someone else, other statuses, flags, extra fields or no tax year", async () => {
     const db = env.authenticatedContext("preparer").firestore();
     await assertFails(setDoc(doc(db, "clients/c4"), { ...valid(), ownerUid: "someone-else" }));
     await assertFails(setDoc(doc(db, "clients/c4"), { ...valid(), status: "ready_to_fill" }));
     await assertFails(setDoc(doc(db, "clients/c4"), { ...valid(), flagCount: 1 }));
     await assertFails(setDoc(doc(db, "clients/c4"), { ...valid(), documentText: "copied pdf text" }));
-    await assertFails(setDoc(doc(db, "clients/c4"), { ...valid(), driveFolderId: "" }));
+    await assertFails(setDoc(doc(db, "clients/c4"), { ...valid(), driveFolderId: "folder123" }));
+    await assertFails(setDoc(doc(db, "clients/c4"), { ...valid(), taxYear: "2025" }));
+    await assertFails(setDoc(doc(db, "clients/c4"), { ...valid(), taxYear: 1999 }));
+    const noYear: Record<string, unknown> = valid();
+    delete noYear.taxYear;
+    await assertFails(setDoc(doc(db, "clients/c4"), noYear));
     await assertFails(setDoc(doc(db, "clients/c4"), { ...valid(), fileCount: 0 }));
     await assertFails(setDoc(doc(db, "clients/c4"), { ...valid(), displayName: "" }));
   });
@@ -69,6 +74,29 @@ describe("firestore.rules: creating a client (SR-17)", () => {
   it("denies signed out creates", async () => {
     const anon = env.unauthenticatedContext().firestore();
     await assertFails(setDoc(doc(anon, "clients/c5"), valid()));
+  });
+});
+
+describe("firestore.rules: extracted values (SR-28)", () => {
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "clients/c1/extraction/current"), { taxYear: 2025, data: { schemaVersion: 1 } });
+      await setDoc(doc(ctx.firestore(), "clients/c2/extraction/current"), { taxYear: 2025, data: { schemaVersion: 1 } });
+    });
+  });
+
+  it("lets her read the values of her own client", async () => {
+    const db = env.authenticatedContext("preparer").firestore();
+    await assertSucceeds(getDoc(doc(db, "clients/c1/extraction/current")));
+  });
+
+  it("does not let another user read them, and nobody writes them from a browser", async () => {
+    const db = env.authenticatedContext("preparer").firestore();
+    await assertFails(getDoc(doc(db, "clients/c2/extraction/current")));
+    await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), "clients/c1/extraction/current")));
+    await assertFails(setDoc(doc(db, "clients/c1/extraction/current"), { data: { forged: true } }));
+    await assertFails(updateDoc(doc(db, "clients/c1/extraction/current"), { taxYear: 2024 }));
+    await assertFails(deleteDoc(doc(db, "clients/c1/extraction/current")));
   });
 });
 

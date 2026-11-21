@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
-import { onlyUid, resetEmulators, seedClient, signInWithGoogle } from "./helpers.js";
+import { mockExtract, onlyUid, resetEmulators, seedClient, signInWithGoogle } from "./helpers.js";
 
 // Accessibility gate (DESIGN.md: WCAG 2.2 AA). Every screen and state gets a check.
 async function expectNoViolations(page: Page) {
@@ -31,16 +31,15 @@ test("empty and filled queue have no WCAG 2.2 AA violations", async ({ page }) =
 });
 
 test("queue with Extract all and a failed extraction has no WCAG 2.2 AA violations", async ({ page }) => {
-  await page.route("https://www.googleapis.com/drive/v3/files**", (route) => route.fulfill({ json: { files: [] } }));
+  await mockExtract(page, async () => ({ status: 500, json: { error: { status: "FAILED_PRECONDITION", message: "No documents uploaded for this client." } } }));
   await page.goto("/");
   await signInWithGoogle(page);
-  await seedClient("c1", { ownerUid: await onlyUid(), displayName: "Ana Example", status: "documents_in", flagCount: 0, driveFolderId: "folder1" });
+  await seedClient("c1", { ownerUid: await onlyUid(), displayName: "Ana Example", status: "documents_in", flagCount: 0, taxYear: 2025 });
   await page.reload();
   await expect(page.getByRole("button", { name: "Extract all (1)" })).toBeVisible();
   await expectNoViolations(page);
-  await page.getByLabel("Tax year").selectOption({ index: 1 });
   await page.getByRole("button", { name: "Extract all (1)" }).click();
-  await expect(page.getByRole("alert")).toContainText("No PDFs found");
+  await expect(page.getByRole("alert")).toContainText("No documents uploaded");
   await expectNoViolations(page);
 });
 

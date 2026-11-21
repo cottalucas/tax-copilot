@@ -25,8 +25,8 @@ describe("home queue", () => {
     expect(toQueueClient("x", { displayName: "Ana", status: "submitted", flagCount: -3 })).toEqual({ id: "x", displayName: "Ana", status: "submitted", flagCount: 0, extracted: false });
   });
 
-  it("carries the Drive folder and whether the data file is saved", () => {
-    expect(toQueueClient("x", { displayName: "Ana", status: "documents_in", driveFolderId: "f1", dataFileId: "d1" })).toMatchObject({ driveFolderId: "f1", extracted: true });
-    expect(toQueueClient("x", { displayName: "Ana", status: "documents_in", driveFolderId: "", dataFileId: "" })).toEqual({ id: "x", displayName: "Ana", status: "documents_in", flagCount: 0, extracted: false });
+  it("knows whether the server saved extracted values", () => {
+    expect(toQueueClient("x", { displayName: "Ana", status: "documents_in", extractedAt: { seconds: 1 } })).toMatchObject({ extracted: true });
+    expect(toQueueClient("x", { displayName: "Ana", status: "documents_in" })).toEqual({ id: "x", displayName: "Ana", status: "documents_in", flagCount: 0, extracted: false });
   });
 });

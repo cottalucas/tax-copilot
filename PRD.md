@@ -23,11 +23,13 @@ One expert user: the tax preparer. She keeps final control and submits.
 
 ## Core flow
 1. She opens the portal and picks or creates a client.
-2. She drops the PDFs, or picks the client folder in Drive.
-3. Extraction runs. Batch or scheduled is fine.
+2. She picks the tax year and drops the documents: PDFs, scans or phone photos. They go to a
+   private bucket in Zurich (SR-28). Importing from Google Drive comes later (SR-27).
+3. Extraction runs on the server: Gemini on Vertex `eu` reads the documents itself. One client,
+   or all waiting clients in a batch.
 4. She sees the result: flags first, key totals, big changes from last year.
 5. She clicks Fill now. The government site opens in one dedicated tab.
-6. She logs in as the client. Claude in Chrome fills the draft from the client data file.
+6. She logs in as the client. Claude in Chrome fills the draft from the extracted values.
 7. She reviews the draft on the government site and submits.
 8. She clicks Next client. Same tab is reused.
 
@@ -53,7 +55,8 @@ TODO (gap, see PROGRESS.md > Open gaps). From the Product Doc stages: own Chrome
 flags on the page, source PDF side panel. End user portal as a second door to the same engine.
 
 ## Never
-- Store client documents outside her Drive.
+- Keep client documents after the return is open: they stay in the Zurich bucket only until it is
+  submitted, and 30 days at the latest.
 - Store client government credentials.
 - Submit without her final review.
 

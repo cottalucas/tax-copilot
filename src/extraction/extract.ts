@@ -1,14 +1,19 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { complete, type AdapterDeps, type DataClass } from "../models/index.js";
+import { complete, type AdapterDeps, type ContentPart, type DataClass } from "../models/index.js";
 import { z } from "zod";
 import { ExtractedReturn as ExtractedReturnSchema, parseExtractedReturn, type ExtractedReturn } from "../schema/extraction.js";
 
-export interface DocumentText {
-  file: string;
-  /** Plain text per page, page 1 first. */
-  pages: string[];
-}
+/** File types the model reads itself: text PDFs, scanned PDFs, and photos. */
+export const DOCUMENT_TYPES = ["application/pdf", "image/jpeg", "image/png"] as const;
+export type DocumentType = (typeof DOCUMENT_TYPES)[number];
+
+/**
+ * One document for extraction. `file` is the name the model cites as source.file, unique per
+ * extraction. The bytes come inline (base64, small synthetic files) or as a gs:// link to the EU
+ * bucket. The model reads the document itself, so scans and photos work (SR-28).
+ */
+export type DocumentFile = { file: string; mimeType: DocumentType } & ({ data: string; uri?: never } | { uri: string; data?: never });
 
 export interface ExtractOptions extends AdapterDeps {
   dataClass: DataClass;
@@ -25,19 +30,19 @@ export function loadExtractionPrompt(): string {
   return readFileSync(PROMPT_PATH, "utf8").replace(/<!--[\s\S]*?-->/g, "").trim();
 }
 
-/** Stops document text from closing or opening page tags (prompt injection, AGENTS.md). */
-export function neutralize(text: string): string {
-  return text.replace(/<(\/?)(page)/gi, "&lt;$1$2");
+/** A file name the model can cite safely: no quotes, angle brackets or line breaks. */
+export function safeName(name: string): string {
+  return name.replace(/["<>\r\n]/g, "_").slice(0, 200);
 }
 
-export function renderDocuments(docs: DocumentText[]): string {
-  return docs
-    .map((d) =>
-      d.pages
-        .map((text, i) => `<page file="${neutralize(d.file).replace(/"/g, "'")}" page="${i + 1}">\n${neutralize(text)}\n</page>`)
-        .join("\n"),
-    )
-    .join("\n");
+/** The user message: request details, then each document introduced by its file name. */
+export function documentParts(docs: DocumentFile[], header: string): ContentPart[] {
+  const parts: ContentPart[] = [{ type: "text", text: header }];
+  for (const d of docs) {
+    parts.push({ type: "text", text: `Document file="${safeName(d.file)}" (${d.mimeType === "application/pdf" ? "PDF, pages numbered from 1" : "image, page 1"}):` });
+    parts.push(d.uri ? { type: "file", mimeType: d.mimeType, uri: d.uri } : { type: "file", mimeType: d.mimeType, data: d.data! });
+  }
+  return parts;
 }
 
 /** JSON Schema the model must follow, generated from the Zod schema (one source). */
@@ -45,11 +50,8 @@ export function extractionJsonSchema(): string {
   return JSON.stringify(z.toJSONSchema(ExtractedReturnSchema, { io: "input" }));
 }
 
-/**
- * Extracts one return from document text. Output is schema validated before it is returned.
- * TODO(SR-18): read PDFs from her Drive folder and turn them into DocumentText.
- */
-export async function extractReturn(docs: DocumentText[], options: ExtractOptions): Promise<ExtractedReturn> {
+/** Extracts one return from the documents themselves. Output is schema validated before it is returned. */
+export async function extractReturn(docs: DocumentFile[], options: ExtractOptions): Promise<ExtractedReturn> {
   const result = await complete(
     {
       dataClass: options.dataClass,
@@ -61,7 +63,10 @@ export async function extractReturn(docs: DocumentText[], options: ExtractOption
         { role: "system", content: loadExtractionPrompt() },
         {
           role: "user",
-          content: `clientId: ${options.clientId}\ntaxYear: ${options.taxYear}\nschemaVersion: 1\n\nJSON Schema:\n${extractionJsonSchema()}\n\nDocuments:\n${renderDocuments(docs)}`,
+          content: documentParts(
+            docs,
+            `clientId: ${options.clientId}\ntaxYear: ${options.taxYear}\nschemaVersion: 1\n\nJSON Schema:\n${extractionJsonSchema()}\n\nDocuments follow, each after its file name.`,
+          ),
         },
       ],
     },

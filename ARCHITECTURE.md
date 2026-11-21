@@ -14,11 +14,11 @@ Locked unless marked open.
 | --- | --- | --- |
 | Portal | Web app on Firebase Hosting, Firebase Auth | `web/` (Vite, TypeScript) |
 | Engine | Cloud Functions v2, europe-west6 (Zurich) | `src/functions/` |
-| Extraction | Her browser turns the PDFs into text per page (pdf.js). The `extract` callable function sends it through the adapter, fixed JSON schema, Zod validated | `web/src/pdf.ts`, `web/src/batch.ts`, `src/functions/extract.ts`, `src/extraction/`, `src/schema/`, `prompts/` |
+| Extraction | The `extract` callable function sends her documents to the model as `gs://` links through the adapter; Gemini reads PDFs, scans and photos itself. Fixed JSON schema, Zod validated, citations checked | `src/functions/extract.ts`, `src/extraction/`, `src/schema/`, `prompts/`, `web/src/batch.ts` |
 | Product AI | One adapter, Vertex Gemini on the EU endpoint only | `src/models/` |
 | Rules | Plain code with tests, not prompts | `rules/` |
-| Storage | Firestore: client status, flags, corrections only. No documents | `firestore.rules` |
-| Files | Stay in her Google Drive. Uploaded from her browser with her own OAuth token (scope `drive.file`) into a new folder per client, read back by her browser for extraction | `web/src/drive.ts` |
+| Storage | Firestore: client status, flags, corrections, and extracted values while the return is open. No documents | `firestore.rules` |
+| Files | Cloud Storage, the project's default bucket `tax-co-pilot.firebasestorage.app` in europe-west6. Uploaded from her browser into `users/{uid}/clients/{clientId}/`. Private, deleted on submit and after 30 days, no soft delete | `storage.rules`, `storage-lifecycle.json`, `web/src/main.ts` |
 | Filling | Claude in Chrome with one saved shortcut holding the form field map | TODO SR-21 |
 | Pipeline | GitHub Actions | `.github/workflows/`, AGENTS.md > Pipeline |
 
@@ -33,34 +33,37 @@ background job, never behind a Hosting rewrite.
 | Staging | none | Template gap. Add before the first real client |
 
 ## Data model
-`clients` confirmed in SR-16 (reads), SR-17 (create) and SR-18 (extraction fields).
+`clients` confirmed in SR-16 (reads) and SR-28 (create, extraction).
 - `clients/{clientId}`: ownerUid (her Firebase Auth uid), displayName (her label, not the legal
   name), status (`documents_in`, `needs_review`, `ready_to_fill`, `submitted`), flagCount,
-  driveFolderId, fileCount, createdAt, and after extraction dataFileId (the Drive id of the data
-  file) and extractedAt. Rules: she reads only documents where ownerUid is her uid (queries filter
-  on it); she creates a client only with exactly the SR-17 fields, status `documents_in` and no
-  flags. No updates or deletes from the browser: only the `saveExtraction` function (Admin SDK,
-  after checking she owns the client) writes dataFileId and extractedAt.
+  fileCount, taxYear (she chooses it), createdAt, and extractedAt once values are saved,
+  submittedAt once submitted. Rules: she reads only documents where ownerUid is her uid (queries
+  filter on it); she creates a client only with exactly those first seven fields, status
+  `documents_in` and no flags. No updates or deletes from the browser: the functions (Admin SDK,
+  after checking she owns the client) write extractedAt, status and submittedAt.
+- `clients/{clientId}/extraction/current`: data (the schema validated extraction, every value with
+  source file and page), model, taxYear, sources (the file names), extractedAt, expireAt (30 days
+  later; a Firestore TTL policy deletes it). She reads her own; only the `extract` function writes.
 - `clients/{clientId}/flags/{flagId}`: ruleId, severity, field, reason, resolved.
 - `clients/{clientId}/corrections/{id}`: field, before, after, at. Feeds new golden cases.
-- Extracted values are not stored in Firestore. The client data file `tax-copilot-data.json` lives
-  in her Drive next to the PDFs: schemaVersion, taxYear (she chooses it), extractedAt, model, sources (a unique label per PDF and its Drive file id; a repeated name
-  becomes `name (2).pdf`), and the
-  schema validated extraction (every value with source file and page).
+- File names: each upload gets one unique storage name (a repeat becomes `name (2).pdf`), and
+  citations use that name, so a value always points at exactly one document.
+- Submitting (`submitReturn`) deletes the client's files and extracted values and sets status
+  `submitted`. The button comes with SR-22.
 
 ## Data inventory and residency
 | Data | Lives in | Who reads it |
 | --- | --- | --- |
-| Client PDFs | Her Google Drive only | Her, the engine through the Drive API |
-| Client data file | Her Drive, `tax-copilot-data.json` in the client folder | Her, the fill step |
-| PDF text | Her browser, then the `extract` function (europe-west6) and Vertex `eu`, in memory for one call. Never stored or logged | Her, the extract function, Vertex |
+| Client documents (PDF, JPG, PNG) | Default bucket, europe-west6, `users/{uid}/clients/{clientId}/`. Until submit, 30 days at the latest | Her (Storage rules), the extract function, Vertex `eu` through a `gs://` link |
+| Extracted values | Firestore `clients/{id}/extraction/current`, europe-west6. Until submit, 30 days at the latest | Her, the extract function, later the fill step |
 | Status, flags, corrections | Firestore `(default)`, europe-west6 | Her only |
 | Government credentials | Nowhere. She types them per session | Nobody |
 | Golden cases | `evals/golden/`, anonymized. None while the repo is public (SR-23) | Pipeline, live evals on Vertex `eu` |
 
 Functions run in europe-west6. Product AI is Vertex only, on the EU multi-region endpoint `eu`.
-Residency decided 2026-11-21 (Lucas, SR-18): real client document text may go to Vertex on `eu`,
-only through the `extract` function. No other model or service receives it.
+Residency decided 2026-11-21 (Lucas, SR-18, SR-28): real client documents may go to Vertex on
+`eu`, only through the `extract` function, which sends `gs://` links to the Zurich bucket. No other
+model or service receives them. Logs hold counts and cost, never text or values.
 
 ## Models
 Two kinds of AI (AGENTS.md). Build AI (Claude Code, Codex) never runs in the product. Product AI:
@@ -80,12 +83,14 @@ Two kinds of AI (AGENTS.md). Build AI (Claude Code, Codex) never runs in the pro
   prefixes on its own; cached tokens are priced as cached.
 - Real client data: only `vertex` on an EU endpoint may receive it (`dataClass: "client"`),
   decided at SR-18. The `extract` function sends it with `dataClass: "client"`.
-- Runtime identity: the `extract` and `saveExtraction` functions run as
-  `extract-fn@tax-co-pilot.iam.gserviceaccount.com` (roles/aiplatform.user, roles/datastore.user).
-  Created by Lucas. Their settings (EXTRACT_*, VERTEX_*, EXTRACT_ALLOWED_EMAILS) come from
+- Runtime identity: the `extract` and `submitReturn` functions run as
+  `extract-fn@tax-co-pilot.iam.gserviceaccount.com` (roles/aiplatform.user, roles/datastore.user,
+  roles/storage.objectAdmin on the documents bucket only). Vertex reads the `gs://` links as its
+  service agent (roles/storage.objectViewer on that bucket). Created by Lucas. Their settings (EXTRACT_*, VERTEX_*, EXTRACT_ALLOWED_EMAILS) come from
   repository variables, written to `.env.<project>` by infra.yml at deploy time.
-- Cost: one extraction is capped at `extractMaxCostUsd` (0.05 USD) and one model call
-  (`budgets.json`), and at 30 files, 200 pages per file and 400,000 characters.
+- Cost: one extraction is one model call, capped at `extractMaxCostUsd` (0.05 USD,
+  `budgets.json`), and at 30 files of at most 25 MB. Gemini counts about 258 tokens per PDF page
+  or image, so a typical client costs well under 0.01 USD.
 - A switch module covering build AI and product AI is a Template gap, fixed later.
 - No orchestration framework. Only pass the parameters a request sets.
 
@@ -155,8 +160,9 @@ call (returned by `src/models`), eval reports in CI summaries.
 - 2026-11 Client data only to Vertex AI EU, enforced in `src/models`.
 - 2026-11 Firestore default deny. Firestore `(default)` is in europe-west6 (permanent).
 - 2026-11-19 Repo public for free branch rules until SR-23. Keyless deploys.
-- 2026-11-21 Extraction: PDF text is made in her browser, so no server ever holds her Drive token
-  or a PDF. Client text goes to Vertex `eu` only through the `extract` function (Lucas approved).
+- 2026-11-21 SR-28 (Lucas): documents go into the app, not her Drive. Zurich bucket, the model
+  reads them itself (scans and photos work), values in Firestore, all deleted on submit or after
+  30 days. Replaces the Drive intake and the in-browser text step.
 
 ## What breaks first
 1. Government form changes. Signal: nightly form check, fill errors.

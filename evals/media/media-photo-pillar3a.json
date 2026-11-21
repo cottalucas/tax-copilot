@@ -1,0 +1,12 @@
+{
+  "id": "media-photo-pillar3a",
+  "taxYear": 2025,
+  "attachments": [{ "file": "photo-pillar3a.jpg", "path": "photo-pillar3a.jpg", "mimeType": "image/jpeg" }],
+  "expected": {
+    "fields": {
+      "taxpayer.taxYear": 2025,
+      "deductions.pillar3a": 7056
+    },
+    "flags": []
+  }
+}

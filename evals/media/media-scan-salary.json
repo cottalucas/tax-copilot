@@ -1,0 +1,16 @@
+{
+  "id": "media-scan-salary",
+  "taxYear": 2025,
+  "attachments": [{ "file": "scan-salary-statement.pdf", "path": "scan-salary-statement.pdf", "mimeType": "application/pdf" }],
+  "expected": {
+    "fields": {
+      "taxpayer.taxYear": 2025,
+      "employment.0.employer": "Synthetic Scan AG",
+      "employment.0.grossSalary": 76400,
+      "employment.0.socialContributions": 4927.8,
+      "employment.0.pensionContributions": 5348,
+      "employment.0.netSalary": 66124.2
+    },
+    "flags": []
+  }
+}

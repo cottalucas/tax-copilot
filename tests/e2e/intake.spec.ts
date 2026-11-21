@@ -1,34 +1,22 @@
+import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
-import { readClients, resetEmulators, signInWithGoogle } from "./helpers.js";
+import { textPdf } from "../../evals/lib/pdf.js";
+import { listObjects, markExtracted, mockExtract, onlyUid, readClients, resetEmulators, seedClient, signInWithGoogle, watchOutsideHosts } from "./helpers.js";
 
-const pdf = (name: string) => ({ name, mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\n% synthetic test file\n%%EOF\n") });
+// Synthetic documents only (AGENTS.md > Never do): a generated text PDF and the synthetic photo.
+const pdf = (name: string) => ({ name, mimeType: "application/pdf", buffer: textPdf(["Salary statement (synthetic)\nGross salary 98000.00"]) });
+const photo = { name: "pillar3a.jpg", mimeType: "image/jpeg", buffer: readFileSync("evals/media/files/photo-pillar3a.jpg") };
+const taxYear = String(new Date().getFullYear() - 1);
 
 test.beforeEach(async () => {
   await resetEmulators();
 });
 
-test("SR-17: create a client, files go to her Drive only, status Documents in", async ({ page }) => {
-  // Mock Google Drive. Record every outside request to prove files go nowhere else.
-  const drive: { url: string; auth: string | null; body: string }[] = [];
-  await page.route("https://www.googleapis.com/drive/v3/files**", async (route) => {
-    drive.push({ url: route.request().url(), auth: route.request().headerValue ? await route.request().headerValue("authorization") : null, body: route.request().postData() ?? "" });
-    await route.fulfill({ json: { id: "folder123" } });
-  });
-  let uploads = 0;
-  await page.route("https://www.googleapis.com/upload/drive/v3/files**", async (route) => {
-    uploads += 1;
-    const type = (await route.request().headerValue("content-type")) ?? "";
-    // Drive rejects anything but multipart/related on this endpoint: so does the mock.
-    if (!type.startsWith("multipart/related; boundary=")) return route.fulfill({ status: 400, json: { error: "bad content type" } });
-    drive.push({ url: route.request().url(), auth: await route.request().headerValue("authorization"), body: route.request().postData() ?? "" });
-    await route.fulfill({ json: { id: `file${uploads}` } });
-  });
-  const outside: string[] = [];
-  // Allowed: the app itself, the emulators, Google Drive, and Google's sign-in helper scripts.
-  const allowed = (host: string) => ["localhost", "127.0.0.1", "www.googleapis.com", "apis.google.com"].includes(host) || host.endsWith(".gstatic.com");
-  page.on("request", (r) => {
-    const host = new URL(r.url()).hostname;
-    if (!allowed(host)) outside.push(host);
+test("SR-28: create a client, files land only in her folder of the bucket, the server reads them", async ({ page }) => {
+  const outside = watchOutsideHosts(page);
+  const calls = await mockExtract(page, async (clientId) => {
+    await markExtracted(clientId);
+    return { json: { result: { ok: true, files: 3 } } };
   });
 
   await page.goto("/");
@@ -37,40 +25,101 @@ test("SR-17: create a client, files go to her Drive only, status Documents in", 
   await page.getByRole("button", { name: "New client" }).click();
 
   await page.getByLabel("Client name").fill("Ana Example");
-  await page.getByLabel("Choose PDFs").setInputFiles([pdf("salary-statement.pdf"), pdf("bank-statement.pdf")]);
-  await expect(page.locator("ul.files li")).toHaveText(["salary-statement.pdf", "bank-statement.pdf"]);
+  await page.getByLabel("Tax year").selectOption(taxYear);
+  await page.getByLabel("Choose documents").setInputFiles([pdf("salary-statement.pdf"), photo, pdf("salary-statement.pdf")]);
+  await expect(page.locator("ul.files li")).toHaveText(["salary-statement.pdf", "pillar3a.jpg", "salary-statement.pdf"]);
   await page.getByRole("button", { name: "Create client" }).click();
 
-  // Back on the queue: the client shows with status Documents in.
+  // Back on the queue: Documents in, values extracted, and a notice.
+  await expect(page.getByRole("status")).toHaveText("Ana Example: documents read.");
   const row = page.locator("tbody tr", { hasText: "Ana Example" });
-  await expect(row).toBeVisible();
   await expect(row.locator("td").nth(1)).toHaveText("Documents in");
+  await expect(row.locator("td").nth(3)).toHaveText("Extracted");
 
-  // Files went to her Drive with her token, into the new folder, and nowhere else.
-  expect(uploads).toBe(2);
-  expect(drive.every((d) => d.auth?.startsWith("Bearer "))).toBe(true);
-  expect(drive.filter((d) => d.url.includes("/upload/")).every((d) => d.body.includes('"parents":["folder123"]'))).toBe(true);
-  expect(outside).toEqual([]);
-
-  // Firestore holds only the client's status record, with the Drive folder id.
+  // Files: in her own folder, one unique name each (the names citations use), nowhere else.
+  const uid = await onlyUid();
   const [client] = await readClients();
-  expect(client).toMatchObject({ displayName: "Ana Example", status: "documents_in", driveFolderId: "folder123", fileCount: "2", flagCount: "0" });
-  expect(Object.keys(client!).sort()).toEqual(["createdAt", "displayName", "driveFolderId", "fileCount", "flagCount", "ownerUid", "status"]);
+  expect(await listObjects("")).toEqual(
+    [`users/${uid}/clients/${calls[0]!.clientId}/pillar3a.jpg`, `users/${uid}/clients/${calls[0]!.clientId}/salary-statement (2).pdf`, `users/${uid}/clients/${calls[0]!.clientId}/salary-statement.pdf`].sort(),
+  );
+  // Firestore: the client record with the tax year she chose. The server added extractedAt.
+  expect(client).toMatchObject({ displayName: "Ana Example", status: "documents_in", fileCount: "3", flagCount: "0", taxYear });
+  expect(Object.keys(client!).sort()).toEqual(["createdAt", "displayName", "extractedAt", "fileCount", "flagCount", "ownerUid", "status", "taxYear"]);
+  // The extract function was asked once, with her sign-in. No PDF text step in the browser.
+  expect(calls).toHaveLength(1);
+  expect(calls[0]!.auth).toMatch(/^Bearer /);
+  expect(outside).toEqual([]);
 });
 
-test("SR-17: name and files are required, non PDFs are rejected", async ({ page }) => {
+test("SR-28: if reading fails after upload, the client is kept and Extract all retries", async ({ page }) => {
+  let fail = true;
+  const calls = await mockExtract(page, async (clientId) => {
+    if (fail) return { status: 500, json: { error: { status: "INTERNAL", message: "Extraction failed. Try again." } } };
+    await markExtracted(clientId);
+    return { json: { result: { ok: true, files: 1 } } };
+  });
+
+  await page.goto("/");
+  await signInWithGoogle(page);
+  await page.getByRole("button", { name: "New client" }).click();
+  await page.getByLabel("Client name").fill("Bo Example");
+  await page.getByLabel("Tax year").selectOption(taxYear);
+  await page.getByLabel("Choose documents").setInputFiles([pdf("statement.pdf")]);
+  await page.getByRole("button", { name: "Create client" }).click();
+
+  await expect(page.getByRole("status")).toHaveText("Bo Example: documents uploaded. Extraction failed. Try again. Use Extract all to retry.");
+  const row = page.locator("tbody tr", { hasText: "Bo Example" });
+  await expect(row.locator("td").nth(3)).toHaveText("Not yet");
+
+  fail = false;
+  await page.getByRole("button", { name: "Extract all (1)" }).click();
+  await expect(page.getByRole("status")).toHaveText("Documents read for 1 of 1 clients.");
+  await expect(row.locator("td").nth(3)).toHaveText("Extracted");
+  await expect(page.getByRole("button", { name: /Extract all/ })).toHaveCount(0);
+  expect(calls).toHaveLength(2);
+});
+
+test("SR-18: Extract all reads every waiting client and reports failures by name", async ({ page }) => {
+  const calls = await mockExtract(page, async (clientId) => {
+    if (clientId === "c2") return { status: 500, json: { error: { status: "INTERNAL", message: "Extraction failed. Try again." } } };
+    await markExtracted(clientId);
+    return { json: { result: { ok: true, files: 1 } } };
+  });
+  await page.goto("/");
+  await signInWithGoogle(page);
+  const uid = await onlyUid();
+  await seedClient("c1", { ownerUid: uid, displayName: "Ana Example", status: "documents_in", flagCount: 0, taxYear: 2025 });
+  await seedClient("c2", { ownerUid: uid, displayName: "Bo Example", status: "documents_in", flagCount: 0, taxYear: 2025 });
+  await seedClient("c3", { ownerUid: uid, displayName: "Cy Example", status: "documents_in", flagCount: 0, taxYear: 2025, extracted: true });
+  await page.reload();
+
+  await page.getByRole("button", { name: "Extract all (2)" }).click();
+  await expect(page.getByRole("status")).toHaveText("Documents read for 1 of 2 clients.");
+  await expect(page.getByRole("alert")).toContainText("Bo Example: Extraction failed. Try again.");
+  expect(calls.map((c) => c.clientId)).toEqual(["c1", "c2"]);
+  await page.getByRole("button", { name: "Refresh the queue" }).click();
+  await expect(page.locator("tbody tr", { hasText: "Ana Example" }).locator("td").nth(3)).toHaveText("Extracted");
+  await expect(page.locator("tbody tr", { hasText: "Bo Example" }).locator("td").nth(3)).toHaveText("Not yet");
+});
+
+test("SR-28: name, tax year and documents are required, other files are rejected", async ({ page }) => {
   await page.goto("/");
   await signInWithGoogle(page);
   await page.getByRole("button", { name: "New client" }).click();
   await page.getByRole("button", { name: "Create client" }).click();
   await expect(page.getByRole("alert")).toContainText("Enter a client name.");
   await page.getByLabel("Client name").fill("Ana Example");
-  await page.getByLabel("Choose PDFs").setInputFiles([{ name: "photo.png", mimeType: "image/png", buffer: Buffer.from("png") }]);
-  await expect(page.getByRole("alert")).toContainText("photo.png: only PDF files.");
-  await page.getByLabel("Choose PDFs").setInputFiles([{ name: "renamed.pdf", mimeType: "application/pdf", buffer: Buffer.from("not really a pdf") }]);
   await page.getByRole("button", { name: "Create client" }).click();
-  await expect(page.getByRole("alert")).toContainText("renamed.pdf: not a PDF file.");
-  await page.getByLabel("Choose PDFs").setInputFiles([]);
+  await expect(page.getByRole("alert")).toContainText("Choose the tax year.");
+  await page.getByLabel("Tax year").selectOption(taxYear);
+  await page.getByLabel("Choose documents").setInputFiles([{ name: "anim.gif", mimeType: "image/gif", buffer: Buffer.from("GIF89a") }]);
+  await expect(page.getByRole("alert")).toContainText("anim.gif: only PDF, JPG and PNG files.");
+  await page.getByLabel("Choose documents").setInputFiles([{ name: "renamed.pdf", mimeType: "application/pdf", buffer: Buffer.from("not really a pdf") }]);
   await page.getByRole("button", { name: "Create client" }).click();
-  await expect(page.getByRole("alert")).toContainText("Add at least one PDF.");
+  await expect(page.getByRole("alert")).toContainText("renamed.pdf: not a valid PDF file.");
+  await page.getByLabel("Choose documents").setInputFiles([]);
+  await page.getByRole("button", { name: "Create client" }).click();
+  await expect(page.getByRole("alert")).toContainText("Add at least one document.");
+  expect(await readClients()).toEqual([]);
+  expect(await listObjects("")).toEqual([]);
 });

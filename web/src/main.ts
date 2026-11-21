@@ -1,18 +1,17 @@
-// Login and home queue (SR-16). Screens and states from DESIGN.md.
-import { GoogleAuthProvider, onAuthStateChanged, reauthenticateWithPopup, signInWithCredential, signInWithPopup, signOut, type User } from "firebase/auth";
+// Login, home queue and intake (SR-16, SR-28). Screens and states from DESIGN.md.
+import { GoogleAuthProvider, onAuthStateChanged, signInWithCredential, signInWithPopup, signOut, type User } from "firebase/auth";
 import { addDoc, collection, getDocs, query, serverTimestamp, where } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
-import { MAX_FILES, pendingExtraction, runBatch, taxYearChoices, type BatchDeps } from "./batch.js";
-import { createFolder, downloadFile, DRIVE_SCOPE, listPdfs, saveJsonFile, uploadFile } from "./drive.js";
-import { auth, db, functions } from "./firebase.js";
-import { pdfPages } from "./pdf.js";
-import { checkFiles, folderName, hasPdfHeader, validateName } from "./intake.js";
+import { ref, uploadBytes } from "firebase/storage";
+import { pendingExtraction, runBatch } from "./batch.js";
+import { auth, db, functions, storage } from "./firebase.js";
+import { checkFiles, hasValidHeader, storageNames, taxYearChoices, validateName, type DocumentType } from "./intake.js";
 import { groupQueue, toQueueClient, type QueueClient } from "./queue.js";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 
 // Emulator test builds only (VITE_USE_EMULATORS, replaced at build time, so production bundles drop
-// this): sign in through the Auth emulator without Google's popup, and use a test Drive token.
+// this): sign in through the Auth emulator without Google's popup.
 const testMode = import.meta.env.VITE_USE_EMULATORS === "true";
 if (testMode) {
   (window as unknown as { __tcSignIn: (email: string) => Promise<unknown> }).__tcSignIn = (email) =>
@@ -96,31 +95,43 @@ function renderEmpty(main: HTMLElement, user: User) {
   main.replaceChildren(s);
 }
 
-/** A Google OAuth token for Drive (drive.file: only files this app creates), from her own account. */
-async function driveToken(user: User): Promise<string> {
-  if (testMode) return "emulator-drive-token";
-  const provider = new GoogleAuthProvider();
-  provider.addScope(DRIVE_SCOPE);
-  if (user.email) provider.setCustomParameters({ login_hint: user.email });
-  // Re-authenticate the signed in user: Firebase rejects a different Google account
-  // (auth/user-mismatch), so files can only go to her own Drive.
-  const result = await reauthenticateWithPopup(user, provider);
-  const token = GoogleAuthProvider.credentialFromResult(result)?.accessToken;
-  if (!token) throw new Error("Drive access needed.");
-  return token;
+/** The callable functions' errors carry a message for her; anything else gets a generic one. */
+function callableMessage(err: unknown): string {
+  const e = err as { code?: string; message?: string };
+  // The client library appends the HTTP status ("[500]"); she does not need it.
+  return e.code?.startsWith("functions/") && e.message ? e.message.replace(/\s*\[\d{3}\]$/, "") : "Reading the documents failed. Try again.";
 }
 
-/** New client and intake (SR-17): files go straight to a new folder in her Drive, nothing else stores them. */
+const extractCall = httpsCallable<{ clientId: string }, { ok: true; files: number }>(functions, "extract", { timeout: 70_000 });
+
+/** Asks the extract function to read one client's documents (server side, Vertex EU). */
+async function extractClient(clientId: string): Promise<void> {
+  try {
+    await extractCall({ clientId });
+  } catch (err) {
+    throw new Error(callableMessage(err), { cause: err });
+  }
+}
+
+/**
+ * New client and intake (SR-28): she names the client, picks the tax year and adds PDFs, JPGs or
+ * PNGs. The client record comes first, then the files go to her folder in the Zurich bucket, then
+ * the extract function reads them. A retry never creates the client or uploads a file twice.
+ */
 function renderIntake(user: User) {
   const main = renderQueueShell(user);
   const form = el("form", { class: "panel intake", "aria-labelledby": "intake-title", novalidate: "" });
   form.append(el("h2", { id: "intake-title" }, "New client"));
   const nameLabel = el("label", { for: "client-name" }, "Client name");
   const name = el("input", { id: "client-name", name: "client-name", type: "text", maxlength: "80", autocomplete: "off" }) as HTMLInputElement;
+  const yearLabel = el("label", { for: "tax-year" }, "Tax year");
+  const year = el("select", { id: "tax-year" }) as HTMLSelectElement;
+  // She states the tax year. The app never guesses it.
+  year.append(el("option", { value: "" }, "Choose"), ...taxYearChoices(new Date()).map((y) => el("option", { value: String(y) }, String(y))));
   const drop = el("div", { class: "drop", id: "drop" });
-  drop.append(el("p", {}, "Drop the client's PDFs here, or choose them."));
-  const fileLabel = el("label", { for: "client-files" }, "Choose PDFs");
-  const input = el("input", { id: "client-files", type: "file", multiple: "", accept: "application/pdf,.pdf" }) as HTMLInputElement;
+  drop.append(el("p", {}, "Drop the client's documents here, or choose them. PDF, JPG or PNG, scans and photos too."));
+  const fileLabel = el("label", { for: "client-files" }, "Choose documents");
+  const input = el("input", { id: "client-files", type: "file", multiple: "", accept: "application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png" }) as HTMLInputElement;
   drop.append(fileLabel, input);
   const list = el("ul", { class: "files", "aria-live": "polite" });
   const status = el("p", { class: "muted", role: "status" });
@@ -130,22 +141,21 @@ function renderIntake(user: User) {
   cancel.addEventListener("click", () => void loadQueue(user));
   const actions = el("div", { class: "actions" });
   actions.append(submit, cancel);
-  form.append(nameLabel, name, drop, list, status, errors, actions);
+  form.append(nameLabel, name, yearLabel, year, drop, list, status, errors, actions);
   main.replaceChildren(form);
 
-  let files: File[] = [];
-  let folderId: string | undefined;
+  let files: { file: File; type: DocumentType }[] = [];
+  let clientId: string | undefined;
   // Each selected file is tracked by its position, so two files with the same name both upload.
   const uploaded = new Set<number>();
   // While an upload runs, the selection is locked: no new choice or drop can replace it.
   let busy = false;
   const showFiles = (picked: File[]) => {
-    if (busy) return;
+    if (busy || clientId) return;
     const { accepted, rejected } = checkFiles(picked);
     files = accepted;
     uploaded.clear();
-    folderId = undefined;
-    list.replaceChildren(...accepted.map((f) => el("li", {}, f.name)));
+    list.replaceChildren(...accepted.map((f) => el("li", {}, f.file.name)));
     errors.replaceChildren(...rejected.map((r) => el("p", {}, r)));
   };
   input.addEventListener("change", () => showFiles([...(input.files ?? [])]));
@@ -164,47 +174,52 @@ function renderIntake(user: User) {
     e.preventDefault();
     const checked = validateName(name.value);
     if (checked.error || !checked.name) return void errors.replaceChildren(el("p", {}, checked.error ?? "Enter a client name."));
-    if (files.length === 0) return void errors.replaceChildren(el("p", {}, "Add at least one PDF."));
+    const taxYear = Number(year.value);
+    if (!taxYear) return void errors.replaceChildren(el("p", {}, "Choose the tax year."));
+    if (files.length === 0) return void errors.replaceChildren(el("p", {}, "Add at least one document."));
     // Lock first, then check and upload one fixed snapshot of the selection.
     busy = true;
-    input.setAttribute("disabled", "");
-    submit.setAttribute("disabled", "");
+    for (const c of [input, submit, name, year]) c.setAttribute("disabled", "");
     const selection = [...files];
-    const notPdf: string[] = [];
-    for (const f of selection) if (!(await hasPdfHeader(f))) notPdf.push(`${f.name}: not a PDF file.`);
-    if (notPdf.length) {
+    const invalid: string[] = [];
+    for (const f of selection) if (!(await hasValidHeader(f.file, f.type))) invalid.push(`${f.file.name}: not a valid ${f.type === "application/pdf" ? "PDF" : "image"} file.`);
+    if (invalid.length) {
       busy = false;
-      input.removeAttribute("disabled");
-      submit.removeAttribute("disabled");
-      return void errors.replaceChildren(...notPdf.map((m) => el("p", {}, m)));
+      for (const c of [input, submit, name, year]) c.removeAttribute("disabled");
+      return void errors.replaceChildren(...invalid.map((m) => el("p", {}, m)));
     }
     errors.replaceChildren();
+    const names = storageNames(selection.map((f) => f.file.name));
     try {
-      status.textContent = "Connecting to your Google Drive";
-      const token = await driveToken(user);
-      folderId ??= await createFolder(token, folderName(checked.name, new Date().getFullYear()));
+      status.textContent = "Saving the client";
+      clientId ??= (
+        await addDoc(collection(db, "clients"), {
+          ownerUid: user.uid,
+          displayName: checked.name,
+          status: "documents_in",
+          flagCount: 0,
+          fileCount: selection.length,
+          taxYear,
+          createdAt: serverTimestamp(),
+        })
+      ).id;
       for (const [i, f] of selection.entries()) {
         if (uploaded.has(i)) continue;
-        status.textContent = `Uploading ${i + 1} of ${selection.length} to your Drive`;
-        await uploadFile(token, folderId, f, f.name, "application/pdf");
+        status.textContent = `Uploading ${i + 1} of ${selection.length}`;
+        await uploadBytes(ref(storage, `users/${user.uid}/clients/${clientId}/${names[i]}`), f.file, { contentType: f.type });
         uploaded.add(i);
       }
-      status.textContent = "Saving the client";
-      await addDoc(collection(db, "clients"), {
-        ownerUid: user.uid,
-        displayName: checked.name,
-        status: "documents_in",
-        flagCount: 0,
-        driveFolderId: folderId,
-        fileCount: selection.length,
-        createdAt: serverTimestamp(),
-      });
-      await loadQueue(user);
+      status.textContent = "Reading the documents";
+      try {
+        await extractClient(clientId);
+        await loadQueue(user, `${checked.name}: documents read.`);
+      } catch (err) {
+        // The client and files are saved; Extract all on the queue retries the reading.
+        await loadQueue(user, `${checked.name}: documents uploaded. ${(err as Error).message} Use Extract all to retry.`);
+      }
     } catch (err) {
-      const code = (err as { code?: string }).code;
-      const msg = code === "auth/user-mismatch" ? "Use the same Google account you signed in with." : (err as Error).message || "Something went wrong.";
-      status.textContent = uploaded.size ? `${uploaded.size} of ${selection.length} files are in your Drive.` : "";
-      errors.replaceChildren(el("p", {}, `${msg} Try again: files already in your Drive are not uploaded twice.`));
+      status.textContent = uploaded.size ? `${uploaded.size} of ${selection.length} files uploaded.` : "";
+      errors.replaceChildren(el("p", {}, `${(err as Error).message || "Something went wrong."} Try again: files already uploaded are not uploaded twice.`));
       submit.removeAttribute("disabled");
       submit.textContent = "Try again";
     } finally {
@@ -215,76 +230,21 @@ function renderIntake(user: User) {
   name.focus();
 }
 
-/** The callable functions' errors carry a message for her; anything else gets a generic one. */
-function callableMessage(err: unknown): string {
-  const e = err as { code?: string; message?: string };
-  return e.code?.startsWith("functions/") && e.message ? e.message : "Extraction failed. Try again.";
-}
-
-function batchDeps(token: string): BatchDeps {
-  const extract = httpsCallable<unknown, { data: unknown; model: string }>(functions, "extract", { timeout: 70_000 });
-  const save = httpsCallable(functions, "saveExtraction");
-  return {
-    // One more than the limit, so a folder over the limit is reported instead of cut short.
-    listPdfs: (folderId) => listPdfs(token, folderId, MAX_FILES + 1),
-    download: (fileId) => downloadFile(token, fileId),
-    pdfPages,
-    extract: async (input) => {
-      try {
-        return (await extract(input)).data;
-      } catch (err) {
-        throw new Error(callableMessage(err), { cause: err });
-      }
-    },
-    saveDataFile: (folderId, name, json) => saveJsonFile(token, folderId, name, json),
-    saveExtraction: async (input) => {
-      try {
-        await save(input);
-      } catch (err) {
-        throw new Error(callableMessage(err), { cause: err });
-      }
-    },
-    now: () => new Date(),
-  };
-}
-
-/** Extract all (SR-18): one data file per waiting client, saved in her Drive. */
-function extractAllControls(pending: QueueClient[], user: User, status: HTMLElement, errors: HTMLElement) {
-  const wrap = el("div", { class: "actions" });
-  const label = el("label", { for: "tax-year" }, "Tax year");
-  const year = el("select", { id: "tax-year" }) as HTMLSelectElement;
-  year.append(el("option", { value: "" }, "Choose"), ...taxYearChoices(new Date()).map((y) => el("option", { value: String(y) }, String(y))));
+/** Extract all (SR-18): the server reads the documents of every waiting client. */
+function extractAllButton(pending: QueueClient[], user: User, status: HTMLElement, errors: HTMLElement) {
   const b = el("button", { type: "button", class: "secondary" }, `Extract all (${pending.length})`);
-  wrap.append(label, year, b);
   b.addEventListener("click", async () => {
-    errors.replaceChildren();
-    // She states the tax year. The app never guesses it.
-    const taxYear = Number(year.value);
-    if (!taxYear) {
-      errors.replaceChildren(el("p", {}, "Choose the tax year first."));
-      return year.focus();
-    }
     b.setAttribute("disabled", "");
-    year.setAttribute("disabled", "");
-    try {
-      status.textContent = "Connecting to your Google Drive";
-      const token = await driveToken(user);
-      const outcome = await runBatch(pending, taxYear, batchDeps(token), (m) => (status.textContent = m));
-      if (outcome.failed.length === 0) return void (await loadQueue(user, `Data extracted for ${outcome.done.length} of ${pending.length} clients.`));
-      status.textContent = `Data extracted for ${outcome.done.length} of ${pending.length} clients.`;
-      errors.replaceChildren(...outcome.failed.map((f) => el("p", {}, `${f.name}: ${f.reason}`)));
-      const again = el("button", { type: "button", class: "secondary" }, "Refresh the queue");
-      again.addEventListener("click", () => void loadQueue(user));
-      errors.append(again);
-    } catch (err) {
-      const code = (err as { code?: string }).code;
-      status.textContent = "";
-      errors.replaceChildren(el("p", {}, code === "auth/user-mismatch" ? "Use the same Google account you signed in with." : (err as Error).message || "Something went wrong."));
-      b.removeAttribute("disabled");
-      year.removeAttribute("disabled");
-    }
+    errors.replaceChildren();
+    const outcome = await runBatch(pending, extractClient, (m) => (status.textContent = m));
+    if (outcome.failed.length === 0) return void (await loadQueue(user, `Documents read for ${outcome.done.length} of ${pending.length} clients.`));
+    status.textContent = `Documents read for ${outcome.done.length} of ${pending.length} clients.`;
+    errors.replaceChildren(...outcome.failed.map((f) => el("p", {}, `${f.name}: ${f.reason}`)));
+    const again = el("button", { type: "button", class: "secondary" }, "Refresh the queue");
+    again.addEventListener("click", () => void loadQueue(user));
+    errors.append(again);
   });
-  return wrap;
+  return b;
 }
 
 function renderQueue(main: HTMLElement, clients: QueueClient[], user: User, notice?: string) {
@@ -294,7 +254,7 @@ function renderQueue(main: HTMLElement, clients: QueueClient[], user: User, noti
   const status = el("p", { class: "muted", role: "status" }, notice ?? "");
   const errors = el("div", { role: "alert", class: "error" });
   const pending = pendingExtraction(clients);
-  if (pending.length > 0) bar.append(extractAllControls(pending, user, status, errors));
+  if (pending.length > 0) bar.append(extractAllButton(pending, user, status, errors));
   wrap.append(bar, status, errors);
   for (const group of groupQueue(clients)) {
     const g = el("section", { class: "group", "aria-labelledby": `g-${group.status}` });

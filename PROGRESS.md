@@ -1,8 +1,8 @@
 # PROGRESS.md
 
 ## Current focus
-SR-18 part 1 (batch extraction on synthetic PDFs). SR-18 stays In Progress until the first golden
-case (needs SR-23) and the canton land.
+SR-28: documents into the app, extraction on the server. Next: SR-19 (rules and flags, Zurich)
+once the repo is private (SR-23).
 
 ## Next up
 1. SR-24: gates, auto merge, proof pull requests, infra.
@@ -11,6 +11,38 @@ case (needs SR-23) and the canton land.
 4. Move the review job to `pull_request_target` (read the diff only, never run pull request code).
 
 ## Log
+
+### 2026-11-21 SR-28 Upload into the app, extract on the server
+Done: the new client form takes a name, the tax year (she chooses, nothing preselected) and up to
+30 PDFs, JPGs or PNGs of at most 25 MB, checked by type and file signature. The client record is
+saved first, then each file goes to `users/{uid}/clients/{clientId}/` in the default bucket
+(europe-west6) under one unique name, then the `extract` function reads them. Extract all retries
+every waiting client. The function checks the allow list and the owner, sends the files to Gemini
+on Vertex `eu` as `gs://` links (it reads text PDFs, scans and photos itself), validates the
+schema, checks the client, tax year and every citation, and saves the values in Firestore
+`clients/{id}/extraction/current` with expireAt 30 days later. `submitReturn` deletes the files
+and values and sets status Submitted (button in SR-22). Storage rules: only her uid writes and
+reads her folder, PDF, JPG or PNG up to 25 MB, no overwrite, no browser delete. Firestore rules:
+create with the tax year, no Drive folder; she reads her own extracted values, nobody writes them
+from a browser. infra.yml checks the bucket (europe-west6, public access prevention, the 30 day
+lifecycle in `storage-lifecycle.json`, no soft delete), turns on the Firestore TTL on
+`extraction.expireAt`, and deploys the Storage rules. Drive code, pdf.js and `saveExtraction` are
+gone; Drive import is SR-27. The adapter gained a file part (inline or `gs://`) and retries 429
+and 503 twice with backoff (rate limits hit during recording).
+Evals: text cases are sent as generated PDFs. New scan and photo set (`evals/media/`, synthetic):
+an image-only scanned salary statement and a tilted phone photo of a pillar 3a certificate.
+Live from a laptop (Lucas's Google login, synthetic data only): the final three runs made 30
+calls for 0.034 USD, 18 of 18 injection cases held with PDF input, scan and photo 100% of fields
+every run. All 20 recordings committed. All laptop runs today: 83 calls, about 0.09 USD (one set
+hit Vertex rate limits, which led to the retry). Pull request live runs keep to golden and injection (main's verifier scores
+only those); main and nightly add `--media`.
+Tests: 8 groups of function unit tests (flow, access, preconditions, invalid output, limits,
+citations, error categories, submit), 3 new Storage rules tests and 2 Firestore extraction rules
+tests on the emulators, 3 emulator tests of the functions' real wiring (`src/functions/deps.ts`:
+lists one client's files, saves values with their expiry, submit deletes that client's files and
+values and nobody else's), retention test, 4 end to end tests on the real Storage emulator (upload
+into her folder only, unique names, retry after a failed read, batch with a failure, validation),
+axe on every state. Logs hold counts and cost only.
 
 ### 2026-11-21 SR-18 Extraction, part 1: batch extraction
 Done: she chooses the tax year (nothing preselected), then "Extract all (n)" runs extraction for every client with documents in, a Drive
@@ -303,9 +335,10 @@ calibrated rules (none means it would now be a comment).
 ## Assumptions
 | Date | Assumption | Confirm with |
 | --- | --- | --- |
+| 2026-11-21 | 30 days count from upload (bucket lifecycle) and from extraction (Firestore TTL). A client whose values expired still shows Data Extracted until SR-22 adds the expired state | Lucas |
+| 2026-11-21 | The per client budget stays 0.05 USD: about 258 tokens per page, measured 0.001 USD per synthetic case | Lucas |
 | 2026-11-21 | New budget `extractMaxCostUsd` 0.05 USD per client: the 400,000 character cap costs about 0.03 USD on `gemini-3.1-flash-lite` | Lucas |
 | 2026-11-21 | Scanned PDFs (no text layer) are refused with a clear message, no OCR yet | Lucas |
-| 2026-11-21 | Code comments in `src/models` and `src/extraction` still say residency is decided "at SR-18". Updating them changes model inputs and needs new recordings, so they change with the next model input pull request | Lucas |
 | 2026-11-20 | SR-25's "adapter keeps the openrouter provider, unused" is replaced by Lucas's later instruction to remove it | Lucas |
 | 2026-11-20 | Recorded outputs for offline scoring come from the first live run (step 9) and land in the follow-up pull request | Lucas |
 | 2026-11-20 | Live evals pick 10 of 18 cases: hand written injection first, then BIPIA in order | Lucas |

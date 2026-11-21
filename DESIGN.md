@@ -220,7 +220,7 @@ Don't:
 | --- | --- | --- | --- | --- | --- | --- |
 | Login (SR-16) | Get her in. Sign in with Google | Name and one button | Button disabled, "Signing in" | "Sign in failed. Try again." | n/a | Home queue |
 | Home queue (SR-16) | What needs her next. Open a client | "No clients yet", New client | Skeleton rows | "Could not load clients." Retry | Row shows "Extraction failed" | Groups by status, flagged first |
-| New client and intake (SR-17) | Files in place. Drop PDFs or pick a Drive folder | Name field, drop zone | Per file progress | Per file reason, "Drive access needed" | Failed files with Retry | Status Documents in |
+| New client and intake (SR-28) | Files in place. Drop PDFs, scans or photos | Name field, tax year (no default), drop zone | Per file progress, then "Reading the documents" | Per file reason | Failed upload: Try again (no file twice). Failed reading: client kept, Extract all retries | Status Documents in, Data Extracted |
 | Extraction progress (SR-18) | Show the batch works | Queued | Running | Failed with reason | Some documents done | Done |
 | Review (SR-19, SR-20) | Check only exceptions. Approve | "No flags. Check totals and approve." | Skeleton sections | "Could not load this return." Retry | "Not extracted" fields listed | Flags, totals, changes, Approve |
 | Fill handoff (SR-21) | Start the fill. Fill now | Ready | Tab open, filling | Field that failed | Some fields filled | Filled, time vs 19 min |

@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkFiles, folderName, hasPdfHeader, MAX_FILES, validateName } from "../../web/src/intake.js";
-import { multipartRelated } from "../../web/src/drive.js";
+import { checkFiles, documentType, hasValidHeader, MAX_FILES, storageNames, taxYearChoices, validateName } from "../../web/src/intake.js";
 
 describe("intake", () => {
   it("cleans the client name and rejects empty or long names", () => {
@@ -9,28 +8,55 @@ describe("intake", () => {
     expect(validateName("x".repeat(81)).error).toMatch(/at most 80/);
   });
 
-  it("accepts PDFs only, within 25 MB and the count limit", () => {
-    const pdf = (name: string, size = 1000) => ({ name, type: "application/pdf", size });
-    const { accepted, rejected } = checkFiles([pdf("a.pdf"), { name: "b.png", type: "image/png", size: 10 }, pdf("c.pdf", 26 * 1024 * 1024), { name: "D.PDF", type: "", size: 5 }]);
-    expect(accepted.map((f) => f.name)).toEqual(["a.pdf", "D.PDF"]);
-    expect(rejected).toEqual(["b.png: only PDF files.", "c.pdf: larger than 25 MB."]);
-    expect(checkFiles(Array.from({ length: MAX_FILES + 1 }, (_, i) => pdf(`${i}.pdf`))).rejected).toHaveLength(1);
-    expect(checkFiles([{ name: "fake.pdf", type: "image/png", size: 10 }]).rejected).toEqual(["fake.pdf: only PDF files."]);
+  it("offers the last three tax years, nothing preselected", () => {
+    expect(taxYearChoices(new Date("2026-03-01"))).toEqual([2025, 2024, 2023]);
   });
 
-  it("checks the PDF header and end marker before upload", async () => {
-    expect(await hasPdfHeader(new Blob(["%PDF-1.7\n1 0 obj\nendobj\n%%EOF\n"]))).toBe(true);
-    expect(await hasPdfHeader(new Blob(["%PDF-"]))).toBe(false);
-    expect(await hasPdfHeader(new Blob(["%PDF-1.7 truncated without end marker"]))).toBe(false);
-    expect(await hasPdfHeader(new Blob(["\x89PNG data %%EOF"]))).toBe(false);
+  it("accepts PDFs, JPGs and PNGs, within 25 MB and the count limit", () => {
+    const f = (name: string, type: string, size = 1000) => ({ name, type, size });
+    const { accepted, rejected } = checkFiles([
+      f("a.pdf", "application/pdf"),
+      f("photo.jpg", "image/jpeg"),
+      f("scan.png", "image/png"),
+      f("b.gif", "image/gif"),
+      f("c.pdf", "application/pdf", 26 * 1024 * 1024),
+      f("D.PDF", ""),
+      f("E.JPEG", ""),
+    ]);
+    expect(accepted.map((a) => [a.file.name, a.type])).toEqual([
+      ["a.pdf", "application/pdf"],
+      ["photo.jpg", "image/jpeg"],
+      ["scan.png", "image/png"],
+      ["D.PDF", "application/pdf"],
+      ["E.JPEG", "image/jpeg"],
+    ]);
+    expect(rejected).toEqual(["b.gif: only PDF, JPG and PNG files.", "c.pdf: larger than 25 MB."]);
+    expect(checkFiles(Array.from({ length: MAX_FILES + 1 }, (_, i) => f(`${i}.pdf`, "application/pdf"))).rejected).toHaveLength(1);
+    // A declared type wins over the name.
+    expect(documentType(f("fake.pdf", "text/html"))).toBeUndefined();
   });
 
-  it("builds Drive's multipart/related body: metadata part, then the file part", async () => {
-    const body = await multipartRelated({ name: "a.pdf", parents: ["f1"] }, new Blob(["%PDF-x"]), "application/pdf", "B").text();
-    expect(body).toBe('--B\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n{"name":"a.pdf","parents":["f1"]}\r\n--B\r\nContent-Type: application/pdf\r\n\r\n%PDF-x\r\n--B--');
+  it("checks the file is what it claims before upload", async () => {
+    expect(await hasValidHeader(new Blob(["%PDF-1.7\n1 0 obj\nendobj\n%%EOF\n"]), "application/pdf")).toBe(true);
+    expect(await hasValidHeader(new Blob(["%PDF-"]), "application/pdf")).toBe(false);
+    expect(await hasValidHeader(new Blob(["%PDF-1.7 truncated without end marker"]), "application/pdf")).toBe(false);
+    expect(await hasValidHeader(new Blob([new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0])]), "image/jpeg")).toBe(true);
+    expect(await hasValidHeader(new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])]), "image/png")).toBe(true);
+    expect(await hasValidHeader(new Blob(["%PDF-1.7 %%EOF"]), "image/png")).toBe(false);
+    expect(await hasValidHeader(new Blob([new Uint8Array([0x89, 0x50])]), "image/jpeg")).toBe(false);
   });
 
-  it("names the Drive folder after the client and year, without slashes", () => {
-    expect(folderName("Ana/B", 2025)).toBe("Tax Copilot - Ana-B - 2025");
+  it("gives each file one safe, unique storage name, which citations use", () => {
+    expect(storageNames(["a.pdf", "b.pdf", "a.pdf", "A.pdf", "x/y\\z.jpg", "", "noext", "noext"])).toEqual([
+      "a.pdf",
+      "b.pdf",
+      "a (2).pdf",
+      "A (3).pdf",
+      "x_y_z.jpg",
+      "document",
+      "noext",
+      "noext (2)",
+    ]);
+    expect(storageNames(["x".repeat(200) + ".pdf"])[0]).toHaveLength(120);
   });
 });

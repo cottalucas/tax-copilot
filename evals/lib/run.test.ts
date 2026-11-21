@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { modelInputsHash } from "./inputs-hash.js";
 import { describe, expect, it } from "vitest";
-import { loadDir, pickLive } from "../run.js";
+import { caseFiles, loadDir, pickLive } from "../run.js";
 import type { GoldenCase } from "./types.js";
 
 describe("eval runner", () => {
@@ -35,5 +35,22 @@ describe("eval runner", () => {
     const cases = ["inj-001", "bipia-01", "bipia-02", "bipia-03"].map(mk);
     const seen = new Set([0, 1].flatMap((offset) => pickLive(cases, 2, offset).map((c) => c.id)));
     expect(seen.size).toBe(4);
+  });
+
+  it("loads the scan and photo cases as valid media cases", () => {
+    const { cases, invalid } = loadDir("media", "media");
+    expect(invalid).toEqual([]);
+    expect(cases.map((c) => c.id).sort()).toEqual(["media-photo-pillar3a", "media-scan-salary"]);
+  });
+
+  it("sends text cases as generated PDFs and media cases as their own files", () => {
+    const [inj] = loadDir("injection", "injection").cases;
+    const [file] = caseFiles(inj!);
+    expect(file).toMatchObject({ file: inj!.documents![0]!.file, mimeType: "application/pdf" });
+    expect(Buffer.from((file as { data: string }).data, "base64").subarray(0, 5).toString()).toBe("%PDF-");
+    const photo = loadDir("media", "media").cases.find((c) => c.id === "media-photo-pillar3a")!;
+    const [jpg] = caseFiles(photo);
+    expect(jpg).toMatchObject({ file: "photo-pillar3a.jpg", mimeType: "image/jpeg" });
+    expect(Buffer.from((jpg as { data: string }).data, "base64").subarray(0, 3)).toEqual(Buffer.from([0xff, 0xd8, 0xff]));
   });
 });
