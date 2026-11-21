@@ -18,7 +18,7 @@ Locked unless marked open.
 | Product AI | One adapter, Vertex Gemini on the EU endpoint only | `src/models/` |
 | Rules | Plain code with tests, not prompts | `rules/` |
 | Storage | Firestore: client status, flags, corrections, and extracted values while the return is open. No documents | `firestore.rules` |
-| Files | Cloud Storage, the project's default bucket `tax-co-pilot.firebasestorage.app` in europe-west6. Uploaded from her browser into `users/{uid}/clients/{clientId}/`. Private, deleted on submit and after 30 days, no soft delete, no object versioning | `storage.rules`, `storage-lifecycle.json`, `web/src/main.ts` |
+| Files | Cloud Storage, the project's default bucket `tax-co-pilot.firebasestorage.app` in europe-west6 (DOCUMENTS_BUCKET, set by infra.yml and the only bucket the functions and web app use). Uploaded from her browser into `users/{uid}/clients/{clientId}/`. Private, deleted on submit and after 30 days, no soft delete, no object versioning | `storage.rules`, `storage-lifecycle.json`, `web/src/main.ts` |
 | Filling | Claude in Chrome with one saved shortcut holding the form field map | TODO SR-21 |
 | Pipeline | GitHub Actions | `.github/workflows/`, AGENTS.md > Pipeline |
 

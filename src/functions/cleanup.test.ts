@@ -72,6 +72,19 @@ describe("daily cleanup", () => {
     expect(deletedValues).toContain("done");
   });
 
+  it("one client's failed listing still lets old documents of other clients go", async () => {
+    const { deps, deletedFiles } = fake();
+    const failing: CleanupDeps = {
+      ...deps,
+      listFiles: async (prefix) => {
+        if (prefix === "users/" || prefix.includes("/open/")) throw new Error("storage unavailable");
+        return deps.listFiles(prefix);
+      },
+    };
+    await expect(runCleanup(failing)).rejects.toThrow(/failed steps/);
+    expect(deletedFiles.filter((f) => f.includes("/old/")).length).toBe(2);
+  });
+
   it("goes on past a failed step, then fails so the scheduler retries", async () => {
     const { deps, deletedFiles, deletedValues, logs } = fake();
     const failing: CleanupDeps = {
@@ -85,10 +98,11 @@ describe("daily cleanup", () => {
         return deps.deleteFile(name);
       },
     };
-    await expect(runCleanup(failing)).rejects.toThrow(/2 failed steps/);
+    // b.pdf fails twice (its client folder, then the last pass), plus the failed lookup.
+    await expect(runCleanup(failing)).rejects.toThrow(/3 failed steps/);
     // Later clients and expired files were still handled.
     expect(deletedValues.sort()).toEqual(["done", "expired"]);
     expect(deletedFiles.some((f) => f.endsWith("c.pdf"))).toBe(true);
-    expect(logs.at(-1)).toMatchObject({ message: "cleanup", failures: 2 });
+    expect(logs.at(-1)).toMatchObject({ message: "cleanup", failures: 3 });
   });
 });

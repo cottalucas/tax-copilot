@@ -68,16 +68,20 @@ export async function runCleanup(deps: CleanupDeps): Promise<CleanupResult> {
     }
   }
   const cutoff = now.getTime() - FILES_DELETE_AFTER_DAYS * DAY;
-  let files: StoredFile[] = [];
-  await attempt(async () => {
-    files = await deps.listFiles("users/");
-  });
-  for (const f of files.filter((x) => x.created.getTime() <= cutoff)) {
-    await attempt(async () => {
-      await deps.deleteFile(f.name);
-      result.expiredFiles += 1;
-    });
-  }
+  const deleted = new Set<string>();
+  const sweep = async (prefix: string) => {
+    for (const f of (await deps.listFiles(prefix)).filter((x) => x.created.getTime() <= cutoff && !deleted.has(x.name))) {
+      await attempt(async () => {
+        await deps.deleteFile(f.name);
+        deleted.add(f.name);
+        result.expiredFiles += 1;
+      });
+    }
+  };
+  // Old documents: each client's folder is its own step, so one failed listing skips only that
+  // client. A last pass over all of users/ catches anything outside a known client folder.
+  for (const client of clients) await attempt(() => sweep(clientPrefix(client.ownerUid, client.id)));
+  await attempt(() => sweep("users/"));
   deps.log?.("cleanup", { ...result });
   if (result.failures > 0) throw new Error(`Cleanup had ${result.failures} failed steps; the scheduler retries it.`);
   return result;

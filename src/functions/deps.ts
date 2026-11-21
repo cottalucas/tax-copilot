@@ -5,6 +5,17 @@ import type { CleanupDeps } from "./cleanup.js";
 import type { ExtractDeps, StoredFile } from "./extract.js";
 
 /**
+ * The one documents bucket. Live, DOCUMENTS_BUCKET comes from infra.yml, the same name it checks
+ * (europe-west6, lifecycle, no soft delete, no versioning). Without it the functions refuse to
+ * run, so they never use an unchecked bucket. On the emulators the default bucket is used.
+ */
+export function documentsBucket() {
+  const name = (process.env.DOCUMENTS_BUCKET ?? "").trim();
+  if (!name && !process.env.FIREBASE_STORAGE_EMULATOR_HOST) throw new Error("DOCUMENTS_BUCKET is not set.");
+  return name ? getStorage().bucket(name) : getStorage().bucket();
+}
+
+/**
  * The live wiring for the extract and submitReturn functions: Firestore and the project's default
  * bucket (europe-west6) through the Admin SDK. Tested against the emulators
  * (tests/integration/functions-deps.test.ts).
@@ -13,7 +24,7 @@ export function firebaseDeps(log?: ExtractDeps["log"]): ExtractDeps {
   if (getApps().length === 0) initializeApp();
   const db = getFirestore();
   const clients = db.collection("clients");
-  const bucket = getStorage().bucket();
+  const bucket = documentsBucket();
   return {
     env: process.env,
     bucket: bucket.name,
@@ -61,7 +72,7 @@ export function cleanupDeps(log?: CleanupDeps["log"]): CleanupDeps {
   if (getApps().length === 0) initializeApp();
   const db = getFirestore();
   const clients = db.collection("clients");
-  const bucket = getStorage().bucket();
+  const bucket = documentsBucket();
   return {
     now: () => new Date(),
     listClients: async () =>

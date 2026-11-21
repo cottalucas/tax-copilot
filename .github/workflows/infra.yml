@@ -30,6 +30,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PROJECT: ${{ vars.FIREBASE_PROJECT_ID }}
+      # The one documents bucket: checked below, given to the functions and the web app.
+      DOCUMENTS_BUCKET: ${{ vars.FIREBASE_PROJECT_ID }}.firebasestorage.app
       FIRESTORE_LOCATION: ${{ vars.FIRESTORE_LOCATION }}
       WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER }}
       DEPLOY_SA: ${{ vars.GCP_DEPLOY_SA }}
@@ -80,7 +82,7 @@ jobs:
       # it once in europe-west6 with the 28 day rule (ARCHITECTURE.md > Files). Checked every run.
       - name: Documents bucket in Zurich, private, deleting after 28 days
         run: |
-          bucket="gs://${PROJECT}.firebasestorage.app"
+          bucket="gs://${DOCUMENTS_BUCKET}"
           if ! gcloud storage buckets describe "$bucket" --format=json > bucket.json 2> bucket.err; then
             echo "::error title=bucket::$bucket is missing or not readable. Lucas creates it (ARCHITECTURE.md > Files)."
             cat bucket.err; exit 1
@@ -159,6 +161,12 @@ jobs:
           fi
           npx firebase apps:sdkconfig WEB "$id" --project "$PROJECT" --json | jq -r '.result.sdkConfig |
             "VITE_FIREBASE_API_KEY=\(.apiKey)\nVITE_FIREBASE_AUTH_DOMAIN=\(.authDomain)\nVITE_FIREBASE_PROJECT_ID=\(.projectId)\nVITE_FIREBASE_APP_ID=\(.appId)\nVITE_FIREBASE_STORAGE_BUCKET=\(.storageBucket)"' > web/.env.production.local
+          # The web app must upload to the bucket checked above, nowhere else.
+          web_bucket=$(grep '^VITE_FIREBASE_STORAGE_BUCKET=' web/.env.production.local | cut -d= -f2)
+          if [ "$web_bucket" != "$DOCUMENTS_BUCKET" ]; then
+            echo "::error title=bucket::The web app's bucket is '$web_bucket', expected $DOCUMENTS_BUCKET."
+            exit 1
+          fi
       # Product AI settings for the functions, from repository variables (names only in the repo).
       # EXTRACT_ALLOWED_EMAILS: the only accounts that may run extraction. Missing stops the deploy.
       - name: Write the functions' settings
@@ -171,7 +179,7 @@ jobs:
           EXTRACT_ALLOWED_EMAILS: ${{ vars.EXTRACT_ALLOWED_EMAILS }}
         run: |
           : > ".env.$PROJECT"
-          for v in EXTRACT_PROVIDER EXTRACT_MODEL VERTEX_PROJECT_ID VERTEX_REGION EXTRACT_ALLOWED_EMAILS; do
+          for v in EXTRACT_PROVIDER EXTRACT_MODEL VERTEX_PROJECT_ID VERTEX_REGION EXTRACT_ALLOWED_EMAILS DOCUMENTS_BUCKET; do
             if [ -z "${!v}" ]; then echo "::error title=functions settings::Repository variable $v is not set."; exit 1; fi
             printf '%s=%s\n' "$v" "${!v}" >> ".env.$PROJECT"
           done
