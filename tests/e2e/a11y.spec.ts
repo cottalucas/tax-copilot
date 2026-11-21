@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
-import { mockExtract, onlyUid, resetEmulators, seedClient, signInWithGoogle } from "./helpers.js";
+import { mockExtract, onlyUid, resetEmulators, seedClient, seedExtraction, signInWithGoogle } from "./helpers.js";
 
 // Accessibility gate (DESIGN.md: WCAG 2.2 AA). Every screen and state gets a check.
 async function expectNoViolations(page: Page) {
@@ -50,3 +50,24 @@ test("new client form has no WCAG 2.2 AA violations", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "New client" })).toBeVisible();
   await expectNoViolations(page);
 });
+
+test("review screen has no WCAG 2.2 AA violations", async ({ page }) => {
+  await page.goto("/");
+  await signInWithGoogle(page);
+  const uid = await onlyUid();
+  const src = { file: "salary.pdf", page: 1 };
+  await seedClient("c1", { ownerUid: uid, displayName: "Ana Example", status: "documents_in", flagCount: 0, taxYear: 2025 });
+  await seedExtraction("c1", uid, {
+    status: "needs_review",
+    data: { schemaVersion: 1, taxpayer: { clientId: "c1", taxYear: 2025 }, employment: [{ employer: { value: "Synthetic AG", source: src }, grossSalary: { value: 1, source: src } }], deductions: {}, bankAccounts: [], cantonSpecific: {} },
+    flags: [
+      { ruleId: "a", severity: "critical", field: "employment.0.grossSalary", reason: "Critical reason." },
+      { ruleId: "b", severity: "warning", field: "employment", reason: "Warning reason." },
+    ],
+  });
+  await page.reload();
+  await page.getByRole("button", { name: "Ana Example" }).click();
+  await expect(page.getByRole("heading", { name: "Flags (2)" })).toBeVisible();
+  await expectNoViolations(page);
+});
+

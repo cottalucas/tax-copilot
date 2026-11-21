@@ -67,6 +67,11 @@ export interface ExtractDeps {
    * Resolves false when the return is submitted.
    */
   saveExtraction(clientId: string, record: ExtractionRecord): Promise<boolean>;
+  /**
+   * Approve (SR-20): moves the return to Ready to fill, in one transaction, only when its values
+   * exist and it is Needs review or Ready to fill. Resolves false otherwise.
+   */
+  approve(clientId: string): Promise<boolean>;
   /** Marks the return submitted first, then deletes its extracted values and files. */
   submit(clientId: string, prefix: string): Promise<void>;
   now?: () => Date;
@@ -240,5 +245,13 @@ export async function handleSubmit(caller: Caller | undefined, input: unknown, d
     throw new HttpsError("unavailable", "The return is submitted, but deleting its documents failed. Try again.");
   }
   deps.log?.("submitted", { clientId });
+  return { ok: true };
+}
+
+/** She approves the return after her review (SR-20): status Ready to fill. */
+export async function handleApprove(caller: Caller | undefined, input: unknown, deps: ExtractDeps): Promise<{ ok: true }> {
+  const { clientId } = await authorize(caller, input, deps);
+  if (!(await deps.approve(clientId))) throw new HttpsError("failed-precondition", "Only a return with read documents, not yet submitted, can be approved.");
+  deps.log?.("approved", { clientId });
   return { ok: true };
 }

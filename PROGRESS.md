@@ -1,8 +1,8 @@
 # PROGRESS.md
 
 ## Current focus
-SR-28 (#13) waits on #14 and Lucas's retention call. SR-19 part 1 (rules engine wired in,
-consistency checks) is stacked on it. Zurich rules wait for the private repo (SR-23).
+SR-28 (#13) waits on #14 and Lucas's retention call. SR-19 part 1 (#15) and SR-20 (review
+screen) are stacked on it. Zurich rules wait for the private repo (SR-23).
 
 ## Next up
 1. SR-24: gates, auto merge, proof pull requests, infra.
@@ -11,6 +11,22 @@ consistency checks) is stacked on it. Zurich rules wait for the private repo (SR
 4. Move the review job to `pull_request_target` (read the diff only, never run pull request code).
 
 ## Log
+
+### 2026-11-21 SR-20 Review screen
+Done: a client with read documents opens a review screen from the queue: flags first (critical,
+then warning, each with its plain language reason and a link to the flagged value's page), then
+key totals per employer, deductions and bank accounts with their source pages and a total over
+employers, the list of what the documents did not show, then changes from last year ("No previous
+year return on file yet": no previous year data exists until golden cases and SR-22). Each source
+link loads the file through Storage with her sign-in and opens it as a blob at its page, so no
+shareable link exists. Approve calls the new `approveReturn` function (owner and allow list,
+transaction: values must exist, status Needs review or Ready to fill) and sets Ready to fill.
+States: loading skeleton, "Could not load this return." with Retry, not read yet, no flags,
+partial (not found list), approved. Tests: review model unit tests (amounts, sources, totals,
+not found, flag sources), approve unit and emulator tests, two end to end tests (order of
+sections, source page opens as a PDF blob at page 2, Approve to Ready to fill, clean return),
+axe on the review screen. Stacked on #15 (SR-19), which is stacked on #13 (SR-28).
+Not done: changes from last year need previous year data (later issue).
 
 ### 2026-11-21 SR-19 Rules and flags, part 1: engine wired in, consistency checks
 Done: the extract function runs every rule in `rules/` right after a successful extraction and

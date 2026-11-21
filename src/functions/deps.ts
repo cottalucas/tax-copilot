@@ -43,6 +43,14 @@ export function firebaseDeps(log?: ExtractDeps["log"]): ExtractDeps {
         tx.update(clients.doc(id), { extractedAt: record.extractedAt, status: record.status, flagCount: record.flags.length });
         return true;
       }),
+    approve: (id) =>
+      db.runTransaction(async (tx) => {
+        const client = await tx.get(clients.doc(id));
+        const values = await tx.get(clients.doc(id).collection("extraction").doc("current"));
+        if (!values.exists || !["needs_review", "ready_to_fill"].includes(String(client.get("status")))) return false;
+        tx.update(clients.doc(id), { status: "ready_to_fill", approvedAt: FieldValue.serverTimestamp() });
+        return true;
+      }),
     // Submit closes the return first, so a running extraction cannot save after this point. Then
     // the extracted values and the documents are deleted. Repeating it on a submitted return only
     // deletes what is left, so a failed cleanup is retried by calling it again.

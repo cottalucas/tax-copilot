@@ -8,6 +8,7 @@ import {
   clientPrefix,
   errorCategory,
   expiryFor,
+  handleApprove,
   handleExtract,
   handleSubmit,
   isAllowed,
@@ -55,6 +56,7 @@ function provider(text = JSON.stringify(result), costUsd: number | null = 0.001)
 function makeDeps(over: Partial<ExtractDeps> = {}, p = provider()) {
   const saved: [string, ExtractionRecord][] = [];
   const submitted: [string, string][] = [];
+  const approved: string[] = [];
   const logs: Record<string, unknown>[] = [];
   const clients: Record<string, { ownerUid: string; taxYear?: number }> = {
     c1: { ownerUid: "u1", taxYear: 2025 },
@@ -71,12 +73,16 @@ function makeDeps(over: Partial<ExtractDeps> = {}, p = provider()) {
       return true;
     },
     submit: async (id, pre) => void submitted.push([id, pre]),
+    approve: async (id) => {
+      approved.push(id);
+      return id !== "c3";
+    },
     now: () => new Date("2026-03-01T00:00:00Z"),
     extract: (docs, options) => extractReturn(docs, { ...options, provider: p }),
     log: (message, fields) => void logs.push({ message, ...fields }),
     ...over,
   };
-  return { deps, saved, submitted, logs, p };
+  return { deps, saved, submitted, approved, logs, p };
 }
 
 async function code(promise: Promise<unknown>): Promise<string> {
@@ -267,5 +273,16 @@ describe("handleSubmit", () => {
     fail = false;
     expect(await handleSubmit(her, { clientId: "c1" }, deps)).toEqual({ ok: true });
     expect(submitted).toEqual([["c1", prefix]]);
+  });
+});
+
+describe("handleApprove (SR-20)", () => {
+  it("approves her own return, refuses others and returns that cannot be approved", async () => {
+    const { deps, approved } = makeDeps();
+    expect(await handleApprove(her, { clientId: "c1" }, deps)).toEqual({ ok: true });
+    expect(await code(handleApprove(her, { clientId: "c3" }, deps))).toBe("failed-precondition");
+    expect(await code(handleApprove(her, { clientId: "c2" }, deps))).toBe("permission-denied");
+    expect(await code(handleApprove(undefined, { clientId: "c1" }, deps))).toBe("unauthenticated");
+    expect(approved).toEqual(["c1", "c3"]);
   });
 });

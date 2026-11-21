@@ -51,6 +51,13 @@ background job, never behind a Hosting rewrite.
   extraction and, in the same transaction, sets the client's flagCount and status: Needs review
   with any flag, otherwise Ready to fill. Re-extraction is allowed until the return is submitted.
 - `clients/{clientId}/corrections/{id}`: field, before, after, at. Feeds new golden cases.
+- Review (SR-20): a client with values opens a review screen (`web/src/review.ts`, `main.ts`):
+  flags first, then key totals, then changes from last year (no previous year on file yet).
+  Every value links to its source page: the browser loads the file through Storage with her own
+  sign-in (Storage rules apply) and opens it as a local blob at `#page=N`. No download token or
+  shareable link is ever created. Approve calls `approveReturn`, which checks owner and allow list
+  and, in a transaction, sets Ready to fill (and approvedAt) only when values exist and the return
+  is Needs review or Ready to fill.
 - File names: each upload gets one unique storage name (a repeat becomes `name (2).pdf`), and
   citations use that name, so a value always points at exactly one document.
 - Submitting (`submitReturn`) first sets status `submitted` (so a running extraction cannot save
@@ -101,7 +108,7 @@ Two kinds of AI (AGENTS.md). Build AI (Claude Code, Codex) never runs in the pro
   prefixes on its own; cached tokens are priced as cached.
 - Real client data: only `vertex` on an EU endpoint may receive it (`dataClass: "client"`),
   decided at SR-18. The `extract` function sends it with `dataClass: "client"`.
-- Runtime identity: the `extract` and `submitReturn` functions run as
+- Runtime identity: the `extract`, `approveReturn`, `submitReturn` and `dailyCleanup` functions run as
   `extract-fn@tax-co-pilot.iam.gserviceaccount.com` (roles/aiplatform.user, roles/datastore.user,
   roles/storage.objectAdmin on the documents bucket only). Vertex reads the `gs://` links as its
   service agent (roles/storage.objectViewer on that bucket). Created by Lucas. Their settings (EXTRACT_*, VERTEX_*, EXTRACT_ALLOWED_EMAILS) come from

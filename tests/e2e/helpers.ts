@@ -98,3 +98,44 @@ export function watchOutsideHosts(page: Page): string[] {
   });
   return outside;
 }
+
+/** Admin access to the emulators (emulators:exec sets the emulator hosts), bypassing rules. */
+async function admin() {
+  const { getApps, initializeApp } = await import("firebase-admin/app");
+  if (getApps().length === 0) initializeApp({ projectId: PROJECT, storageBucket: BUCKET });
+  const { getFirestore } = await import("firebase-admin/firestore");
+  const { getStorage } = await import("firebase-admin/storage");
+  return { db: getFirestore(), bucket: getStorage().bucket() };
+}
+
+/** Seeds what the extract function leaves behind: values, flags, status, and one stored document. */
+export async function seedExtraction(
+  clientId: string,
+  ownerUid: string,
+  fields: { status: string; data: unknown; flags: unknown[]; file?: { name: string; body: Buffer; contentType: string } },
+) {
+  const { db, bucket } = await admin();
+  await db.doc(`clients/${clientId}`).set({ extractedAt: new Date(), status: fields.status, flagCount: fields.flags.length }, { merge: true });
+  await db.doc(`clients/${clientId}/extraction/current`).set({ data: fields.data, flags: fields.flags, expireAt: new Date(Date.now() + 86_400_000) });
+  if (fields.file) await bucket.file(`users/${ownerUid}/clients/${clientId}/${fields.file.name}`).save(fields.file.body, { contentType: fields.file.contentType });
+}
+
+/** What approveReturn does on the server, for the mocked callable. */
+export async function setStatus(clientId: string, status: string) {
+  const { db } = await admin();
+  await db.doc(`clients/${clientId}`).update({ status });
+}
+
+/** Mocks any callable function on the emulator URL. */
+export async function mockCallable(page: Page, name: string, reply: (data: Record<string, unknown>) => Promise<{ status?: number; json: unknown }>) {
+  const cors = { "access-control-allow-origin": "*", "access-control-allow-headers": "*", "access-control-allow-methods": "POST, OPTIONS" };
+  const calls: Record<string, unknown>[] = [];
+  await page.route(`http://127.0.0.1:5001/demo-tax-copilot/europe-west6/${name}`, async (route) => {
+    if (route.request().method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors });
+    const data = route.request().postDataJSON().data as Record<string, unknown>;
+    calls.push(data);
+    const { status = 200, json } = await reply(data);
+    await route.fulfill({ status, headers: cors, json });
+  });
+  return calls;
+}

@@ -12,6 +12,7 @@
   --ink-subtle: #5f636b;
   --hairline: #e3e4e8;
   --flag-critical: #b4232a;
+  --flag-warning: #9a5b00;
   --radius-sm: 6px;
   --radius-md: 8px;
   --space: 8px;
@@ -51,3 +52,12 @@ th { font-size: 12px; font-weight: 500; color: var(--ink-subtle); }
 .drop.over { border-color: var(--primary); }
 .files { margin: 0; padding-left: calc(var(--space) * 2); font-size: 13px; }
 .actions { display: flex; gap: var(--space); margin-bottom: calc(var(--space) * 2); }
+/* Review screen (SR-20): flags first, then totals, then changes. Red and amber only on flags. */
+.review { display: grid; gap: calc(var(--space) * 3); max-width: 860px; }
+.review section { display: grid; gap: var(--space); }
+.flag-card { background: var(--surface); border: 1px solid var(--hairline); border-left: 3px solid var(--flag-warning); border-radius: var(--radius-md); padding: calc(var(--space) * 1.5) calc(var(--space) * 2); display: grid; gap: 4px; }
+.flag-card.critical { border-left-color: var(--flag-critical); }
+.badge.critical { background: var(--flag-critical); color: var(--on-primary); }
+.badge.warning { background: var(--flag-warning); color: var(--on-primary); }
+.link { background: none; color: var(--primary); padding: 0; border: 0; text-decoration: underline; font-weight: 400; }
+.link:hover { background: none; color: var(--primary-hover); }

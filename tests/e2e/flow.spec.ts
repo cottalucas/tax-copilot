@@ -32,6 +32,12 @@ test("SR-28: upload, then the real extract function reads the documents and save
   const doc = (await res.json()) as { fields: Record<string, unknown> };
   expect(JSON.stringify(doc.fields.data)).toContain('"salary.pdf"');
   expect(JSON.stringify(doc.fields.sources)).toContain("salary.pdf");
+
+  // SR-20: the review screen reads those values through the rules, with the source page.
+  await row.getByRole("button", { name: "Ana Example" }).click();
+  await expect(page.getByText("No flags. Check totals and approve.")).toBeVisible();
+  await expect(page.locator("tbody tr").first()).toContainText("CHF 76'400.00");
+  await expect(page.locator("tbody tr").first().getByRole("button", { name: "salary.pdf, page 1" })).toBeVisible();
 });
 
 async function clientId(): Promise<string> {

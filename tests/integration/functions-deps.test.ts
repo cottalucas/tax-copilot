@@ -120,4 +120,17 @@ describe("functions wiring on the emulators", () => {
     expect(await deps.deleteExpiredValues("c1", new Date(Date.now() + 2 * 86_400_000))).toBe(true);
     expect((await getFirestore().doc("clients/c1/extraction/current").get()).exists).toBe(false);
   });
+
+  it("approve moves a read return to Ready to fill, and refuses one without values or already submitted", async () => {
+    const deps = firebaseDeps();
+    expect(await deps.approve("c1")).toBe(false);
+    await getFirestore().doc("clients/c1").update({ status: "needs_review" });
+    await getFirestore().doc("clients/c1/extraction/current").set({ expireAt: new Date(Date.now() + 86_400_000) });
+    expect(await deps.approve("c1")).toBe(true);
+    const client = (await getFirestore().doc("clients/c1").get()).data()!;
+    expect(client.status).toBe("ready_to_fill");
+    expect(client.approvedAt).toBeDefined();
+    await getFirestore().doc("clients/c1").update({ status: "submitted" });
+    expect(await deps.approve("c1")).toBe(false);
+  });
 });
