@@ -62,7 +62,8 @@ background job, never behind a Hosting rewrite.
   citations use that name, so a value always points at exactly one document.
 - Submitting (`submitReturn`) first sets status `submitted` (so a running extraction cannot save
   afterwards), then deletes the extracted values and the files. If the deletion fails she is told
-  to try again; repeating it deletes what is left. The button comes with SR-22.
+  to try again; repeating it deletes what is left. The review screen offers "Mark as submitted"
+  on a Ready to fill return, behind a confirm step, then "Next client" (SR-22).
 - Retention (accepted by Lucas on 2026-11-21): access ends on schedule; physical deletion is
   scheduled early and normally done before day 30, but no Google mechanism guarantees when it
   happens. The bucket lifecycle (28 days) and the Firestore TTL (27 days) delete in the background,

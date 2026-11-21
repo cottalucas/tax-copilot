@@ -37,3 +37,14 @@ export function groupQueue(clients: QueueClient[]): QueueGroup[] {
       .sort((a, b) => b.flagCount - a.flagCount || a.displayName.localeCompare(b.displayName)),
   })).filter((g) => g.clients.length > 0);
 }
+
+/**
+ * The next return that needs her (SR-22): in queue order, flagged first, the first one with read
+ * documents that is not submitted and not the current one.
+ */
+export function nextClient(clients: QueueClient[], currentId: string): QueueClient | undefined {
+  return groupQueue(clients)
+    .filter((g) => g.status !== "submitted")
+    .flatMap((g) => g.clients)
+    .find((c) => c.id !== currentId && c.extracted);
+}
