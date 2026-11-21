@@ -267,6 +267,7 @@ Every block, so the reviewer can be tuned. Category is the tag the block would g
 calibrated rules (none means it would now be a comment).
 | Date | Pull request | Reason given | Category | Action |
 | --- | --- | --- | --- | --- |
+| 2026-11-21 | #13 run 17 | Decision history and PRD.md Never line still promised deletion by day 30 | CRITERION | Reworded to the accepted policy, in #14 too (the rule text on main), so #13 does not change the rule text |
 | 2026-11-21 | #13 run 16 | Mocked callables meant no test of the real browser to server extraction | SECURITY | New end to end test runs the real functions on the emulator; only the model is a fake Vertex endpoint behind VERTEX_PROXY_URL (`tests/e2e/fake-vertex.ts`, test settings in `.env.demo-tax-copilot`) |
 | 2026-11-21 | #13 run 16 | ARCHITECTURE.md Files row still said deleted after 30 days | CRITERION | Reworded to the accepted retention policy |
 | 2026-11-21 | #13 run 15 | Docs and pull request body still claimed deletion by day 30 | CRITERION | Reworded to the accepted policy: access ends on schedule, deletion scheduled early without a deadline guarantee |

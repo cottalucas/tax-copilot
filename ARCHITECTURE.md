@@ -176,8 +176,9 @@ call (returned by `src/models`), eval reports in CI summaries.
 - 2026-11-19 Repo public for free branch rules until SR-23. Keyless deploys.
 - 2026-11-21 SR-28 (Lucas): documents go into the app, not her Drive. Zurich bucket, the model
   gets the files themselves (meant for scans and photos too; verified by the evals/media set on
-  main, live-evals.yml), values in Firestore, all deleted on submit or after
-  30 days. Replaces the Drive intake and the in-browser text step.
+  main, live-evals.yml), values in Firestore, all unreadable and deleted on submit, unreadable
+  after 28 days and deleted in the background (retention policy accepted 2026-11-21). Replaces the
+  Drive intake and the in-browser text step.
 
 ## What breaks first
 1. Government form changes. Signal: nightly form check, fill errors.
