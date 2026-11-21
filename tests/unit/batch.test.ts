@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DATA_FILE_NAME, MAX_FILES, pendingExtraction, runBatch, taxYearChoices, type BatchDeps } from "../../web/src/batch.js";
+import { DATA_FILE_NAME, MAX_FILES, pendingExtraction, runBatch, taxYearChoices, uniqueLabels, type BatchDeps } from "../../web/src/batch.js";
 import { nameQuery, pdfQuery } from "../../web/src/drive.js";
 import { joinTextItems } from "../../web/src/pdf.js";
 import type { QueueClient } from "../../web/src/queue.js";
@@ -73,7 +73,10 @@ describe("batch extraction", () => {
       taxYear: 2024,
       model: "test-model",
       extractedAt: "2026-03-01T10:00:00.000Z",
-      sources: ["salary-statement.pdf", "bank-statement.pdf"],
+      sources: [
+        { file: "salary-statement.pdf", driveFileId: "folder-1-a" },
+        { file: "bank-statement.pdf", driveFileId: "folder-1-b" },
+      ],
       data: { taxpayer: { clientId: "1" } },
     });
     expect(recorded).toEqual([
@@ -108,6 +111,28 @@ describe("batch extraction", () => {
       expect(out.failed[0]?.reason).toContain(reason);
       expect(extracted).toHaveLength(0);
     }
+  });
+});
+
+describe("file labels", () => {
+  it("keeps names and numbers repeats, so each citation names one file", () => {
+    expect(uniqueLabels(["a.pdf", "b.pdf", "a.pdf", "a.pdf", "A.PDF", "notes"])).toEqual(["a.pdf", "b.pdf", "a (2).pdf", "a (3).pdf", "A.PDF", "notes"]);
+    expect(uniqueLabels(["x", "x"])).toEqual(["x", "x (2)"]);
+  });
+
+  it("sends and saves the unique labels with their Drive ids", async () => {
+    const { deps, extracted, saved } = fakeDeps({
+      listPdfs: async () => [
+        { id: "d1", name: "statement.pdf" },
+        { id: "d2", name: "statement.pdf" },
+      ],
+    });
+    await runBatch([client("1")], 2024, deps);
+    expect(extracted[0]!.documents.map((d) => d.file)).toEqual(["statement.pdf", "statement (2).pdf"]);
+    expect(JSON.parse(saved[0]!.json).sources).toEqual([
+      { file: "statement.pdf", driveFileId: "d1" },
+      { file: "statement (2).pdf", driveFileId: "d2" },
+    ]);
   });
 });
 

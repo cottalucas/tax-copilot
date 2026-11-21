@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { extractReturn } from "../extraction/extract.js";
 import type { ModelProvider } from "../models/index.js";
 import { BudgetExceededError, DataResidencyError, ModelConfigError } from "../models/index.js";
-import { badCitations, CitationError, errorCategory, handleExtract, handleSave, isAllowed, LIMITS, type Caller, type ExtractDeps } from "./extract.js";
+import { badCitations, CitationError, errorCategory, MismatchError, handleExtract, handleSave, isAllowed, LIMITS, type Caller, type ExtractDeps } from "./extract.js";
 
 const her: Caller = { uid: "u1", email: "Preparer@Example.com", emailVerified: true };
 const env = { EXTRACT_PROVIDER: "vertex", EXTRACT_MODEL: "test-model", EXTRACT_ALLOWED_EMAILS: " preparer@example.com, other@example.com " };
@@ -142,12 +142,29 @@ describe("citations", () => {
   });
 });
 
+describe("request checks", () => {
+  it("refuses two documents with the same file name", async () => {
+    const { deps, p } = makeDeps();
+    const twice = { ...input, documents: [input.documents[0]!, input.documents[0]!] };
+    expect(await code(handleExtract(her, twice, deps))).toBe("invalid-argument");
+    expect(p.calls).toBe(0);
+  });
+  it("refuses output for another tax year or client", async () => {
+    for (const taxpayer of [{ clientId: "c1", taxYear: 2024 }, { clientId: "c9", taxYear: 2025 }]) {
+      const { deps, logs } = makeDeps({}, provider(JSON.stringify({ ...result, taxpayer })));
+      expect(await code(handleExtract(her, input, deps))).toBe("internal");
+      expect(logs[0]).toMatchObject({ error: "mismatch" });
+    }
+  });
+});
+
 describe("errorCategory", () => {
   it("logs a fixed category, never the message", () => {
     expect(errorCategory(new BudgetExceededError("cost 0.06 for Gross salary 98000"))).toBe("budget");
     expect(errorCategory(new DataResidencyError("x"))).toBe("residency");
     expect(errorCategory(new ModelConfigError("x"))).toBe("config");
     expect(errorCategory(new CitationError("x"))).toBe("citation");
+    expect(errorCategory(new MismatchError("x"))).toBe("mismatch");
     expect(errorCategory(new Error("Model returned invalid JSON (vertex/m)."))).toBe("invalid-json");
     expect(errorCategory(new Error("Model output failed schema validation: employment.0"))).toBe("schema");
     expect(errorCategory(new Error("Vertex AI error 429: quota for Example AG 98000"))).toBe("provider-429");

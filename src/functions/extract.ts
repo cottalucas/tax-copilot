@@ -26,7 +26,9 @@ export const ExtractInput = z.object({
       }),
     )
     .min(1)
-    .max(LIMITS.files),
+    .max(LIMITS.files)
+    // Each file name is unique, so a citation points at exactly one file.
+    .refine((docs) => new Set(docs.map((d) => d.file)).size === docs.length),
 });
 
 export const SaveInput = z.object({
@@ -87,6 +89,11 @@ export class CitationError extends Error {
   override name = "CitationError";
 }
 
+/** Raised when the output is for another client or tax year than the one asked for. */
+export class MismatchError extends Error {
+  override name = "MismatchError";
+}
+
 /** Counts cited sources (`{ source: { file, page } }`) that do not point at a page it was sent. */
 export function badCitations(data: unknown, docs: DocumentText[]): number {
   const pages = new Map(docs.map((d) => [d.file, d.pages.length]));
@@ -114,6 +121,7 @@ export function errorCategory(err: unknown): string {
   if (err instanceof DataResidencyError) return "residency";
   if (err instanceof ModelConfigError) return "config";
   if (err instanceof CitationError) return "citation";
+  if (err instanceof MismatchError) return "mismatch";
   const message = err instanceof Error ? err.message : "";
   if (message.startsWith("Model returned invalid JSON")) return "invalid-json";
   if (message.startsWith("Model output failed schema validation")) return "schema";
@@ -144,6 +152,9 @@ export async function handleExtract(caller: Caller | undefined, input: unknown, 
       budget,
     });
     // Every value must cite a file and page she sent (SR-18: source file and page).
+    if (data.taxpayer.clientId !== req.clientId || data.taxpayer.taxYear !== req.taxYear) {
+      throw new MismatchError("The output is for another client or tax year.");
+    }
     if (badCitations(data, req.documents) > 0) throw new CitationError("A value cites a file or page that was not sent.");
     // Counts only. Never document text or extracted values in logs.
     deps.log?.("extract ok", { clientId: req.clientId, files: req.documents.length, chars, costUsd: budget.spentUsd, ms: Date.now() - started });

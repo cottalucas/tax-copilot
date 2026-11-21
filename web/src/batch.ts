@@ -41,15 +41,33 @@ export function taxYearChoices(now: Date): number[] {
   return [y - 1, y - 2, y - 3];
 }
 
+/**
+ * One unique label per PDF, so every citation names exactly one file. Drive allows two files with
+ * the same name in a folder: a repeat becomes "name (2).pdf".
+ */
+export function uniqueLabels(names: string[]): string[] {
+  const used = new Set<string>();
+  return names.map((name) => {
+    let label = name;
+    for (let n = 2; used.has(label); n++) {
+      const dot = name.toLowerCase().endsWith(".pdf") ? name.length - 4 : name.length;
+      label = `${name.slice(0, dot)} (${n})${name.slice(dot)}`;
+    }
+    used.add(label);
+    return label;
+  });
+}
+
 async function extractOne(client: QueueClient, taxYear: number, deps: BatchDeps): Promise<void> {
   const folderId = client.driveFolderId!;
   const files = await deps.listPdfs(folderId);
   if (files.length === 0) throw new Error("No PDFs found in the client's Drive folder.");
   if (files.length > MAX_FILES) throw new Error(`More than ${MAX_FILES} PDFs in the client's Drive folder.`);
+  const labels = uniqueLabels(files.map((f) => f.name));
   const documents: DocumentText[] = [];
-  for (const f of files) {
+  for (const [i, f] of files.entries()) {
     try {
-      documents.push({ file: f.name, pages: await deps.pdfPages(await deps.download(f.id), MAX_PAGES) });
+      documents.push({ file: labels[i]!, pages: await deps.pdfPages(await deps.download(f.id), MAX_PAGES) });
     } catch (err) {
       throw new Error(`${f.name}: could not be read (${(err as Error).message})`, { cause: err });
     }
@@ -58,7 +76,7 @@ async function extractOne(client: QueueClient, taxYear: number, deps: BatchDeps)
     throw new Error("No text found in these PDFs. Scanned PDFs are not supported yet.");
   }
   const result = await deps.extract({ clientId: client.id, taxYear, documents });
-  const file = { schemaVersion: 1, taxYear, extractedAt: deps.now().toISOString(), model: result.model, sources: files.map((f) => f.name), data: result.data };
+  const file = { schemaVersion: 1, taxYear, extractedAt: deps.now().toISOString(), model: result.model, sources: files.map((f, i) => ({ file: labels[i]!, driveFileId: f.id })), data: result.data };
   const dataFileId = await deps.saveDataFile(folderId, DATA_FILE_NAME, JSON.stringify(file, null, 2));
   await deps.saveExtraction({ clientId: client.id, dataFileId });
 }

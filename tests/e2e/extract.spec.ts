@@ -53,7 +53,7 @@ async function mockDrive(page: Page, existingDataFile?: string) {
 
 const extracted = {
   schemaVersion: 1,
-  taxpayer: { clientId: "c1", taxYear: 2025 },
+  taxpayer: { clientId: "c1", taxYear },
   employment: [{ employer: { value: "Example AG", source: { file: "salary-statement.pdf", page: 1 } }, grossSalary: { value: 98000, source: { file: "salary-statement.pdf", page: 2 } } }],
   deductions: {},
   bankAccounts: [],
@@ -116,7 +116,10 @@ test("SR-18: extract all reads her PDFs, extracts through the function, saves on
   expect(drive.uploads[0]!.body).toContain('{"name":"tax-copilot-data.json","parents":["folder1"]}');
   expect(drive.uploads[0]!.body).toContain('"model": "test-model"');
   expect(drive.uploads[0]!.body).toContain('"page": 2');
-  expect(drive.uploads[0]!.body).toContain(`"taxYear": ${taxYear}`);
+  const saved = JSON.parse(drive.uploads[0]!.body.split("\r\n\r\n")[2]!.split("\r\n--")[0]!);
+  expect(saved.taxYear).toBe(taxYear);
+  expect(saved.data.taxpayer.taxYear).toBe(taxYear);
+  expect(saved.sources).toEqual([{ file: "salary-statement.pdf", driveFileId: "pdf1" }]);
   expect(saveCalls.map((c) => c.data)).toEqual([{ clientId: "c1", dataFileId: "data1" }]);
   expect(outside).toEqual([]);
 });

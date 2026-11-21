@@ -44,7 +44,8 @@ background job, never behind a Hosting rewrite.
 - `clients/{clientId}/flags/{flagId}`: ruleId, severity, field, reason, resolved.
 - `clients/{clientId}/corrections/{id}`: field, before, after, at. Feeds new golden cases.
 - Extracted values are not stored in Firestore. The client data file `tax-copilot-data.json` lives
-  in her Drive next to the PDFs: schemaVersion, taxYear (she chooses it), extractedAt, model, source file names, and the
+  in her Drive next to the PDFs: schemaVersion, taxYear (she chooses it), extractedAt, model, sources (a unique label per PDF and its Drive file id; a repeated name
+  becomes `name (2).pdf`), and the
   schema validated extraction (every value with source file and page).
 
 ## Data inventory and residency
