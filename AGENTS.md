@@ -71,7 +71,11 @@ Skills live in `.agents/skills/` (see its README). Load a skill only when the ta
 ## Never do
 - Never commit golden cases, client data or real tax rules while the repo is public (Linear
   SR-23). The repo must be private before any of them lands. GitHub Pro keeps branch rules then.
-- Never store client documents outside her Google Drive.
+- Never store client documents anywhere but her own Google Drive or the documents bucket in
+  europe-west6, and in that bucket only while the return is open: unreadable and deleted on
+  submit, unreadable 28 days after upload and deleted by the bucket lifecycle and the nightly
+  cleanup (Lucas, SR-28; physical deletion time not guaranteed, accepted 2026-11-21). Never in the
+  repo or a dev tool.
 - Never store client government credentials.
 - Never submit without her final review.
 - Never send real client data outside the EU or to any dev tool. Golden cases are anonymized.
@@ -81,7 +85,8 @@ Skills live in `.agents/skills/` (see its README). Load a skill only when the ta
 - Never use an LLM judge for numbers.
 - Never put a model name in code or workflows, or a secret value anywhere in the repo.
 - Never change the locked stack: Firebase Hosting and Auth, Cloud Functions in europe-west6,
-  Firestore for status, flags and corrections only.
+  Firestore for status, flags, corrections, and extracted values only while the return is open
+  (unreadable and deleted on submit or at expiry, never readable longer than their documents).
 - Never invent product answers.
 
 ## Definition of done
