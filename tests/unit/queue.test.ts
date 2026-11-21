@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { groupQueue, toQueueClient, type QueueClient } from "../../web/src/queue.js";
+import { groupQueue, nextClient, toQueueClient, type QueueClient } from "../../web/src/queue.js";
 
 const c = (id: string, displayName: string, status: QueueClient["status"], flagCount = 0): QueueClient => ({ id, displayName, status, flagCount, extracted: false });
 
@@ -28,5 +28,13 @@ describe("home queue", () => {
   it("knows whether the server saved extracted values", () => {
     expect(toQueueClient("x", { displayName: "Ana", status: "documents_in", extractedAt: { seconds: 1 } })).toMatchObject({ extracted: true });
     expect(toQueueClient("x", { displayName: "Ana", status: "documents_in" })).toEqual({ id: "x", displayName: "Ana", status: "documents_in", flagCount: 0, extracted: false });
+  });
+
+  it("picks the next return that needs her: flagged review first, skipping submitted, unread and current", () => {
+    const x = (id: string, status: QueueClient["status"], flagCount: number, extracted: boolean): QueueClient => ({ id, displayName: id, status, flagCount, extracted });
+    const list = [x("done", "submitted", 0, true), x("ready", "ready_to_fill", 0, true), x("calm", "needs_review", 1, true), x("hot", "needs_review", 3, true), x("unread", "documents_in", 0, false)];
+    expect(nextClient(list, "x")?.id).toBe("hot");
+    expect(nextClient(list, "hot")?.id).toBe("calm");
+    expect(nextClient([x("unread", "documents_in", 0, false), x("done", "submitted", 0, true)], "x")).toBeUndefined();
   });
 });

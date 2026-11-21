@@ -8,7 +8,7 @@ import type { ExtractedReturn, Source } from "../../src/schema/extraction.js";
 import { pendingExtraction, runBatch } from "./batch.js";
 import { auth, db, functions, storage } from "./firebase.js";
 import { checkFiles, hasValidHeader, storageNames, taxYearChoices, validateName, type DocumentType } from "./intake.js";
-import { groupQueue, toQueueClient, type QueueClient } from "./queue.js";
+import { groupQueue, nextClient, toQueueClient, type QueueClient } from "./queue.js";
 import { buildReview } from "./review.js";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
@@ -251,6 +251,33 @@ function extractAllButton(pending: QueueClient[], user: User, status: HTMLElemen
 }
 
 const approveCall = httpsCallable<{ clientId: string }, { ok: true }>(functions, "approveReturn");
+const submitCall = httpsCallable<{ clientId: string }, { ok: true }>(functions, "submitReturn");
+
+/** After a submit: offer the next return that needs her (SR-22). */
+async function renderSubmitted(user: User, clientId: string, name: string) {
+  const main = renderQueueShell(user);
+  const s = el("section", { class: "panel", "aria-labelledby": "done-title" });
+  s.append(el("h2", { id: "done-title", tabindex: "-1" }, `${name}: submitted`));
+  s.append(el("p", { role: "status" }, "Marked as submitted. Its documents and extracted values are deleted."));
+  const actions = el("div", { class: "actions" });
+  try {
+    const snap = await getDocs(query(collection(db, "clients"), where("ownerUid", "==", user.uid)));
+    const next = nextClient(snap.docs.map((d) => toQueueClient(d.id, d.data())).filter((c): c is QueueClient => !!c), clientId);
+    if (next) {
+      const b = el("button", { type: "button" }, `Next client: ${next.displayName}`);
+      b.addEventListener("click", () => void renderReview(user, next.id));
+      actions.append(b);
+    } else s.append(el("p", { class: "muted" }, "No other return needs you right now."));
+  } catch {
+    s.append(el("p", { class: "muted" }, "Could not load the next client."));
+  }
+  const back = el("button", { type: "button", class: "secondary" }, "Back to clients");
+  back.addEventListener("click", () => void loadQueue(user));
+  actions.append(back);
+  s.append(actions);
+  main.replaceChildren(s);
+  document.getElementById("done-title")?.focus();
+}
 
 /** Opens a document at its source page. The file comes through Storage with her own sign-in: no shareable link. */
 async function openSource(user: User, clientId: string, source: Source, status: HTMLElement) {
@@ -361,6 +388,41 @@ async function renderReview(user: User, clientId: string) {
       }
     });
     actions.append(approve);
+  }
+  if (client?.status === "ready_to_fill") {
+    // Mark as submitted (SR-22): she confirms, because it deletes the documents and values.
+    const submit = el("button", { type: "button", class: "secondary" }, "Mark as submitted");
+    const confirm = el("div", { class: "panel", role: "group", "aria-labelledby": "confirm-title", hidden: "" });
+    confirm.append(el("p", { id: "confirm-title" }, "Only after she submitted the return on the government site. This deletes the client's documents and extracted values."));
+    const yes = el("button", { type: "button" }, "Yes, mark as submitted");
+    const no = el("button", { type: "button", class: "secondary" }, "Cancel");
+    const confirmActions = el("div", { class: "actions" });
+    confirmActions.append(yes, no);
+    confirm.append(confirmActions);
+    submit.addEventListener("click", () => {
+      confirm.removeAttribute("hidden");
+      yes.focus();
+    });
+    no.addEventListener("click", () => {
+      confirm.setAttribute("hidden", "");
+      submit.focus();
+    });
+    yes.addEventListener("click", async () => {
+      yes.setAttribute("disabled", "");
+      errors.replaceChildren();
+      try {
+        await submitCall({ clientId });
+        await renderSubmitted(user, clientId, name);
+      } catch (err) {
+        errors.replaceChildren(el("p", {}, callableMessage(err)));
+        yes.removeAttribute("disabled");
+      }
+    });
+    actions.append(submit);
+    wrap.append(flags, totals, changes, status, errors, actions, confirm);
+    actions.append(back());
+    main.replaceChildren(wrap);
+    return void document.getElementById("review-title")?.focus();
   }
   actions.append(back());
   wrap.append(flags, totals, changes, status, errors, actions);

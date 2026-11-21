@@ -1,8 +1,8 @@
 # PROGRESS.md
 
 ## Current focus
-SR-28 (#13) waits on #14 and Lucas's retention call. SR-19 part 1 (#15) and SR-20 (review
-screen) are stacked on it. Zurich rules wait for the private repo (SR-23).
+SR-28 (#13) waits on #14 and Lucas's retention call. SR-19 part 1 (#15), SR-20 (#16) and SR-22
+part 1 are stacked on it. Zurich rules wait for the private repo (SR-23).
 
 ## Next up
 1. SR-24: gates, auto merge, proof pull requests, infra.
@@ -11,6 +11,17 @@ screen) are stacked on it. Zurich rules wait for the private repo (SR-23).
 4. Move the review job to `pull_request_target` (read the diff only, never run pull request code).
 
 ## Log
+
+### 2026-11-21 SR-22 Done and next client, part 1
+Done: on a Ready to fill return the review screen offers "Mark as submitted". A confirm step says
+it is only for a return she submitted on the government site and that it deletes the documents
+and extracted values; Cancel leaves everything as it was. It calls `submitReturn`. The next
+screen confirms the deletion and offers "Next client": the next return that needs her, in queue
+order, flagged first, skipping submitted and unread ones. Tests: next client unit test, end to end
+(cancel, confirm, submit call, next client opens its review, a return under review has no submit
+button), axe on the confirm and submitted screens. Stacked on #16 (SR-20).
+Not done: "next client reuses the same tab" needs the fill tab (SR-21); "corrections saved as new
+eval cases" needs an edit flow on the review screen and the private repo (SR-23).
 
 ### 2026-11-21 SR-20 Review screen
 Done: a client with read documents opens a review screen from the queue: flags first (critical,
