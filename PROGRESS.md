@@ -267,6 +267,7 @@ Every block, so the reviewer can be tuned. Category is the tag the block would g
 calibrated rules (none means it would now be a comment).
 | Date | Pull request | Reason given | Category | Action |
 | --- | --- | --- | --- | --- |
+| 2026-11-21 | #13 run 13 | Cleanup could delete values a new extraction had just saved | CRITERION | Expiry is checked and the values deleted in one transaction (emulator test) |
 | 2026-11-21 | #13 run 12 | On submit, files were deleted only after the values were | CRITERION | Both deletions run independently, then any failure is reported (she is told to try again, the nightly job retries) |
 | 2026-11-21 | #13 run 11 | Unrecorded first selection could pin nightly runs to the same cases | SECURITY | Applies only when EVAL_OFFSET is unset (pull request and manual runs); nightly keeps pure rotation |
 | 2026-11-21 | #13 run 11 | ARCHITECTURE.md said scans and photos work before that is verified | CRITERION | Reworded: meant for scans and photos, verified by the evals/media set on main |

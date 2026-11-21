@@ -102,4 +102,13 @@ describe("functions wiring on the emulators", () => {
     expect((await getFirestore().doc("clients/c1/extraction/current").get()).exists).toBe(false);
     expect((await getFirestore().doc("clients/c2/extraction/current").get()).exists).toBe(false);
   });
+
+  it("expired values are checked and deleted in one transaction, fresh ones stay", async () => {
+    const deps = cleanupDeps();
+    await getFirestore().doc("clients/c1/extraction/current").set({ expireAt: new Date(Date.now() + 86_400_000) });
+    expect(await deps.deleteExpiredValues("c1", new Date())).toBe(false);
+    expect((await getFirestore().doc("clients/c1/extraction/current").get()).exists).toBe(true);
+    expect(await deps.deleteExpiredValues("c1", new Date(Date.now() + 2 * 86_400_000))).toBe(true);
+    expect((await getFirestore().doc("clients/c1/extraction/current").get()).exists).toBe(false);
+  });
 });

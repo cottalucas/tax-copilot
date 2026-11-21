@@ -29,7 +29,13 @@ function fake() {
       { id: "old", ownerUid: "u1", status: "documents_in" },
       { id: "done", ownerUid: "u1", status: "submitted" },
     ],
-    getValuesExpiry: async (id) => values.get(id),
+    deleteExpiredValues: async (id, at) => {
+      const exp = values.get(id);
+      if (!exp || exp.getTime() > at.getTime()) return false;
+      values.delete(id);
+      deletedValues.push(id);
+      return true;
+    },
     deleteValues: async (id) => {
       if (!values.delete(id)) return false;
       deletedValues.push(id);
@@ -66,7 +72,10 @@ describe("daily cleanup", () => {
         if (prefix.includes("/done/")) throw new Error("storage unavailable");
         return deps.listFiles(prefix);
       },
-      getValuesExpiry: async () => Promise.reject(new Error("never needed for a submitted return")),
+      deleteExpiredValues: async (id, at) => {
+        if (id === "done") throw new Error("never used for a submitted return");
+        return deps.deleteExpiredValues(id, at);
+      },
     };
     await expect(runCleanup(failing)).rejects.toThrow(/failed steps/);
     expect(deletedValues).toContain("done");
@@ -89,9 +98,9 @@ describe("daily cleanup", () => {
     const { deps, deletedFiles, deletedValues, logs } = fake();
     const failing: CleanupDeps = {
       ...deps,
-      getValuesExpiry: async (id) => {
+      deleteExpiredValues: async (id, at) => {
         if (id === "open") throw new Error("firestore unavailable");
-        return deps.getValuesExpiry(id);
+        return deps.deleteExpiredValues(id, at);
       },
       deleteFile: async (name) => {
         if (name.endsWith("b.pdf")) throw new Error("storage unavailable");

@@ -11,8 +11,11 @@ import { clientPrefix, FILES_DELETE_AFTER_DAYS, type StoredFile } from "./extrac
 export interface CleanupDeps {
   now: () => Date;
   listClients(): Promise<{ id: string; ownerUid: string; status: string }[]>;
-  /** expireAt of the client's extracted values, or undefined when there are none. */
-  getValuesExpiry(clientId: string): Promise<Date | undefined>;
+  /**
+   * Deletes the client's values only if they are expired at `now`, checked and deleted in one
+   * transaction, so values a new extraction just saved are never removed. Resolves true when deleted.
+   */
+  deleteExpiredValues(clientId: string, now: Date): Promise<boolean>;
   /** Deletes the client's extracted values. Resolves true when there were any. */
   deleteValues(clientId: string): Promise<boolean>;
   listFiles(prefix: string): Promise<StoredFile[]>;
@@ -62,8 +65,7 @@ export async function runCleanup(deps: CleanupDeps): Promise<CleanupResult> {
       });
     } else {
       await attempt(async () => {
-        const expiry = await deps.getValuesExpiry(client.id);
-        if (expiry && expiry.getTime() <= now.getTime() && (await deps.deleteValues(client.id))) result.expiredValues += 1;
+        if (await deps.deleteExpiredValues(client.id, now)) result.expiredValues += 1;
       });
     }
   }

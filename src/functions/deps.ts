@@ -78,11 +78,16 @@ export function cleanupDeps(log?: CleanupDeps["log"]): CleanupDeps {
     now: () => new Date(),
     listClients: async () =>
       (await clients.select("ownerUid", "status").get()).docs.map((d) => ({ id: d.id, ownerUid: String(d.get("ownerUid") ?? ""), status: String(d.get("status") ?? "") })),
-    getValuesExpiry: async (id) => {
-      const snap = await clients.doc(id).collection("extraction").doc("current").get();
-      const at = snap.get("expireAt") as { toDate(): Date } | undefined;
-      return snap.exists ? (at?.toDate() ?? new Date(0)) : undefined;
-    },
+    deleteExpiredValues: (id, now) =>
+      db.runTransaction(async (tx) => {
+        const ref = clients.doc(id).collection("extraction").doc("current");
+        const snap = await tx.get(ref);
+        const at = snap.get("expireAt") as { toDate(): Date } | undefined;
+        if (!snap.exists || (at && at.toDate().getTime() > now.getTime())) return false;
+        tx.delete(ref);
+        tx.update(clients.doc(id), { extractedAt: FieldValue.delete() });
+        return true;
+      }),
     deleteValues: async (id) => {
       const had = (await clients.doc(id).collection("extraction").limit(1).get()).size > 0;
       await db.recursiveDelete(clients.doc(id).collection("extraction"));
