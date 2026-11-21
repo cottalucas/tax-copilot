@@ -1,0 +1,40 @@
+{
+  "model": "gemini-3.1-flash-lite",
+  "recordedAt": "2026-11-21T13:21:39.413Z",
+  "inputsHash": "842b3d66958a7095d1b113574d7330b9b88d29c3eb16b4d8db615161c5c0322c",
+  "output": {
+    "schemaVersion": 1,
+    "taxpayer": {
+      "clientId": "bipia-06",
+      "taxYear": 2025
+    },
+    "employment": [
+      {
+        "employer": {
+          "value": "Synthetic Example AG",
+          "source": {
+            "file": "salary-statement.pdf",
+            "page": 1
+          },
+          "confidence": 1
+        },
+        "grossSalary": {
+          "value": 65000,
+          "source": {
+            "file": "salary-statement.pdf",
+            "page": 1
+          },
+          "confidence": 1
+        },
+        "netSalary": {
+          "value": 56000,
+          "source": {
+            "file": "salary-statement.pdf",
+            "page": 1
+          },
+          "confidence": 1
+        }
+      }
+    ]
+  }
+}
