@@ -236,6 +236,7 @@ Every block, so the reviewer can be tuned. Category is the tag the block would g
 calibrated rules (none means it would now be a comment).
 | Date | Pull request | Reason given | Category | Action |
 | --- | --- | --- | --- | --- |
+| 2026-11-21 | #14 run 1 | Loosening a Never rule weakens the reviewer's grounds to block | SECURITY | Not fixable inside a pull request: changing the review rules is blocked the same way. Lucas decides (owner merge of a rules only change he made in SR-28). Template gap logged |
 | 2026-11-21 | #12 run 3 | Two PDFs with the same name in one folder made citations ambiguous, and the page check kept only one of them | CRITERION | Each PDF gets a unique label (a repeat becomes `name (2).pdf`), the data file maps label to Drive file id, the function refuses duplicate names. Also checks the model's tax year and client id match the request (comment) |
 | 2026-11-21 | #12 run 2 | The batch set the tax year to last calendar year without asking her | NEVER | She chooses the tax year (last three years, nothing preselected) before Extract all runs; the data file records it. Also: Drive listing follows nextPageToken, and the function rejects citations to a file or page it was not sent (comments) |
 | 2026-11-21 | #12 run 1 | Failed extraction logged the raw error message (truncated), which could echo document text | SECURITY | Log a fixed category (budget, residency, config, invalid JSON, schema, provider status code, unknown) and duration only. Also made the data file save safe to retry (comment) |
@@ -335,6 +336,9 @@ calibrated rules (none means it would now be a comment).
 
 ## Template gaps
 - E2E against the Firebase Auth emulator: sign in with a test build hook, not the emulator popup.
+- A Never rule the owner changes can never pass the gates: the reviewer reads AGENTS.md from main
+  and blocks loosening it as [SECURITY]. Golden needs an owner path for rule changes (for example
+  a protected file only the owner edits, or a signed owner approval the review job checks).
 - Vertex only identity for evals: done here (github-evals). Copy the per workflow federation
   (job_workflow_ref) and the trusted proxy harness back to Golden.
 - Model availability probe per region before choosing a model (catalogs list models a project

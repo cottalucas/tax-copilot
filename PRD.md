@@ -54,7 +54,7 @@ flags on the page, source PDF side panel. End user portal as a second door to th
 
 ## Never
 - Store client documents anywhere but her own Drive or the Zurich documents bucket, and in the
-  bucket only while the return is open (deleted on submit, 30 days at the latest).
+  bucket only while the return is open (deleted on submit, 30 days after upload at the latest).
 - Store client government credentials.
 - Submit without her final review.
 
