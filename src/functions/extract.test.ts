@@ -120,8 +120,8 @@ describe("handleExtract", () => {
     expect(id).toBe("c1");
     expect(record.data.employment[0]?.grossSalary).toEqual({ value: 98000, source: { file: "salary-statement.pdf", page: 2 } });
     expect(record).toMatchObject({ model: "test-model", taxYear: 2025, sources: ["salary-statement.pdf", "receipt.jpg"] });
-    // Values expire with the oldest document: 30 days after its upload, never later.
-    expect(record.expireAt).toEqual(new Date("2026-03-22T00:00:00Z"));
+    // Values expire 27 days after the oldest upload, a day before the bucket deletes the documents.
+    expect(record.expireAt).toEqual(new Date("2026-03-19T00:00:00Z"));
     // Logs hold counts and cost only, never document text, names or values.
     expect(logs).toEqual([expect.objectContaining({ message: "extract ok", files: 2, costUsd: 0.001 })]);
     expect(JSON.stringify(logs)).not.toMatch(/98000|Example AG|salary-statement/);
@@ -162,10 +162,10 @@ describe("handleExtract", () => {
 });
 
 describe("expiry and closed returns", () => {
-  it("values expire 30 days after the oldest upload, and never more than 30 days from now", () => {
+  it("values expire 27 days after the oldest upload, and never more than 27 days from now", () => {
     const now = new Date("2026-03-01T00:00:00Z");
-    expect(expiryFor([{ created: new Date("2026-02-10T00:00:00Z") }, { created: new Date("2026-02-28T00:00:00Z") }], now)).toEqual(new Date("2026-03-12T00:00:00Z"));
-    expect(expiryFor([{ created: new Date("2026-04-01T00:00:00Z") }], now)).toEqual(new Date("2026-03-31T00:00:00Z"));
+    expect(expiryFor([{ created: new Date("2026-02-10T00:00:00Z") }, { created: new Date("2026-02-28T00:00:00Z") }], now)).toEqual(new Date("2026-03-09T00:00:00Z"));
+    expect(expiryFor([{ created: new Date("2026-04-01T00:00:00Z") }], now)).toEqual(new Date("2026-03-28T00:00:00Z"));
   });
 
   it("an extraction that finishes after submit saves nothing and says the return is closed", async () => {
@@ -226,5 +226,20 @@ describe("handleSubmit", () => {
     expect(await code(handleSubmit(her, { clientId: "c2" }, deps))).toBe("permission-denied");
     expect(await code(handleSubmit(undefined, { clientId: "c1" }, deps))).toBe("unauthenticated");
     expect(submitted).toHaveLength(1);
+  });
+
+  it("tells her to try again when deleting fails, and a repeat finishes the job", async () => {
+    let fail = true;
+    const { deps, submitted, logs } = makeDeps({
+      submit: async (id, pre) => {
+        if (fail) throw new Error("storage unavailable");
+        submitted.push([id, pre]);
+      },
+    });
+    expect(await code(handleSubmit(her, { clientId: "c1" }, deps))).toBe("unavailable");
+    expect(logs.at(-1)).toEqual({ message: "submit cleanup failed", clientId: "c1" });
+    fail = false;
+    expect(await handleSubmit(her, { clientId: "c1" }, deps)).toEqual({ ok: true });
+    expect(submitted).toEqual([["c1", prefix]]);
   });
 });

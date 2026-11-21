@@ -42,16 +42,20 @@ background job, never behind a Hosting rewrite.
   `documents_in` and no flags. No updates or deletes from the browser: the functions (Admin SDK,
   after checking she owns the client) write extractedAt, status and submittedAt.
 - `clients/{clientId}/extraction/current`: data (the schema validated extraction, every value with
-  source file and page), model, taxYear, sources (the file names), extractedAt, expireAt (30 days
-  after the oldest document's upload, when the bucket deletes that document; a Firestore TTL policy
-  deletes the values then). She reads her own; only the `extract` function writes, in a
+  source file and page), model, taxYear, sources (the file names), extractedAt, expireAt (27 days
+  after the oldest document's upload; a Firestore TTL policy deletes the values then). She reads her own; only the `extract` function writes, in a
   transaction that refuses once the return is no longer Documents in.
 - `clients/{clientId}/flags/{flagId}`: ruleId, severity, field, reason, resolved.
 - `clients/{clientId}/corrections/{id}`: field, before, after, at. Feeds new golden cases.
 - File names: each upload gets one unique storage name (a repeat becomes `name (2).pdf`), and
   citations use that name, so a value always points at exactly one document.
 - Submitting (`submitReturn`) first sets status `submitted` (so a running extraction cannot save
-  afterwards), then deletes the extracted values and the files. The button comes with SR-22.
+  afterwards), then deletes the extracted values and the files. If the deletion fails she is told
+  to try again; repeating it deletes what is left. The button comes with SR-22.
+- Deadline: documents and values are gone 30 days after upload at the latest. The bucket
+  lifecycle (28 days) and the Firestore TTL (27 days) both delete in the background, usually within
+  a day, so each is scheduled early and values go before their documents. infra.yml stops the
+  deploy unless both are in place.
 
 ## Data inventory and residency
 | Data | Lives in | Who reads it |

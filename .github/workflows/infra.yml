@@ -77,8 +77,8 @@ jobs:
           echo "Firestore (default) is in $loc."
           echo "### Firestore: \`(default)\` in $loc" >> "$GITHUB_STEP_SUMMARY"
       # SR-28: client documents stay in the default bucket only while a return is open. Lucas creates
-      # it once in europe-west6 with the 30 day rule (ARCHITECTURE.md > Files). Checked every run.
-      - name: Documents bucket in Zurich, private, deleting after 30 days
+      # it once in europe-west6 with the 28 day rule (ARCHITECTURE.md > Files). Checked every run.
+      - name: Documents bucket in Zurich, private, deleting after 28 days
         run: |
           bucket="gs://${PROJECT}.firebasestorage.app"
           if ! gcloud storage buckets describe "$bucket" --format=json > bucket.json 2> bucket.err; then
@@ -98,17 +98,28 @@ jobs:
           if int((b.get("soft_delete_policy") or {}).get("retentionDurationSeconds", 0) or 0) != 0: errors.append("soft delete is on; deleted documents would stay recoverable")
           for e in errors: print(f"::error title=bucket::{e}")
           if errors: sys.exit(1)
-          print("Bucket: europe-west6, private, deletes documents after 30 days, no soft delete.")
+          print("Bucket: europe-west6, private, deletes documents after 28 days, no soft delete.")
           PY
-          echo "### Documents bucket: europe-west6, private, 30 day deletion, no soft delete" >> "$GITHUB_STEP_SUMMARY"
-      - name: Extracted values expire after 30 days (Firestore TTL)
+          echo "### Documents bucket: europe-west6, private, 28 day deletion, no soft delete" >> "$GITHUB_STEP_SUMMARY"
+      # Extracted values expire 27 days after the oldest upload (src/functions/extract.ts). The
+      # deploy goes on only once the TTL policy is ACTIVE, so no values are saved without it.
+      - name: Extracted values expire (Firestore TTL active)
         run: |
-          state=$(gcloud firestore fields ttls list --project "$PROJECT" --format="value(name,ttlConfig.state)" 2>/dev/null | grep "collectionGroups/extraction/fields/expireAt" | awk '{print $2}' || true)
+          ttl_state() { gcloud firestore fields ttls list --project "$PROJECT" --format="value(name,ttlConfig.state)" 2>/dev/null | grep "collectionGroups/extraction/fields/expireAt" | awk '{print $2}' || true; }
+          state=$(ttl_state)
           if [ "$state" != "ACTIVE" ] && [ "$state" != "CREATING" ]; then
             gcloud firestore fields ttls update expireAt --collection-group=extraction --enable-ttl --project "$PROJECT" --async
-            state=CREATING
           fi
-          echo "### Firestore TTL on extraction.expireAt: $state" >> "$GITHUB_STEP_SUMMARY"
+          for _ in $(seq 1 60); do
+            state=$(ttl_state)
+            [ "$state" = "ACTIVE" ] && break
+            sleep 15
+          done
+          if [ "$state" != "ACTIVE" ]; then
+            echo "::error title=firestore ttl::The TTL policy on extraction.expireAt is $state, not ACTIVE, after 15 minutes. Run infra again."
+            exit 1
+          fi
+          echo "### Firestore TTL on extraction.expireAt: ACTIVE" >> "$GITHUB_STEP_SUMMARY"
       - name: Deploy Firestore and Storage rules, Firestore indexes
         run: npx firebase deploy --only firestore:rules,firestore:indexes,storage --project "$PROJECT" --non-interactive
       - name: Turn on Firebase Auth

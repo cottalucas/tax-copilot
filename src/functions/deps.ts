@@ -37,9 +37,13 @@ export function firebaseDeps(log?: ExtractDeps["log"]): ExtractDeps {
         return true;
       }),
     // Submit closes the return first, so a running extraction cannot save after this point. Then
-    // the extracted values and the documents are deleted.
+    // the extracted values and the documents are deleted. Repeating it on a submitted return only
+    // deletes what is left, so a failed cleanup is retried by calling it again.
     submit: async (id, prefix) => {
-      await clients.doc(id).update({ status: "submitted", submittedAt: FieldValue.serverTimestamp(), extractedAt: FieldValue.delete() });
+      const client = await clients.doc(id).get();
+      if (client.get("status") !== "submitted") {
+        await clients.doc(id).update({ status: "submitted", submittedAt: FieldValue.serverTimestamp(), extractedAt: FieldValue.delete() });
+      }
       await db.recursiveDelete(clients.doc(id).collection("extraction"));
       await bucket.deleteFiles({ prefix });
     },

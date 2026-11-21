@@ -1,3 +1,3 @@
 {
-  "rule": [{ "action": { "type": "Delete" }, "condition": { "age": 30 } }]
+  "rule": [{ "action": { "type": "Delete" }, "condition": { "age": 28 } }]
 }

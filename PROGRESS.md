@@ -20,14 +20,15 @@ saved first, then each file goes to `users/{uid}/clients/{clientId}/` in the def
 every waiting client. The function checks the allow list and the owner, sends the files to Gemini
 on Vertex `eu` as `gs://` links (it reads text PDFs, scans and photos itself), validates the
 schema, checks the client, tax year and every citation, and saves the values in Firestore
-`clients/{id}/extraction/current` with expireAt 30 days after the oldest upload, in a transaction
+`clients/{id}/extraction/current` with expireAt 27 days after the oldest upload, in a transaction
 that refuses once the return is closed. `submitReturn` sets status Submitted first, then deletes
-the values and files (button in SR-22). Storage rules: only her uid writes and
+the values and files, and is safe to repeat after a failed cleanup (button in SR-22). The bucket
+deletes documents at 28 days; both background deletions finish before the 30 day deadline. Storage rules: only her uid writes and
 reads her folder, PDF, JPG or PNG up to 25 MB, no overwrite, no browser delete. Firestore rules:
 create with the tax year, no Drive folder; she reads her own extracted values, nobody writes them
 from a browser. infra.yml checks the bucket (europe-west6, public access prevention, the 30 day
 lifecycle in `storage-lifecycle.json`, no soft delete), turns on the Firestore TTL on
-`extraction.expireAt`, and deploys the Storage rules. Drive code, pdf.js and `saveExtraction` are
+`extraction.expireAt` and waits until it is ACTIVE, and deploys the Storage rules. Drive code, pdf.js and `saveExtraction` are
 gone; Drive import is SR-27. The adapter gained a file part (inline or `gs://`) and retries 429
 and 503 twice with backoff (rate limits hit during recording).
 Evals: text cases are sent as generated PDFs. New scan and photo set (`evals/media/`, synthetic):
@@ -261,6 +262,9 @@ Every block, so the reviewer can be tuned. Category is the tag the block would g
 calibrated rules (none means it would now be a comment).
 | Date | Pull request | Reason given | Category | Action |
 | --- | --- | --- | --- | --- |
+| 2026-11-21 | #13 run 2 | A failed cleanup after submit left documents with a submitted return | CRITERION | Submit is safe to repeat: on a submitted return it deletes what is left. A failure tells her to try again. Unit and emulator tests |
+| 2026-11-21 | #13 run 2 | TTL and lifecycle delete in the background, and infra accepted a TTL still being created | CRITERION | Lifecycle at 28 days, values at 27 days after the oldest upload, so both finish before day 30 and values go first. infra.yml waits until the TTL is ACTIVE or stops |
+| 2026-11-21 | #13 run 2 | (again) Bucket and Firestore values break the Never rule on main | NEVER | Waits on #14, which needs Lucas |
 | 2026-11-21 | #13 run 1 | Documents in a bucket and values in Firestore break the Never rule on main | NEVER | Not a code fix: Lucas changed the rule in SR-28. The rule text goes to main first in its own pull request (#14), through every gate; #13 is then judged against it |
 | 2026-11-21 | #13 run 1 | An extraction finishing after submit could save values again | CRITERION | Save in a transaction that refuses unless the return is still Documents in; submit sets Submitted first, then deletes. Emulator test |
 | 2026-11-21 | #13 run 1 | Values expired 30 days after extraction, so they could outlive the files | CRITERION | expireAt is 30 days after the oldest document's upload, the same moment the bucket deletes it |

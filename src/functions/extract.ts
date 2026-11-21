@@ -14,8 +14,15 @@ import type { ExtractedReturn } from "../schema/extraction.js";
 
 /** Same limits as the intake form (web/src/intake.ts). */
 export const LIMITS = { files: 30, bytesPerFile: 25 * 1024 * 1024 } as const;
-/** Documents and extracted values are deleted 30 days after upload at the latest. */
+/** Documents and extracted values are gone 30 days after upload at the latest (AGENTS.md). */
 export const RETENTION_DAYS = 30;
+/**
+ * The bucket lifecycle and Firestore TTL both delete in the background, usually within a day of
+ * the deadline they are given. So documents are scheduled at 28 days and values at 27: values go
+ * first, and both are gone before day 30.
+ */
+export const FILES_DELETE_AFTER_DAYS = 28;
+export const VALUES_EXPIRE_AFTER_DAYS = 27;
 
 export const ClientInput = z.object({ clientId: z.string().min(1).max(128) });
 
@@ -143,13 +150,13 @@ export function errorCategory(err: unknown): string {
 }
 
 /**
- * Values never outlive the documents they came from: they expire with the oldest document,
- * 30 days after its upload (the bucket lifecycle deletes it then). Never later than 30 days from now.
+ * Values never outlive the documents they came from: they expire 27 days after the oldest
+ * document's upload, a day before the bucket deletes it (28 days). Never later than 27 days from now.
  */
 export function expiryFor(files: Pick<StoredFile, "created">[], now: Date): Date {
   const day = 24 * 3600 * 1000;
   const oldest = Math.min(now.getTime(), ...files.map((f) => f.created.getTime()));
-  return new Date(oldest + RETENTION_DAYS * day);
+  return new Date(oldest + VALUES_EXPIRE_AFTER_DAYS * day);
 }
 
 /** Checks the stored files and turns them into documents for the model. */
@@ -203,10 +210,18 @@ export async function handleExtract(caller: Caller | undefined, input: unknown, 
   return { ok: true, files: docs.length };
 }
 
-/** Submitting a return deletes its documents and extracted values (SR-28). */
+/**
+ * Submitting a return deletes its documents and extracted values (SR-28). Safe to repeat: if the
+ * deletion fails after the return is closed, calling it again deletes what is left.
+ */
 export async function handleSubmit(caller: Caller | undefined, input: unknown, deps: ExtractDeps): Promise<{ ok: true }> {
   const { clientId, prefix } = await authorize(caller, input, deps);
-  await deps.submit(clientId, prefix);
+  try {
+    await deps.submit(clientId, prefix);
+  } catch {
+    deps.log?.("submit cleanup failed", { clientId });
+    throw new HttpsError("unavailable", "The return is submitted, but deleting its documents failed. Try again.");
+  }
   deps.log?.("submitted", { clientId });
   return { ok: true };
 }

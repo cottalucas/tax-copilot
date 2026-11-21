@@ -78,6 +78,14 @@ describe("functions wiring on the emulators", () => {
       expireAt: new Date(),
     });
     expect(late).toBe(false);
+    // Submitting again (for example after a failed cleanup) deletes anything left, and keeps the
+    // original submit time.
+    const firstSubmit = (await getFirestore().doc("clients/c1").get()).get("submittedAt");
+    await getStorage().bucket().file(`${prefix}left-over.pdf`).save(Buffer.from("%PDF-1.4\n%%EOF\n"), { contentType: "application/pdf" });
+    await deps.submit("c1", prefix);
+    const [after] = await getStorage().bucket().getFiles({ prefix });
+    expect(after).toEqual([]);
+    expect((await getFirestore().doc("clients/c1").get()).get("submittedAt").isEqual(firstSubmit)).toBe(true);
     expect((await getFirestore().doc("clients/c1/extraction/current").get()).exists).toBe(false);
     expect((await getFirestore().doc("clients/c1").get()).get("extractedAt")).toBeUndefined();
   });
