@@ -13,7 +13,8 @@ export interface CleanupDeps {
   listClients(): Promise<{ id: string; ownerUid: string; status: string }[]>;
   /** expireAt of the client's extracted values, or undefined when there are none. */
   getValuesExpiry(clientId: string): Promise<Date | undefined>;
-  deleteValues(clientId: string): Promise<void>;
+  /** Deletes the client's extracted values. Resolves true when there were any. */
+  deleteValues(clientId: string): Promise<boolean>;
   listFiles(prefix: string): Promise<StoredFile[]>;
   deleteFile(name: string): Promise<void>;
   log?: (message: string, fields: Record<string, unknown>) => void;
@@ -46,24 +47,25 @@ export async function runCleanup(deps: CleanupDeps): Promise<CleanupResult> {
     clients = await deps.listClients();
   });
   for (const client of clients) {
-    await attempt(async () => {
-      const expiry = await deps.getValuesExpiry(client.id);
-      if (client.status === "submitted") {
+    if (client.status === "submitted") {
+      // Files and values are separate steps: a failure in one never skips the other.
+      await attempt(async () => {
         for (const f of await deps.listFiles(clientPrefix(client.ownerUid, client.id))) {
           await attempt(async () => {
             await deps.deleteFile(f.name);
             result.submittedFiles += 1;
           });
         }
-        if (expiry) {
-          await deps.deleteValues(client.id);
-          result.submittedValues += 1;
-        }
-      } else if (expiry && expiry.getTime() <= now.getTime()) {
-        await deps.deleteValues(client.id);
-        result.expiredValues += 1;
-      }
-    });
+      });
+      await attempt(async () => {
+        if (await deps.deleteValues(client.id)) result.submittedValues += 1;
+      });
+    } else {
+      await attempt(async () => {
+        const expiry = await deps.getValuesExpiry(client.id);
+        if (expiry && expiry.getTime() <= now.getTime() && (await deps.deleteValues(client.id))) result.expiredValues += 1;
+      });
+    }
   }
   const cutoff = now.getTime() - FILES_DELETE_AFTER_DAYS * DAY;
   let files: StoredFile[] = [];

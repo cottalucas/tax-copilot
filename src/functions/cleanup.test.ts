@@ -31,8 +31,9 @@ function fake() {
     ],
     getValuesExpiry: async (id) => values.get(id),
     deleteValues: async (id) => {
-      values.delete(id);
+      if (!values.delete(id)) return false;
       deletedValues.push(id);
+      return true;
     },
     listFiles: async (prefix) => files.filter((f) => f.name.startsWith(prefix) && !deletedFiles.includes(f.name)),
     deleteFile: async (name) => void deletedFiles.push(name),
@@ -55,6 +56,20 @@ describe("daily cleanup", () => {
     const { deps } = fake();
     await runCleanup(deps);
     expect(await runCleanup(deps)).toEqual({ submittedFiles: 0, submittedValues: 0, expiredValues: 0, expiredFiles: 0, failures: 0 });
+  });
+
+  it("on a submitted return, a failed file listing still deletes the values", async () => {
+    const { deps, deletedValues } = fake();
+    const failing: CleanupDeps = {
+      ...deps,
+      listFiles: async (prefix) => {
+        if (prefix.includes("/done/")) throw new Error("storage unavailable");
+        return deps.listFiles(prefix);
+      },
+      getValuesExpiry: async () => Promise.reject(new Error("never needed for a submitted return")),
+    };
+    await expect(runCleanup(failing)).rejects.toThrow(/failed steps/);
+    expect(deletedValues).toContain("done");
   });
 
   it("goes on past a failed step, then fails so the scheduler retries", async () => {

@@ -72,8 +72,10 @@ export function cleanupDeps(log?: CleanupDeps["log"]): CleanupDeps {
       return snap.exists ? (at?.toDate() ?? new Date(0)) : undefined;
     },
     deleteValues: async (id) => {
+      const had = (await clients.doc(id).collection("extraction").limit(1).get()).size > 0;
       await db.recursiveDelete(clients.doc(id).collection("extraction"));
       await clients.doc(id).update({ extractedAt: FieldValue.delete() });
+      return had;
     },
     listFiles: async (prefix) => (await bucket.getFiles({ prefix }))[0].map(stored),
     deleteFile: async (name) => {
