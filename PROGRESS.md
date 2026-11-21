@@ -267,6 +267,8 @@ Every block, so the reviewer can be tuned. Category is the tag the block would g
 calibrated rules (none means it would now be a comment).
 | Date | Pull request | Reason given | Category | Action |
 | --- | --- | --- | --- | --- |
+| 2026-11-21 | #13 run 16 | Mocked callables meant no test of the real browser to server extraction | SECURITY | New end to end test runs the real functions on the emulator; only the model is a fake Vertex endpoint behind VERTEX_PROXY_URL (`tests/e2e/fake-vertex.ts`, test settings in `.env.demo-tax-copilot`) |
+| 2026-11-21 | #13 run 16 | ARCHITECTURE.md Files row still said deleted after 30 days | CRITERION | Reworded to the accepted retention policy |
 | 2026-11-21 | #13 run 15 | Docs and pull request body still claimed deletion by day 30 | CRITERION | Reworded to the accepted policy: access ends on schedule, deletion scheduled early without a deadline guarantee |
 | 2026-11-21 | #13 runs 14 and later | Physical deletion by day 30 not guaranteed; deletion order of background jobs not guaranteed | CRITERION | Accepted by Lucas on 2026-11-21 as the design's known limit: reads stop on schedule (28 days, expiry, submit), three independent deletion paths (lifecycle 28 days, TTL 27 days, nightly cleanup with retries). No Google mechanism guarantees physical deletion time. Owner merge past this reason only |
 | 2026-11-21 | #13 run 13 | Cleanup could delete values a new extraction had just saved | CRITERION | Expiry is checked and the values deleted in one transaction (emulator test) |
